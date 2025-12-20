@@ -116,13 +116,13 @@ export const HomePage = () => {
     <section className="space-y-4">
       <div className="flex items-center gap-3">
         <h1 className="font-display text-2xl text-denim">Catálogo</h1>
-        <Button
+        {/* <Button
           tone="outline"
           className="px-3 py-1 text-xs"
           onClick={() => refetch()}
         >
           Refetch
-        </Button>
+        </Button> */}
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {(data?.results ?? []).map((record) => (

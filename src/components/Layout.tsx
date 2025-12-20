@@ -1,11 +1,11 @@
-import type { ReactNode } from 'react'
-import { Navbar } from './Navbar'
+import type { ReactNode } from "react";
+import { Navbar } from "./Navbar";
 
 type LayoutProps = {
-  children: ReactNode
-}
+  children: ReactNode;
+};
 
-const footerLinks = ['About', 'Licensing', 'Support']
+const footerLinks = ["contacto", "términos de servicio", "privacidad", "ayuda"];
 
 export function Layout({ children }: LayoutProps) {
   return (
@@ -24,7 +24,9 @@ export function Layout({ children }: LayoutProps) {
           <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-6 text-sm text-navy/70 md:flex-row md:items-center md:justify-between md:px-10">
             <div className="flex items-center gap-3">
               <span className="text-lg">🎵</span>
-              <p className="font-semibold text-denim">Retro groove design kit · v1.0</p>
+              <p className="font-semibold text-denim">
+                Moctezuma Records © {new Date().getFullYear()} v.0.1
+              </p>
             </div>
             <div className="flex flex-wrap gap-4">
               {footerLinks.map((item) => (
@@ -41,5 +43,5 @@ export function Layout({ children }: LayoutProps) {
         </footer>
       </div>
     </div>
-  )
+  );
 }
