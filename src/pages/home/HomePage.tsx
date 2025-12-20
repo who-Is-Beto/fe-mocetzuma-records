@@ -55,7 +55,6 @@ export const HomePage = () => {
       next.set("page", String(page));
       setSearchParams(next, { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   useEffect(() => {
@@ -66,9 +65,7 @@ export const HomePage = () => {
         setPage(1);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchValue]);
-  // const { token } = useAuth(); // if you want auth
   const recordService = useMemo(
     () =>
       createRecordService({
