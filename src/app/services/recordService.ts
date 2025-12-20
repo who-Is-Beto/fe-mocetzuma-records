@@ -8,7 +8,7 @@ type RecordServiceConfig = {
 };
 
 const withBase = (baseUrl: string, path: string) =>
-  `${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
+  `${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}/`;
 
 export function createRecordService(config: RecordServiceConfig = {}): RecordRepository {
   const baseUrl = config.baseUrl ?? API_BASE_URL;
@@ -22,7 +22,7 @@ export function createRecordService(config: RecordServiceConfig = {}): RecordRep
       });
     },
     async search(params: { query: string; page?: number }) {
-      return http<RecordPage>(withBase(baseUrl, "/search/"), {
+      return http<RecordPage>(withBase(baseUrl, "/search"), {
         token: getToken?.() ?? undefined,
         query: { query: params.query, page: params.page },
       });
