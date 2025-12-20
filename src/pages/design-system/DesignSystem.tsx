@@ -1,3 +1,5 @@
+import { Button } from "../../components/Button";
+
 type Swatch = {
   name: string;
   value: string;
@@ -55,21 +57,12 @@ const ActionButton = ({
   label: string;
   tone: "navy" | "orange" | "sun";
   icon: string;
-}) => {
-  const toneMap: Record<"navy" | "orange" | "sun", string> = {
-    navy: "bg-navy text-cream hover:bg-denim",
-    orange: "bg-orange text-charcoal hover:bg-amber",
-    sun: "bg-sun text-charcoal hover:bg-amber"
-  };
-  return (
-    <button
-      className={`flex items-center justify-center gap-2 rounded-pill px-5 py-3 text-sm font-semibold shadow-panel transition duration-200 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-navy ${toneMap[tone]}`}
-    >
-      <span>{icon}</span>
-      {label}
-    </button>
-  );
-};
+}) => (
+  <Button tone={tone} className="px-5 py-3 text-sm">
+    <span>{icon}</span>
+    {label}
+  </Button>
+);
 
 const VinylBadge = () => (
   <div className="flex items-center gap-3 rounded-2xl border border-navy/10 bg-cream px-4 py-3 shadow-card">
@@ -235,12 +228,13 @@ export function DesignSystemPage() {
           <div className="mt-4 space-y-3">
             <div className="flex flex-wrap gap-2">
               {["On sale", "New drops", "FLAC", "Vinyl only"].map((chip) => (
-                <button
+                <Button
                   key={chip}
-                  className="rounded-pill border border-orange/50 bg-white/80 px-4 py-2 text-sm font-semibold text-navy shadow-sm transition hover:-translate-y-0.5 hover:border-orange hover:bg-sun/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange"
+                  tone="outline"
+                  className="border-orange/50 bg-white/80 px-4 py-2 text-sm font-semibold text-navy shadow-sm hover:border-orange hover:bg-sun/60"
                 >
                   {chip}
-                </button>
+                </Button>
               ))}
             </div>
             <div className="space-y-2 rounded-2xl border border-navy/10 bg-white/80 p-4 shadow-inner">
@@ -270,12 +264,14 @@ export function DesignSystemPage() {
           </div>
           <div className="mt-4 grid grid-cols-4 gap-3">
             {["🏠", "❤️", "🔎", "🛍️"].map((icon) => (
-              <button
+              <Button
                 key={icon}
-                className="flex h-14 items-center justify-center rounded-2xl border border-navy/10 bg-white/80 text-2xl text-denim shadow-sm transition hover:-translate-y-0.5 hover:border-orange"
+                tone="outline"
+                pill={false}
+                className="h-14 w-full rounded-2xl border border-navy/10 bg-white/80 text-2xl text-denim shadow-sm hover:border-orange"
               >
                 {icon}
-              </button>
+              </Button>
             ))}
           </div>
           <p className="mt-3 text-xs text-navy/70">

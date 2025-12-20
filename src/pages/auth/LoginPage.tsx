@@ -1,4 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom'
+import { Button } from '../../components/Button'
 import { useAuth } from '../../app/providers/AuthProvider'
 
 export function LoginPage() {
@@ -27,14 +28,10 @@ export function LoginPage() {
           When you&apos;re ready, replace <span className="font-mono">login(&apos;demo-token&apos;)</span> with your token issuer
           and persist the token however you prefer.
         </p>
-        <button
-          type="button"
-          onClick={() => login('demo-token')}
-          className="mt-4 inline-flex items-center gap-2 rounded-pill border border-orange/60 bg-orange px-4 py-2 text-sm font-semibold text-charcoal shadow-panel transition hover:-translate-y-0.5 hover:bg-amber focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange"
-        >
+        <Button tone="orange" className="mt-4 inline-flex px-4 py-2 text-sm" onClick={() => login('demo-token')}>
           <span>🚀</span>
           Mock login
-        </button>
+        </Button>
       </div>
 
       <p className="text-sm text-navy/70">
