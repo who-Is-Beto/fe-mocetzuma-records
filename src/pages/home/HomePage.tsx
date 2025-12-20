@@ -92,11 +92,10 @@ export const HomePage = () => {
     }
   }, [recordService, page, searchValue]);
 
-  const { data, error, isLoading, isError, refetch } =
-    useServiceQuery<RecordPage>(
-      [recordService, page, searchValue],
-      fetchRecords
-    );
+  const { data, error, isLoading, isError } = useServiceQuery<RecordPage>(
+    [recordService, page, searchValue],
+    fetchRecords
+  );
 
   if (isLoading)
     return (
