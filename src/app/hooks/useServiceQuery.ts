@@ -21,7 +21,7 @@ export function useServiceQuery<TData>(
   const abortRef = useRef<AbortController | null>(null);
 
   const refetch = useCallback(async () => {
-    if (!enabled) return data;
+    if (!enabled) return undefined;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -32,7 +32,6 @@ export function useServiceQuery<TData>(
     try {
       const result = await fetcher();
       if (!controller.signal.aborted) {
-        console.log("result", result);
         setData(result);
         setStatus("success");
       }
