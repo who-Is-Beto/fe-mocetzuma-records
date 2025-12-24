@@ -7,7 +7,7 @@ type CardProps = {
   record: Record;
 };
 
-const currency = (value?: number) =>
+const currency = (value?: number | string) =>
   typeof value === "string" || typeof value === "number"
     ? Number(value).toLocaleString("es-mx", {
         style: "currency",
