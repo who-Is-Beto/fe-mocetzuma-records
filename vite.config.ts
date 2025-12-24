@@ -5,7 +5,7 @@ const proxyRoutes = ["/records", "/albums", "/auth"];
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const apiTarget = env.VITE_API_URL ?? "http://moctezumarecords.com";
+  const apiTarget = env.VITE_API_URL ?? "http://api.moctezumarecords.com";
 
   const proxy = proxyRoutes.reduce<
     Record<string, { target: string; changeOrigin: boolean; secure: boolean }>

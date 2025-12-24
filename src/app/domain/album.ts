@@ -6,16 +6,24 @@ export type Record = {
     id: string;
     name: string;
     slug: string;
+    description?: string;
+    image_url?: string;
   };
   artist: {
     id: string;
     name: string;
     slug: string;
   };
-  price: number;
-  cover_image_url: string;
+  price: number | string;
+  discount_percentage?: number;
+  description?: string;
+  cover_image_url?: string;
   slug: string;
   stock: number;
+  release_date?: string | number;
+  featured?: boolean;
+  items_inside?: number;
+  genere?: string | number | { id?: string | number; name?: string; slug?: string };
 };
 
 export type RecordPage = {

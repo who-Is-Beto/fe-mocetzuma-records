@@ -57,10 +57,10 @@ export function AlbumDetailPage() {
             Back to design system
           </Link>
           <Link
-            to="/dashboard"
+            to="/perfil"
             className="rounded-pill border border-navy/10 bg-navy px-4 py-2 text-sm font-semibold text-cream shadow-panel transition hover:-translate-y-0.5 hover:bg-denim"
           >
-            Go to dashboard (auth)
+            Ir a perfil (auth)
           </Link>
         </div>
       </div>

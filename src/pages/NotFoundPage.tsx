@@ -14,10 +14,10 @@ export function NotFoundPage() {
           Back home
         </Link>
         <Link
-          to="/dashboard"
+          to="/perfil"
           className="rounded-pill border border-orange/60 bg-orange px-4 py-2 text-sm font-semibold text-charcoal shadow-panel transition hover:-translate-y-0.5 hover:bg-amber"
         >
-          Dashboard
+          Perfil
         </Link>
       </div>
     </section>

@@ -9,6 +9,10 @@ export type Credentials = {
   password: string;
 };
 
+export type RegisterInput = Credentials & {
+  username: string;
+};
+
 export type AuthTokens = {
   accessToken: string;
   refreshToken?: string;
@@ -16,6 +20,7 @@ export type AuthTokens = {
 
 export interface AuthRepository {
   login(credentials: Credentials): Promise<AuthTokens & { user?: User }>;
+  register(payload: RegisterInput): Promise<AuthTokens & { user?: User }>;
   refresh(refreshToken?: string): Promise<AuthTokens>;
   getProfile(token?: string): Promise<User>;
 }

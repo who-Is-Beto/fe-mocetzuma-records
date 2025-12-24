@@ -33,7 +33,9 @@ export function createRecordService(config: RecordServiceConfig = {}): RecordRep
       });
     },
     async getRecordBySlug(slug: string) {
-      return http<Record>(withBase(baseUrl, `/records/slug/${slug}`), {
+      // Backend expects the record name/slug directly under /records/:record_name
+      const safeSlug = encodeURIComponent(slug);
+      return http<Record>(withBase(baseUrl, `/records/${safeSlug}`), {
         token: getToken?.() ?? undefined,
       });
     },
