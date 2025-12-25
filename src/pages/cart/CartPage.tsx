@@ -138,15 +138,15 @@ export function CartPage() {
       ) : null}
 
       {activeCart ? (
-        <div className="grid gap-4 lg:grid-cols-[1fr,0.8fr]">
-          <div className="space-y-3">
+        <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[1fr,0.8fr]">
+          <div className="space-y-3 min-w-0">
             {activeCart.cart_items?.map((item) => (
               <div
                 key={item.id}
-                className="flex flex-col gap-3 rounded-2xl border border-navy/10 bg-white/90 p-4 shadow-card sm:flex-row sm:items-center"
+                className="flex w-full flex-col gap-3 rounded-2xl border border-navy/10 bg-white/90 p-4 shadow-card sm:flex-row sm:items-center"
               >
-                <div className="flex items-center gap-3 sm:w-1/2">
-                  <div className="h-16 w-16 overflow-hidden rounded-xl border border-navy/10 bg-cream shadow-inner">
+                <div className="flex min-w-0 items-center gap-3 sm:w-1/2">
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-navy/10 bg-cream shadow-inner">
                     {item.record.cover_image_url ? (
                       <img
                         src={item.record.cover_image_url}
@@ -159,11 +159,11 @@ export function CartPage() {
                       </div>
                     )}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs uppercase tracking-[0.14em] text-orange">
                       Disco
                     </p>
-                    <p className="font-semibold text-denim leading-tight">
+                    <p className="font-semibold text-denim leading-tight break-words">
                       {item.record.title}
                     </p>
                     <p className="text-xs text-navy/70">
@@ -171,7 +171,7 @@ export function CartPage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex flex-1 items-center justify-between gap-3">
+                <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                   <div className="rounded-pill border border-navy/10 bg-cream px-3 py-1 text-xs font-semibold text-navy shadow-inner">
                     {item.quantity} {item.quantity === 1 ? "pieza" : "piezas"}
                   </div>
@@ -204,23 +204,23 @@ export function CartPage() {
             ) : null}
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3 min-w-0">
             <div className="rounded-2xl border border-navy/10 bg-white/90 p-5 shadow-card">
               <p className="text-xs uppercase tracking-[0.16em] text-orange">
                 Resumen
               </p>
               <div className="mt-3 space-y-2 text-sm text-navy">
-                <div className="flex items-center justify-between">
+                <div className="flex min-w-0 items-center justify-between gap-3">
                   <span>Ítems</span>
                   <span className="font-semibold text-denim">{totalItems}</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex min-w-0 items-center justify-between gap-3">
                   <span>Código</span>
-                  <span className="rounded-pill border border-navy/10 bg-cream px-3 py-1 text-xs font-semibold text-denim">
+                  <span className="max-w-[70%] break-all rounded-pill border border-navy/10 bg-cream px-3 py-1 text-xs font-semibold text-denim sm:max-w-none">
                     {activeCart.cart_code}
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex min-w-0 items-center justify-between gap-3">
                   <span>Total</span>
                   <span className="text-lg font-semibold text-denim">
                     {currency(activeCart.total_price)}
