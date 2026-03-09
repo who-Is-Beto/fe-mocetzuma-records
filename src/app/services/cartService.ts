@@ -19,6 +19,18 @@ export type CartResponse = {
   total_price: number | string;
 };
 
+export type ShippingDetails = {
+  fullName: string;
+  phone: string;
+  street: string;
+  number: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  zip: string;
+  reference: string;
+};
+
 type CartServiceConfig = {
   baseUrl?: string;
   getToken?: () => string | null;
@@ -37,7 +49,11 @@ export function createCartService(config: CartServiceConfig = {}) {
         token: getToken?.() ?? undefined
       });
     },
-    async addItem(recordId: string | number, cartCode?: string | null, quantity = 1) {
+    async addItem(
+      recordId: string | number,
+      cartCode?: string | null,
+      quantity = 1
+    ) {
       return http<CartResponse>(withBase(baseUrl, "/cart/add"), {
         method: "POST",
         token: getToken?.() ?? undefined,
@@ -46,6 +62,53 @@ export function createCartService(config: CartServiceConfig = {}) {
           record_id: recordId,
           // backend defaults to 1; include quantity only if provided
           ...(quantity ? { quantity } : {})
+        }
+      });
+    },
+    async updateItem(itemId: string | number, quantity: number) {
+      return http<CartResponse>(withBase(baseUrl, "/cart/update"), {
+        method: "PUT",
+        token: getToken?.() ?? undefined,
+        body: {
+          item_id: itemId,
+          quantity
+        }
+      });
+    },
+    async createCheckoutSession(
+      cartCode: string,
+      shippedTo: "store" | "home" | "bazar",
+      shippingDetails?: ShippingDetails
+    ) {
+      return http<{ checkout_url: { url?: string } }>(
+        withBase(baseUrl, "/create-checkout-session"),
+        {
+          method: "POST",
+          token: getToken?.() ?? undefined,
+          body: {
+            cart_code: cartCode,
+            shipped_to: shippedTo,
+            ...(shippingDetails ? { shipping_details: shippingDetails } : {})
+          }
+        }
+      );
+    },
+    async removeItem(cartCode: string, recordId: string | number) {
+      return http<CartResponse>(withBase(baseUrl, "/cart/remove"), {
+        method: "DELETE",
+        token: getToken?.() ?? undefined,
+        body: {
+          cart_code: cartCode,
+          record_id: recordId
+        }
+      });
+    },
+    async removeAll(cartCode: string) {
+      return http<CartResponse>(withBase(baseUrl, "/cart/remove-all"), {
+        method: "DELETE",
+        token: getToken?.() ?? undefined,
+        body: {
+          cart_code: cartCode
         }
       });
     }

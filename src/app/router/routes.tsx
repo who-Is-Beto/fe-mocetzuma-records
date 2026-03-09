@@ -11,6 +11,7 @@ import { DesignSystemPage } from "../../pages/design-system/DesignSystem";
 import { RegisterPage } from "../../pages/auth/RegisterPage";
 import { RecordDetailPage } from "../../pages/records/RecordDetailPage";
 import { CartPage } from "../../pages/cart/CartPage";
+import { OrdersPage } from "../../pages/orders/OrdersPage";
 
 const AppLayout = () => (
   <Layout>
@@ -56,6 +57,10 @@ export const router = createBrowserRouter([
           {
             path: "/carritos",
             element: <CartPage />
+          },
+          {
+            path: "/mis-ordenes",
+            element: <OrdersPage />
           }
         ]
       },
