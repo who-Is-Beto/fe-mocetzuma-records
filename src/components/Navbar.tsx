@@ -19,11 +19,7 @@ export function Navbar(): ReactNode {
     ? { label: user?.name ?? "Perfil", href: "/perfil", shortLabel: "Perfil" }
     : { label: "Iniciar Sesión", href: "/login", shortLabel: "Acceso" };
 
-  const navLinks = [
-    { label: "Bazares", href: "/bazares" },
-    { label: "Carritos", href: "/carritos" },
-    accountLink
-  ];
+  const navLinks = [{ label: "Bazares", href: "/bazares" }];
 
   const bottomLinks = [
     { label: "Inicio", icon: "🏠", href: "/" },
@@ -108,8 +104,17 @@ export function Navbar(): ReactNode {
           {isAuthenticated ? (
             <div className="flex items-center gap-2 rounded-pill border border-navy/10 bg-white/60 px-3 py-2 text-sm font-semibold text-navy shadow-sm">
               <span className="text-lg">👋</span>
-              <span className="max-w-[140px] truncate sm:max-w-[220px]">{user?.name ?? "Perfil"}</span>
-              <Button tone="outline" className="px-3 py-2 text-xs" onClick={logout}>
+              <NavLink
+                to="/perfil"
+                className="max-w-[140px] truncate sm:max-w-[220px] hover:text-orange"
+              >
+                {user?.name ?? "Perfil"}
+              </NavLink>
+              <Button
+                tone="outline"
+                className="px-3 py-2 text-xs"
+                onClick={logout}
+              >
                 Salir
               </Button>
             </div>
@@ -131,8 +136,12 @@ export function Navbar(): ReactNode {
               </Button>
             </div>
           )}
-          <Button tone="orange" disabled className="px-4 py-2 text-sm whitespace-nowrap">
-            Ver carrito
+          <Button
+            tone="navy"
+            className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap"
+            onClick={() => navigate("/carritos")}
+          >
+            🛒 Carrito
           </Button>
         </div>
       </nav>
@@ -143,8 +152,8 @@ export function Navbar(): ReactNode {
             value={searchTerm}
             onChange={setSearchTerm}
             onSubmit={(term) => {
-              submitSearch(term)
-              setShowMobileSearch(false)
+              submitSearch(term);
+              setShowMobileSearch(false);
             }}
             placeholder="Buscar en catálogo..."
           />
@@ -164,7 +173,9 @@ export function Navbar(): ReactNode {
                 to={link.href}
                 className={({ isActive }) =>
                   `flex h-12 flex-1 flex-col items-center justify-center rounded-xl border text-[11px] leading-tight font-semibold transition hover:-translate-y-0.5 hover:border-orange hover:bg-sun/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange ${
-                    isActive ? "border-orange bg-sun/70 text-navy" : "border-transparent text-navy"
+                    isActive
+                      ? "border-orange bg-sun/70 text-navy"
+                      : "border-transparent text-navy"
                   }`
                 }
               >
@@ -176,10 +187,14 @@ export function Navbar(): ReactNode {
               tone="outline"
               pill={false}
               className={`flex h-12 flex-1 gap-0 flex-col items-center justify-center rounded-xl px-0 py-0 text-xs font-semibold text-center shadow-none hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 ${
-                showMobileSearch ? "border border-orange bg-sun/70 text-navy" : "border-none bg-transparent px-[1px] text-navy"
+                showMobileSearch
+                  ? "border border-orange bg-sun/70 text-navy"
+                  : "border-none bg-transparent px-[1px] text-navy"
               }`}
               onClick={() => setShowMobileSearch((prev) => !prev)}
-              aria-label={showMobileSearch ? "Cerrar búsqueda" : "Abrir búsqueda"}
+              aria-label={
+                showMobileSearch ? "Cerrar búsqueda" : "Abrir búsqueda"
+              }
             >
               <span className="text-xl">🔎</span>
               <span>Buscar</span>

@@ -105,6 +105,12 @@ export function ProfilePage() {
             >
               Volver al catálogo
             </Link>
+            <Link
+              to="/mis-ordenes"
+              className="rounded-pill border border-navy/15 bg-cream px-4 py-2 text-sm font-semibold text-navy shadow-panel transition hover:-translate-y-0.5 hover:border-orange hover:text-orange"
+            >
+              Ver mis ordenes
+            </Link>
             <Button
               tone="outline"
               className="px-4 py-2 text-sm"

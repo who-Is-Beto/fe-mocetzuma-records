@@ -2,6 +2,23 @@ import type { JSX } from "react";
 import { Link } from "react-router-dom";
 import type { Record } from "../app/domain/album";
 import { Button } from "./Button";
+import { useAuth } from "../app/providers/AuthProvider";
+import { useState } from "react";
+import { createCartService } from "../app/services/cartService";
+import { HttpError } from "../app/lib/httpClient";
+import { Toast } from "./Toast";
+
+const CART_CODE_KEY = "moctezuma-cart-code";
+
+const getCartCode = () => {
+  if (typeof window === "undefined") return null;
+  return sessionStorage.getItem(CART_CODE_KEY);
+};
+
+const persistCartCode = (code?: string | null) => {
+  if (typeof window === "undefined" || !code) return;
+  sessionStorage.setItem(CART_CODE_KEY, code);
+};
 
 type CardProps = {
   record: Record;
@@ -21,6 +38,57 @@ const getArtistName = (artist?: string | { name?: string } | null) => {
 };
 
 export function Card({ record }: CardProps): JSX.Element {
+  const { token, isAuthenticated } = useAuth();
+  const [status, setStatus] = useState<"idle" | "adding" | "added" | "error">("idle");
+  const [toast, setToast] = useState<{ message: string; tone: "error" | "success" } | null>(null);
+
+  const showToast = (message: string, tone: "error" | "success" = "error") => {
+    setToast({ message, tone });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  const handleAdd = async () => {
+    if (!isAuthenticated || !token) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const cartService = createCartService({ getToken: () => token });
+    const getOrFetchCartCode = async () => {
+      const cached = getCartCode();
+      if (cached) return cached;
+      try {
+        const carts = await cartService.getCarts();
+        const code = carts[0]?.cart_code;
+        if (code) {
+          persistCartCode(code);
+          return code;
+        }
+      } catch {
+        // ignore and fallback to undefined
+      }
+      return null;
+    };
+
+    try {
+      setStatus("adding");
+      const cartCode = await getOrFetchCartCode();
+      const response = await cartService.addItem(record.id, cartCode ?? undefined);
+      persistCartCode(response.cart_code);
+      setStatus("added");
+      showToast("Agregado al carrito", "success");
+      setTimeout(() => setStatus("idle"), 1400);
+    } catch (err) {
+      setStatus("error");
+      const message =
+        err instanceof HttpError && (err.data as { error?: { message?: string } })?.error?.message
+          ? (err.data as { error?: { message?: string } }).error?.message ?? "No se pudo agregar al carrito."
+          : "No se pudo agregar al carrito.";
+      showToast(message, "error");
+      setTimeout(() => setStatus("idle"), 1600);
+    }
+  };
+
   return (
     <Link
       to={`/records/${record.slug ?? record.id}`}
@@ -70,11 +138,21 @@ export function Card({ record }: CardProps): JSX.Element {
           <span className="rounded-pill bg-white/90 px-3 py-1 text-sm font-semibold text-navy shadow-sm">
             {currency(record.price)}MXN
           </span>
-          <Button disabled tone="orange" className="px-3 py-1 text-xs">
-            Carrito no disponible
+          <Button
+            tone="orange"
+            className="px-3 py-1 text-xs"
+            disabled={status === "adding"}
+            onClick={(event) => {
+              event.preventDefault();
+              void handleAdd();
+            }}
+          >
+            {status === "added" ? "Agregado" : status === "adding" ? "Añadiendo..." : "Añadir al carrito"}
           </Button>
         </div>
       </article>
+
+      {toast ? <Toast message={toast.message} tone={toast.tone} onClose={() => setToast(null)} /> : null}
     </Link>
   );
 }

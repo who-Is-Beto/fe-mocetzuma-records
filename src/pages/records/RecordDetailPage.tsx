@@ -1,24 +1,54 @@
-import { useCallback, useMemo } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useCallback, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../components/Button";
 import { Loader } from "../../components/Loader";
+import { Toast } from "../../components/Toast";
 import { createRecordService } from "../../app/services/recordService";
 import type { Record } from "../../app/domain/album";
 import { useServiceQuery } from "../../app/hooks";
 import { HttpError } from "../../app/lib/httpClient";
+import { useAuth } from "../../app/providers/AuthProvider";
+import { createCartService } from "../../app/services/cartService";
+
+const CART_CODE_KEY = "moctezuma-cart-code";
+
+const getCartCode = () => {
+  if (typeof window === "undefined") return null;
+  return sessionStorage.getItem(CART_CODE_KEY);
+};
+
+const persistCartCode = (code?: string | null) => {
+  if (typeof window === "undefined" || !code) return;
+  sessionStorage.setItem(CART_CODE_KEY, code);
+};
 
 const currency = (value?: number | string) =>
   typeof value === "string" || typeof value === "number"
-    ? Number(value).toLocaleString("es-mx", { style: "currency", currency: "MXN" })
+    ? Number(value).toLocaleString("es-mx", {
+        style: "currency",
+        currency: "MXN"
+      })
     : "—";
 
 export function RecordDetailPage() {
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
+  const location = useLocation();
+  const { token, isAuthenticated } = useAuth();
+  const [cartStatus, setCartStatus] = useState<
+    "idle" | "adding" | "added" | "error"
+  >("idle");
+  const [toast, setToast] = useState<{
+    message: string;
+    tone: "error" | "success";
+  } | null>(null);
 
   const recordService = useMemo(() => createRecordService(), []);
 
-  const cacheKey = useMemo(() => (slug ? `record-detail:${slug}` : null), [slug]);
+  const cacheKey = useMemo(
+    () => (slug ? `record-detail:${slug}` : null),
+    [slug]
+  );
   const cachedRecord = useMemo<Record | null>(() => {
     if (!cacheKey || typeof window === "undefined") return null;
     const raw = sessionStorage.getItem(cacheKey);
@@ -42,12 +72,16 @@ export function RecordDetailPage() {
       return record;
     } catch (err) {
       const httpError = err as HttpError;
-      const isNotFound = httpError instanceof HttpError && httpError.status === 404;
+      const isNotFound =
+        httpError instanceof HttpError && httpError.status === 404;
 
       if (isNotFound) {
         // Fallback: try searching by slug/title in case direct endpoint 404s
         try {
-          const searchResults = await recordService.search({ query: slug, page: 1 });
+          const searchResults = await recordService.search({
+            query: slug,
+            page: 1
+          });
           const match =
             searchResults.results?.find((item) => item.slug === slug) ??
             searchResults.results?.[0];
@@ -97,13 +131,23 @@ export function RecordDetailPage() {
           {isNotFound ? "Disco no encontrado" : "No pudimos cargar este disco."}
         </p>
         <p className="text-navy/70">
-          {isNotFound ? "Revisa el enlace o regresa al catálogo." : "Inténtalo de nuevo en unos segundos."}
+          {isNotFound
+            ? "Revisa el enlace o regresa al catálogo."
+            : "Inténtalo de nuevo en unos segundos."}
         </p>
         <div className="mt-3 flex gap-3">
-          <Button tone="outline" className="px-4 py-2 text-sm" onClick={() => navigate(-1)}>
+          <Button
+            tone="outline"
+            className="px-4 py-2 text-sm"
+            onClick={() => navigate(-1)}
+          >
             ← Regresar
           </Button>
-          <Button tone="navy" className="px-4 py-2 text-sm" onClick={() => navigate("/")}>
+          <Button
+            tone="navy"
+            className="px-4 py-2 text-sm"
+            onClick={() => navigate("/")}
+          >
             Ir al catálogo
           </Button>
         </div>
@@ -114,13 +158,62 @@ export function RecordDetailPage() {
   const effectivePrice = data.discount_percentage
     ? Math.max(0, Number(data.price) * (1 - data.discount_percentage / 100))
     : Number(data.price);
-  const hasDiscount = Boolean(data.discount_percentage && data.discount_percentage > 0);
+  const hasDiscount = Boolean(
+    data.discount_percentage && data.discount_percentage > 0
+  );
   const genereLabel =
     typeof data.genere === "string"
       ? data.genere
       : typeof data.genere === "number"
       ? String(data.genere)
       : data.genere?.name ?? "—";
+
+  const handleAddToCart = async () => {
+    if (!isAuthenticated || !token) {
+      navigate("/login", { state: { from: location } });
+      return;
+    }
+    const cartService = createCartService({ getToken: () => token });
+    const getOrFetchCartCode = async () => {
+      const cached = getCartCode();
+      if (cached) return cached;
+      try {
+        const carts = await cartService.getCarts();
+        const code = carts[0]?.cart_code;
+        if (code) {
+          persistCartCode(code);
+          return code;
+        }
+      } catch {
+        // ignore and fallback
+      }
+      return null;
+    };
+    try {
+      setCartStatus("adding");
+      const cartCode = await getOrFetchCartCode();
+      const response = await cartService.addItem(
+        data.id,
+        cartCode ?? undefined
+      );
+      persistCartCode(response.cart_code);
+      setCartStatus("added");
+      setToast({ message: "Agregado al carrito", tone: "success" });
+      setTimeout(() => setToast(null), 5000);
+      setTimeout(() => setCartStatus("idle"), 5000);
+    } catch (err) {
+      setCartStatus("error");
+      const message =
+        err instanceof HttpError &&
+        (err.data as { error?: { message?: string } })?.error?.message
+          ? (err.data as { error?: { message?: string } }).error?.message ??
+            "No se pudo agregar al carrito."
+          : "No se pudo agregar al carrito.";
+      setToast({ message, tone: "error" });
+      setTimeout(() => setToast(null), 5000);
+      setTimeout(() => setCartStatus("idle"), 5000);
+    }
+  };
 
   return (
     <section className="grid gap-5 rounded-[28px] border border-navy/10 bg-cream/80 p-5 shadow-panel backdrop-blur lg:grid-cols-[1.05fr,0.95fr] lg:p-6">
@@ -134,7 +227,9 @@ export function RecordDetailPage() {
               loading="lazy"
             />
           ) : (
-            <div className="flex aspect-square items-center justify-center text-4xl">🎵</div>
+            <div className="flex aspect-square items-center justify-center text-4xl">
+              🎵
+            </div>
           )}
           <div className="absolute left-4 top-4 flex flex-wrap gap-2">
             <span className="rounded-pill bg-sun px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-navy shadow-sm">
@@ -151,29 +246,54 @@ export function RecordDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button tone="outline" className="px-4 py-2 text-sm" onClick={() => navigate(-1)}>
+          <Button
+            tone="outline"
+            className="px-4 py-2 text-sm"
+            onClick={() => navigate(-1)}
+          >
             ← Regresar
           </Button>
-          <Button disabled tone="orange" className="px-4 py-2 text-sm">
-            Agregar al carrito
+          <Button
+            tone="orange"
+            className="px-4 py-2 text-sm"
+            onClick={handleAddToCart}
+            disabled={cartStatus === "adding"}
+          >
+            {cartStatus === "added"
+              ? "Agregado"
+              : cartStatus === "adding"
+              ? "Añadiendo..."
+              : "Agregar al carrito"}
           </Button>
         </div>
       </div>
 
       <div className="space-y-4">
         <div className="rounded-2xl border border-navy/10 bg-white/90 p-5 shadow-card">
-          <p className="text-xs uppercase tracking-[0.18em] text-orange">Disco</p>
-          <h1 className="mt-2 font-display text-3xl text-denim">{data.title}</h1>
-          <p className="text-sm text-navy/70">{typeof data.artist === "string" ? data.artist : data.artist?.name}</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-orange">
+            Disco
+          </p>
+          <h1 className="mt-2 font-display text-3xl text-denim">
+            {data.title}
+          </h1>
+          <p className="text-sm text-navy/70">
+            {typeof data.artist === "string" ? data.artist : data.artist?.name}
+          </p>
 
           <div className="mt-4 space-y-3">
             <div className="flex items-center justify-between gap-3 rounded-xl border border-navy/10 bg-cream/70 px-4 py-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.14em] text-orange">Precio</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-orange">
+                  Precio
+                </p>
                 <div className="flex items-baseline gap-2">
-                  <p className="text-xl font-semibold text-denim">{currency(effectivePrice)}</p>
+                  <p className="text-xl font-semibold text-denim">
+                    {currency(effectivePrice)}
+                  </p>
                   {hasDiscount ? (
-                    <span className="text-sm text-navy/60 line-through">{currency(data.price)}</span>
+                    <span className="text-sm text-navy/60 line-through">
+                      {currency(data.price)}
+                    </span>
                   ) : null}
                 </div>
               </div>
@@ -184,19 +304,29 @@ export function RecordDetailPage() {
 
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-navy/10 bg-cream/60 p-4 shadow-inner">
-                <p className="text-xs uppercase tracking-[0.14em] text-orange">Lanzamiento</p>
-                <p className="font-semibold text-denim">{data.release_date ?? "—"}</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-orange">
+                  Lanzamiento
+                </p>
+                <p className="font-semibold text-denim">
+                  {data.release_date ?? "—"}
+                </p>
               </div>
               <div className="rounded-xl border border-navy/10 bg-cream/60 p-4 shadow-inner">
-                <p className="text-xs uppercase tracking-[0.14em] text-orange">Contenido</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-orange">
+                  Contenido
+                </p>
                 <p className="font-semibold text-denim">
                   {data.items_inside
-                    ? `${data.items_inside} ${data.items_inside === 1 ? "pieza" : "piezas"}`
+                    ? `${data.items_inside} ${
+                        data.items_inside === 1 ? "pieza" : "piezas"
+                      }`
                     : "No especificado"}
                 </p>
               </div>
               <div className="rounded-xl border border-navy/10 bg-cream/60 p-4 shadow-inner">
-                <p className="text-xs uppercase tracking-[0.14em] text-orange">Género</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-orange">
+                  Género
+                </p>
                 <p className="font-semibold text-denim">{genereLabel}</p>
               </div>
             </div>
@@ -204,26 +334,42 @@ export function RecordDetailPage() {
         </div>
 
         <div className="rounded-2xl border border-navy/10 bg-white/90 p-5 shadow-card">
-          <p className="text-xs uppercase tracking-[0.16em] text-orange">Detalle</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-orange">
+            Detalle
+          </p>
           <div className="mt-3 grid gap-3 text-sm text-navy">
             <div className="rounded-xl border border-navy/10 bg-cream/60 p-4 shadow-inner">
-              <p className="text-xs uppercase tracking-[0.14em] text-orange">Categoría</p>
-              <p className="font-semibold text-denim">{data.category?.name ?? "—"}</p>
+              <p className="text-xs uppercase tracking-[0.14em] text-orange">
+                Categoría
+              </p>
+              <p className="font-semibold text-denim">
+                {data.category?.name ?? "—"}
+              </p>
             </div>
             <div className="rounded-xl border border-navy/10 bg-cream/60 p-4 shadow-inner">
-              <p className="text-xs uppercase tracking-[0.14em] text-orange">Estado</p>
-              <p className="font-semibold text-denim">{data.condition ?? "—"}</p>
+              <p className="text-xs uppercase tracking-[0.14em] text-orange">
+                Estado
+              </p>
+              <p className="font-semibold text-denim">
+                {data.condition ?? "—"}
+              </p>
             </div>
             <div className="rounded-xl border border-navy/10 bg-cream/60 p-4 shadow-inner">
-              <p className="text-xs uppercase tracking-[0.14em] text-orange">Descripción</p>
-              <p className="text-sm text-navy/80">{data.description ?? "Sin descripción"}</p>
+              <p className="text-xs uppercase tracking-[0.14em] text-orange">
+                Descripción
+              </p>
+              <p className="text-sm text-navy/80">
+                {data.description ?? "Sin descripción"}
+              </p>
             </div>
           </div>
         </div>
 
         <div className="rounded-2xl border border-navy/10 bg-white/90 p-4 text-sm text-navy shadow-card">
           <p className="font-semibold text-denim">¿Tienes dudas?</p>
-          <p className="text-navy/70">Escríbenos en Instagram y menciona este nombre: {data.title}.</p>
+          <p className="text-navy/70">
+            Escríbenos en Instagram y menciona este nombre: {data.title}.
+          </p>
           <Link
             to="https://www.instagram.com/moctezuma_records/"
             target="_blank"
@@ -233,8 +379,16 @@ export function RecordDetailPage() {
           </Link>
         </div>
       </div>
+
+      {toast ? (
+        <Toast
+          message={toast.message}
+          tone={toast.tone}
+          onClose={() => setToast(null)}
+        />
+      ) : null}
     </section>
   );
 }
 
-export default RecordDetailPage
+export default RecordDetailPage;
