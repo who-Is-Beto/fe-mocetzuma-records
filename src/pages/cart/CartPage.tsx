@@ -314,7 +314,7 @@ export function CartPage() {
         deliveryOption,
         shippingDetails ?? undefined
       );
-      const url = response?.checkout_url?.url;
+      const url = response?.checkout_url;
       if (url) {
         setCheckoutUrl(url);
         window.open(url, "_blank", "noopener,noreferrer");

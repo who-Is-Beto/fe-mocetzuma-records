@@ -80,7 +80,7 @@ export function createCartService(config: CartServiceConfig = {}) {
       shippedTo: "store" | "home" | "bazar",
       shippingDetails?: ShippingDetails
     ) {
-      return http<{ checkout_url: { url?: string } }>(
+      return http<{ checkout_url?: string }>(
         withBase(baseUrl, "/create-checkout-session"),
         {
           method: "POST",
