@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { Button } from '../../components/Button'
 import { useAuth } from '../../app/providers/AuthProvider'
+import { createAuthService } from '../../app/services/authService'
 import { HttpError } from '../../app/lib/httpClient'
 
 export function RegisterPage() {
@@ -14,11 +15,21 @@ export function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [registered, setRegistered] = useState(false)
+  const [resendMessage, setResendMessage] = useState<string | null>(null)
 
   const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/perfil'
 
-  if (isAuthenticated) {
+  if (isAuthenticated && !registered) {
     return <Navigate to={from} replace />
+  }
+
+  const handleResend = () => {
+    setResendMessage(null)
+    createAuthService()
+      .resendVerification({ email })
+      .then(() => setResendMessage('Correo reenviado. Revisa tu bandeja de entrada.'))
+      .catch(() => setResendMessage('No pudimos reenviar el correo. Intenta de nuevo.'))
   }
 
   const handleSubmit = (event: FormEvent) => {
@@ -42,6 +53,7 @@ export function RegisterPage() {
     setError(null)
     setIsSubmitting(true)
     register({ username: username.trim(), email, password })
+      .then(() => setRegistered(true))
       .catch((err: unknown) => {
         if (err instanceof HttpError) {
           const message = typeof err.data === 'string' && err.data.trim().length > 0 ? err.data : err.message
@@ -53,13 +65,42 @@ export function RegisterPage() {
       .finally(() => setIsSubmitting(false))
   }
 
+  if (registered) {
+    return (
+      <section className="space-y-6 rounded-[28px] border border-navy/10 bg-cream/80 p-6 text-center shadow-panel backdrop-blur">
+        <header className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.18em] text-orange">Casi listo</p>
+          <h1 className="font-display text-3xl text-denim">Revisa tu correo</h1>
+          <p className="text-sm text-navy/70">
+            Te enviamos un enlace para confirmar que este correo es tuyo. Sin confirmarlo, tu cuenta
+            tendrá acceso limitado.
+          </p>
+        </header>
+
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Button tone="orange" onClick={handleResend}>
+            🔁 Reenviar correo
+          </Button>
+          <Link
+            to="/"
+            className="rounded-pill border border-navy/15 bg-cream px-4 py-2 text-sm font-semibold text-navy shadow-sm transition hover:-translate-y-0.5 hover:border-orange"
+          >
+            Seguir explorando
+          </Link>
+        </div>
+
+        {resendMessage ? <p className="text-sm font-semibold text-navy/70">{resendMessage}</p> : null}
+      </section>
+    )
+  }
+
   return (
     <section className="space-y-6 rounded-[28px] border border-navy/10 bg-cream/80 p-6 shadow-panel backdrop-blur">
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-[0.18em] text-orange">Registro</p>
         <h1 className="font-display text-3xl text-denim">Crea tu cuenta</h1>
         <p className="text-sm text-navy/70">
-          Activa tu perfil y mantén la sesión en este navegador con un token guardado en sessionStorage.
+          Activa tu perfil y mantén la sesión en este navegador con un token guardado de forma segura.
         </p>
       </header>
 

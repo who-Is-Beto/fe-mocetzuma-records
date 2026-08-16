@@ -1,12 +1,19 @@
+import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { Button } from "../../components/Button";
+import { Toast } from "../../components/Toast";
 import { useAuth } from "../../app/providers/AuthProvider";
 
 const badgeStyles =
   "inline-flex items-center gap-2 rounded-pill border border-white/30 bg-white/20 px-3 py-1 text-xs font-semibold text-cream backdrop-blur-sm shadow-sm";
 
 export function ProfilePage() {
-  const { logout, user, isAuthenticated } = useAuth();
+  const { logout, user, isAuthenticated, emailVerified, resendVerification } = useAuth();
+  const [resendStatus, setResendStatus] = useState<"idle" | "sending" | "sent">("idle");
+  const [toast, setToast] = useState<{
+    message: string;
+    tone: "error" | "success";
+  } | null>(null);
   const initials =
     user?.name
       ?.split(" ")
@@ -18,6 +25,24 @@ export function ProfilePage() {
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+
+  const isVerified = emailVerified === true;
+  const showVerification = emailVerified === false || emailVerified === null;
+
+  const handleResend = async () => {
+    if (!user?.email) return;
+    setResendStatus("sending");
+    try {
+      await resendVerification(user.email);
+      setResendStatus("sent");
+    } catch {
+      setToast({
+        message: "No pudimos reenviar el correo. Intenta de nuevo.",
+        tone: "error"
+      });
+      setResendStatus("idle");
+    }
+  };
 
   return (
     <section className="space-y-5 rounded-[28px] border border-navy/10 bg-cream/80 p-5 shadow-panel backdrop-blur md:space-y-6 md:p-6">
@@ -42,6 +67,15 @@ export function ProfilePage() {
             <div className="flex flex-wrap gap-2 pt-2">
               <span className={badgeStyles}>Sesión segura</span>
               <span className={badgeStyles}>Guardado en este navegador</span>
+              {isVerified ? (
+                <span className="inline-flex items-center gap-2 rounded-pill border border-white/30 bg-white/20 px-3 py-1 text-xs font-semibold text-cream backdrop-blur-sm shadow-sm">
+                  ✓ Correo verificado
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2 rounded-pill border border-white/30 bg-white/20 px-3 py-1 text-xs font-semibold text-cream backdrop-blur-sm shadow-sm">
+                  ✉️ Verificación pendiente
+                </span>
+              )}
             </div>
           </div>
           <div className="ml-auto">
@@ -55,6 +89,48 @@ export function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {showVerification ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-orange/40 bg-orange/10 p-4 shadow-card sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-[0.16em] text-orange">
+              Correo pendiente de verificación
+            </p>
+            <p className="text-sm text-navy/80">
+              Confirma tu correo para poder agregar discos al carrito y pagar.
+              Revisa tu bandeja de entrada o solicita un nuevo enlace.
+            </p>
+            {resendStatus === "sent" ? (
+              <p className="text-sm font-semibold text-denim">
+                Te reenviamos el enlace. Revisa tu bandeja de entrada.
+              </p>
+            ) : null}
+          </div>
+          <Button
+            tone="orange"
+            className="shrink-0"
+            disabled={resendStatus === "sending"}
+            onClick={handleResend}
+          >
+            {resendStatus === "sending"
+              ? "Enviando..."
+              : "Reenviar enlace de verificación"}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 rounded-2xl border border-navy/10 bg-white/80 p-4 text-sm text-navy shadow-card">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sun/60 text-lg shadow-inner">
+            ✓
+          </span>
+          <div>
+            <p className="font-semibold text-denim">Correo verificado</p>
+            <p className="text-xs text-navy/70">
+              Tu cuenta está verificada: puedes agregar al carrito y pagar sin
+              restricciones.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-[1.2fr,0.8fr]">
         <div className="rounded-2xl border border-navy/10 bg-white/90 p-4 shadow-card sm:p-5">
@@ -88,7 +164,8 @@ export function ProfilePage() {
               </p>
               <p className="font-semibold text-denim">Sesión guardada</p>
               <p className="text-xs text-navy/70">
-                Tokens en sessionStorage mientras mantengas esta pestaña.
+                Tu sesión se mantiene en este navegador entre pestañas y
+                visitas.
               </p>
             </div>
           </div>
@@ -121,6 +198,14 @@ export function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {toast ? (
+        <Toast
+          message={toast.message}
+          tone={toast.tone}
+          onClose={() => setToast(null)}
+        />
+      ) : null}
     </section>
   );
 }

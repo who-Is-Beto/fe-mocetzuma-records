@@ -1,10 +1,12 @@
 import { API_BASE_URL } from "../config/api";
 import type {
   AuthRepository,
-  AuthTokens,
+  AuthSession,
   Credentials,
   RegisterInput,
-  User
+  ResendVerificationInput,
+  User,
+  VerifyEmailInput
 } from "../domain/auth";
 import { http } from "../lib/httpClient";
 
@@ -22,9 +24,10 @@ type AuthResponse = {
   };
   user?: User;
   message?: string;
+  email_verified?: boolean;
 };
 
-const mapTokens = (response: AuthResponse): AuthTokens & { user?: User } => {
+const mapTokens = (response: AuthResponse): AuthSession => {
   const accessToken = response.tokens?.access;
   const refreshToken = response.tokens?.refresh;
 
@@ -35,7 +38,8 @@ const mapTokens = (response: AuthResponse): AuthTokens & { user?: User } => {
   return {
     accessToken,
     refreshToken,
-    user: response.user
+    user: response.user,
+    emailVerified: response.email_verified
   };
 };
 
@@ -65,8 +69,40 @@ export function createAuthService(config: AuthServiceConfig = {}): AuthRepositor
       return mapTokens(response);
     },
     async getProfile(token?: string) {
-      return http<User>(withBase(baseUrl, "/auth/me/"), {
+      const response = await http<{
+        id: string;
+        username: string;
+        email?: string;
+        email_verified?: boolean;
+      }>(withBase(baseUrl, "/auth/me/"), {
         token
+      });
+      return {
+        id: response.id,
+        name: response.username,
+        email: response.email,
+        emailVerified: response.email_verified
+      };
+    },
+    async verifyEmail({ uid, token }: VerifyEmailInput) {
+      const response = await http<{
+        message?: string;
+        email_verified?: boolean;
+      }>(withBase(baseUrl, "/auth/verify-email/"), {
+        method: "POST",
+        body: { uid, token }
+      });
+      // Backend responds with snake_case `email_verified`; expose it as
+      // camelCase like the rest of the auth domain.
+      return {
+        message: response.message,
+        emailVerified: response.email_verified
+      };
+    },
+    async resendVerification({ email }: ResendVerificationInput) {
+      return http<{ message?: string }>(withBase(baseUrl, "/auth/verify-email/resend/"), {
+        method: "POST",
+        body: { email }
       });
     }
   };

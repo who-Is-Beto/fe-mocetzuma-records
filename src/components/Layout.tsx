@@ -16,7 +16,7 @@ export function Layout({ children }: LayoutProps) {
 
         <Navbar />
 
-        <main className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 pb-28 md:px-10 md:pb-16 lg:pb-20">
+        <main className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 pb-28 pt-6 md:px-10 md:pb-16 md:pt-0 lg:pb-20">
           {children}
         </main>
 
