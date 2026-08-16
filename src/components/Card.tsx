@@ -12,12 +12,12 @@ const CART_CODE_KEY = "moctezuma-cart-code";
 
 const getCartCode = () => {
   if (typeof window === "undefined") return null;
-  return sessionStorage.getItem(CART_CODE_KEY);
+  return localStorage.getItem(CART_CODE_KEY);
 };
 
 const persistCartCode = (code?: string | null) => {
   if (typeof window === "undefined" || !code) return;
-  sessionStorage.setItem(CART_CODE_KEY, code);
+  localStorage.setItem(CART_CODE_KEY, code);
 };
 
 type CardProps = {
@@ -38,9 +38,15 @@ const getArtistName = (artist?: string | { name?: string } | null) => {
 };
 
 export function Card({ record }: CardProps): JSX.Element {
-  const { token, isAuthenticated } = useAuth();
+  const { token, isAuthenticated, emailVerified } = useAuth();
   const [status, setStatus] = useState<"idle" | "adding" | "added" | "error">("idle");
   const [toast, setToast] = useState<{ message: string; tone: "error" | "success" } | null>(null);
+
+  // Authenticated but unverified: catalog browsing stays open, purchasing is locked.
+  // `null` (legacy session before email_verified existed) counts as unverified.
+  const requiresVerification = isAuthenticated && emailVerified !== true;
+  const verifyHint =
+    "Verifica tu correo para poder agregar al carrito. Puedes reenviar el enlace desde tu perfil.";
 
   const showToast = (message: string, tone: "error" | "success" = "error") => {
     setToast({ message, tone });
@@ -134,21 +140,37 @@ export function Card({ record }: CardProps): JSX.Element {
           <p className="text-sm text-navy/70">{getArtistName(record.artist)}</p>
         </div>
 
-        <div className="flex items-center justify-between pt-1">
+        <div className="flex items-center justify-between gap-2 pt-1">
           <span className="rounded-pill bg-white/90 px-3 py-1 text-sm font-semibold text-navy shadow-sm">
             {currency(record.price)}MXN
           </span>
-          <Button
-            tone="orange"
-            className="px-3 py-1 text-xs"
-            disabled={status === "adding"}
-            onClick={(event) => {
-              event.preventDefault();
-              void handleAdd();
-            }}
-          >
-            {status === "added" ? "Agregado" : status === "adding" ? "Añadiendo..." : "Añadir al carrito"}
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              tone="orange"
+              className="px-3 py-1 text-xs"
+              disabled={status === "adding" || requiresVerification || record.stock <= 0}
+              title={requiresVerification ? verifyHint : undefined}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleAdd();
+              }}
+            >
+              {record.stock <= 0
+                ? "Agotado"
+                : requiresVerification
+                ? "Verifica tu correo"
+                : status === "added"
+                ? "Agregado"
+                : status === "adding"
+                ? "Añadiendo..."
+                : "Añadir al carrito"}
+            </Button>
+            {requiresVerification ? (
+              <span className="max-w-[150px] text-right text-[10px] leading-tight text-navy/60">
+                Verifica tu correo para comprar
+              </span>
+            ) : null}
+          </div>
         </div>
       </article>
 

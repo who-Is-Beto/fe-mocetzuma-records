@@ -14,12 +14,12 @@ const CART_CODE_KEY = "moctezuma-cart-code";
 
 const getCartCode = () => {
   if (typeof window === "undefined") return null;
-  return sessionStorage.getItem(CART_CODE_KEY);
+  return localStorage.getItem(CART_CODE_KEY);
 };
 
 const persistCartCode = (code?: string | null) => {
   if (typeof window === "undefined" || !code) return;
-  sessionStorage.setItem(CART_CODE_KEY, code);
+  localStorage.setItem(CART_CODE_KEY, code);
 };
 
 const currency = (value?: number | string) =>
@@ -34,7 +34,7 @@ export function RecordDetailPage() {
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
   const location = useLocation();
-  const { token, isAuthenticated } = useAuth();
+  const { token, isAuthenticated, emailVerified } = useAuth();
   const [cartStatus, setCartStatus] = useState<
     "idle" | "adding" | "added" | "error"
   >("idle");
@@ -42,6 +42,12 @@ export function RecordDetailPage() {
     message: string;
     tone: "error" | "success";
   } | null>(null);
+
+  // Authenticated but unverified: browsing is fine, purchasing is locked.
+  // `null` (legacy session before email_verified existed) counts as unverified.
+  const requiresVerification = isAuthenticated && emailVerified !== true;
+  const verifyHint =
+    "Verifica tu correo para poder agregar al carrito. Puedes reenviar el enlace desde tu perfil.";
 
   const recordService = useMemo(() => createRecordService(), []);
 
@@ -215,6 +221,39 @@ export function RecordDetailPage() {
     }
   };
 
+  const handleShare = async () => {
+    const url = window.location.href;
+    const shareData: ShareData = {
+      title: data.title,
+      text: `Mira este disco en Moctezuma Records: ${data.title}`,
+      url
+    };
+    // Native share sheet first (better UX on mobile/desktop), clipboard as fallback.
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        // The user cancelling the native sheet is not an error.
+        if ((err as { name?: string })?.name !== "AbortError") {
+          setToast({ message: "No pudimos compartir el disco.", tone: "error" });
+          setTimeout(() => setToast(null), 5000);
+        }
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setToast({
+        message: "Enlace copiado al portapapeles",
+        tone: "success"
+      });
+      setTimeout(() => setToast(null), 3000);
+    } catch {
+      setToast({ message: "No pudimos copiar el enlace.", tone: "error" });
+      setTimeout(() => setToast(null), 5000);
+    }
+  };
+
   return (
     <section className="grid gap-5 rounded-[28px] border border-navy/10 bg-cream/80 p-5 shadow-panel backdrop-blur lg:grid-cols-[1.05fr,0.95fr] lg:p-6">
       <div className="space-y-4">
@@ -254,18 +293,60 @@ export function RecordDetailPage() {
             ← Regresar
           </Button>
           <Button
+            tone="outline"
+            className="px-4 py-2 text-sm"
+            onClick={() => void handleShare()}
+          >
+            <svg
+              className="mr-1 inline-block"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+            Compartir
+          </Button>
+          <Button
             tone="orange"
             className="px-4 py-2 text-sm"
             onClick={handleAddToCart}
-            disabled={cartStatus === "adding"}
+            disabled={cartStatus === "adding" || requiresVerification || data.stock <= 0}
+            title={requiresVerification ? verifyHint : undefined}
           >
-            {cartStatus === "added"
+            {data.stock <= 0
+              ? "Agotado"
+              : requiresVerification
+              ? "Verifica tu correo para comprar"
+              : cartStatus === "added"
               ? "Agregado"
               : cartStatus === "adding"
               ? "Añadiendo..."
               : "Agregar al carrito"}
           </Button>
         </div>
+        {requiresVerification ? (
+          <p className="flex flex-wrap items-center gap-2 rounded-xl border border-orange/40 bg-orange/10 px-3 py-2 text-xs text-navy/80">
+            <span>✉️ Tu correo aún no está verificado.</span>
+            <button
+              type="button"
+              onClick={() => navigate("/perfil")}
+              className="font-semibold text-orange underline underline-offset-2"
+            >
+              Verificarlo desde tu perfil
+            </button>
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-4">

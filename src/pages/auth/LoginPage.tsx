@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { Button } from '../../components/Button'
 import { useAuth } from '../../app/providers/AuthProvider'
+import { createAuthService } from '../../app/services/authService'
 import { HttpError } from '../../app/lib/httpClient'
 
 export function LoginPage() {
@@ -12,11 +13,21 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [needsVerification, setNeedsVerification] = useState(false)
+  const [resendMessage, setResendMessage] = useState<string | null>(null)
 
   const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/perfil'
 
   if (isAuthenticated) {
     return <Navigate to={from} replace />
+  }
+
+  const handleResend = () => {
+    setResendMessage(null)
+    createAuthService()
+      .resendVerification({ email })
+      .then(() => setResendMessage('Te reenviamos el enlace de verificación. Revisa tu bandeja de entrada.'))
+      .catch(() => setResendMessage('No pudimos reenviar el correo. Intenta de nuevo.'))
   }
 
   const handleSubmit = (event: FormEvent) => {
@@ -27,9 +38,19 @@ export function LoginPage() {
     }
 
     setError(null)
+    setNeedsVerification(false)
     setIsSubmitting(true)
     login({ email, password }).catch((err: unknown) => {
-      if (err instanceof HttpError) {
+      if (err instanceof HttpError && err.status === 403) {
+        const data = err.data as { error?: { code?: string; message?: string } } | undefined
+        if (data?.error?.code === 'email_not_verified') {
+          setNeedsVerification(true)
+          setError(data.error.message ?? 'Verifica tu correo antes de iniciar sesión.')
+          return
+        }
+        const message = typeof err.data === 'string' && err.data.trim().length > 0 ? err.data : err.message
+        setError(message)
+      } else if (err instanceof HttpError) {
         const message = typeof err.data === 'string' && err.data.trim().length > 0 ? err.data : err.message
         setError(message)
       } else {
@@ -81,6 +102,15 @@ export function LoginPage() {
         </div>
 
         {error ? <p className="text-sm font-semibold text-coral">{error}</p> : null}
+
+        {needsVerification ? (
+          <div className="flex flex-col gap-2 rounded-xl border border-orange/40 bg-orange/10 px-3 py-3 text-sm">
+            <Button tone="outline" onClick={handleResend}>
+              🔁 Reenviar enlace de verificación
+            </Button>
+            {resendMessage ? <p className="text-xs font-semibold text-navy/70">{resendMessage}</p> : null}
+          </div>
+        ) : null}
 
         <div className="flex flex-col gap-3">
           <Button
