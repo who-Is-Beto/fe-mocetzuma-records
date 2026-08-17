@@ -23,6 +23,17 @@ export type ResendVerificationInput = {
   email: string;
 };
 
+export type PasswordResetRequestInput = {
+  email: string;
+};
+
+export type PasswordResetConfirmInput = {
+  uid: string;
+  token: string;
+  new_password: string;
+  confirm_password: string;
+};
+
 export type AuthTokens = {
   accessToken: string;
   refreshToken?: string;
@@ -45,4 +56,6 @@ export interface AuthRepository {
   getProfile(token?: string): Promise<User>;
   verifyEmail(input: VerifyEmailInput): Promise<VerifyEmailResult>;
   resendVerification(input: ResendVerificationInput): Promise<{ message?: string }>;
+  requestPasswordReset(input: PasswordResetRequestInput): Promise<{ message?: string }>;
+  confirmPasswordReset(input: PasswordResetConfirmInput): Promise<{ message?: string }>;
 }

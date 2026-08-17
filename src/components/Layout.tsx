@@ -1,11 +1,17 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { Navbar } from "./Navbar";
 
 type LayoutProps = {
   children: ReactNode;
 };
 
-const footerLinks = ["contacto", "términos de servicio", "privacidad", "ayuda"];
+const footerLinks = [
+  { label: "Contacto", to: "/contacto" },
+  { label: "Términos y condiciones", to: "/terminos-y-condiciones" },
+  { label: "Privacidad", to: "/politica-de-privacidad" },
+  { label: "Ayuda", to: "/ayuda" },
+];
 
 export function Layout({ children }: LayoutProps) {
   return (
@@ -30,13 +36,13 @@ export function Layout({ children }: LayoutProps) {
             </div>
             <div className="flex flex-wrap gap-4">
               {footerLinks.map((item) => (
-                <a
-                  key={item}
-                  href="#footer"
+                <Link
+                  key={item.to}
+                  to={item.to}
                   className="text-sm font-semibold text-navy transition hover:text-orange"
                 >
-                  {item}
-                </a>
+                  {item.label}
+                </Link>
               ))}
             </div>
           </div>

@@ -50,7 +50,6 @@ export function Card({ record }: CardProps): JSX.Element {
 
   const showToast = (message: string, tone: "error" | "success" = "error") => {
     setToast({ message, tone });
-    setTimeout(() => setToast(null), 5000);
   };
 
   const handleAdd = async () => {

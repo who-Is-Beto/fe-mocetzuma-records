@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 type ToastTone = "success" | "warning" | "error";
@@ -8,44 +8,137 @@ type ToastProps = {
   tone?: ToastTone;
   onClose?: () => void;
   action?: ReactNode;
+  /** Auto-dismiss in ms (default 5000, set 0 to disable) */
+  duration?: number;
 };
 
-const toneStyles: Record<ToastTone, string> = {
-  success: "border-amber/80 bg-sun/95 text-charcoal",
-  warning: "border-amber/80 bg-amber/95 text-charcoal",
-  error: "border-coral/70 bg-coral/95 text-cream"
+const toneConfig: Record<
+  ToastTone,
+  { icon: string; label: string; border: string; bg: string; accent: string }
+> = {
+  success: {
+    icon: "✓",
+    label: "Listo",
+    border: "border-amber/60",
+    bg: "bg-gradient-to-r from-sun/95 to-amber/90",
+    accent: "bg-amber"
+  },
+  warning: {
+    icon: "⚠",
+    label: "Aviso",
+    border: "border-orange/50",
+    bg: "bg-gradient-to-r from-orange/20 to-amber/15",
+    accent: "bg-orange"
+  },
+  error: {
+    icon: "✗",
+    label: "Error",
+    border: "border-coral/60",
+    bg: "bg-gradient-to-r from-coral/15 to-coral/10",
+    accent: "bg-coral"
+  }
 };
 
-const toneLabel: Record<ToastTone, string> = {
-  success: "Listo",
-  warning: "Aviso",
-  error: "Error"
-};
+export function Toast({
+  message,
+  tone = "success",
+  onClose,
+  action,
+  duration = 5000
+}: ToastProps) {
+  const [visible, setVisible] = useState(false);
+  const [closing, setClosing] = useState(false);
 
-export function Toast({ message, tone = "success", onClose, action }: ToastProps) {
+  useEffect(() => {
+    // Trigger enter animation on next frame
+    const raf = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  useEffect(() => {
+    if (duration <= 0 || !onClose) return;
+    const timer = setTimeout(() => {
+      setClosing(true);
+      setTimeout(() => onClose(), 280);
+    }, duration);
+    return () => clearTimeout(timer);
+  }, [duration, onClose]);
+
+  const handleClose = () => {
+    setClosing(true);
+    setTimeout(() => onClose?.(), 280);
+  };
+
   if (typeof document === "undefined") return null;
+
+  const config = toneConfig[tone];
 
   return createPortal(
     <div className="pointer-events-none fixed inset-0 z-50 flex items-start justify-center px-4 pt-4 sm:px-6 sm:pt-6">
       <div
-        className={`pointer-events-auto min-w-[320px] max-w-md rounded-2xl border px-4 py-3 text-sm shadow-panel backdrop-blur-md ${toneStyles[tone]}`}
+        className={`pointer-events-auto w-full max-w-sm overflow-hidden rounded-2xl border shadow-panel backdrop-blur-md ${
+          config.border
+        } ${
+          closing
+            ? "animate-toast-out"
+            : visible
+            ? "animate-toast-in"
+            : "opacity-0"
+        }`}
       >
-        <div className="flex items-start gap-3">
-          <div className="flex-1">
-            <p className="font-semibold">{toneLabel[tone]}</p>
-            <p className="text-sm text-inherit">{message}</p>
-          </div>
-          {onClose ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-full bg-white/40 px-2 py-1 text-[11px] font-semibold text-inherit shadow-inner transition hover:-translate-y-0.5"
+        <div className={`${config.bg} px-4 py-3`}>
+          <div className="flex items-start gap-3">
+            {/* Icon badge */}
+            <div
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-cream shadow-sm ${config.accent}`}
             >
-              Cerrar
-            </button>
-          ) : null}
+              {config.icon}
+            </div>
+
+            <div className="flex-1 min-w-0 pt-0.5">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-navy/80">
+                {config.label}
+              </p>
+              <p className="mt-0.5 text-sm leading-snug text-navy">
+                {message}
+              </p>
+            </div>
+
+            {onClose ? (
+              <button
+                type="button"
+                onClick={handleClose}
+                className="shrink-0 rounded-full bg-white/50 p-1 text-navy/60 transition hover:bg-white/80 hover:text-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange"
+                aria-label="Cerrar"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            ) : null}
+          </div>
+          {action ? <div className="mt-2.5">{action}</div> : null}
         </div>
-        {action ? <div className="mt-2">{action}</div> : null}
+
+        {/* Auto-dismiss progress bar */}
+        {duration > 0 && onClose ? (
+          <div className="h-1 w-full bg-navy/5">
+            <div
+              className={`h-full rounded-full ${config.accent} opacity-60 animate-progress-shrink`}
+              style={{ animationDuration: `${duration}ms` }}
+            />
+          </div>
+        ) : null}
       </div>
     </div>,
     document.body

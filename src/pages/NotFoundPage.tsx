@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
+import { usePageTitle } from "../app/hooks/usePageTitle";
 
 export function NotFoundPage() {
+  usePageTitle("No encontrado");
   return (
     <section className="space-y-4 rounded-[28px] border border-navy/10 bg-cream/80 p-6 text-center shadow-panel backdrop-blur">
       <p className="text-xs uppercase tracking-[0.18em] text-orange">404</p>

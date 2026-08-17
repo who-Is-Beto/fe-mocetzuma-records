@@ -5,8 +5,10 @@ import { Button } from '../../components/Button'
 import { useAuth } from '../../app/providers/AuthProvider'
 import { createAuthService } from '../../app/services/authService'
 import { HttpError } from '../../app/lib/httpClient'
+import { usePageTitle } from "../../app/hooks/usePageTitle";
 
 export function RegisterPage() {
+  usePageTitle("Crear cuenta");
   const location = useLocation()
   const { register, isAuthenticated } = useAuth()
   const [username, setUsername] = useState('')

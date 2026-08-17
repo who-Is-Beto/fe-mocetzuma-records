@@ -5,12 +5,18 @@ import { HomePage } from "../../pages/home/HomePage";
 import { LoginPage } from "../../pages/auth/LoginPage";
 import { RegisterPage } from "../../pages/auth/RegisterPage";
 import { VerifyEmailPage } from "../../pages/auth/VerifyEmailPage";
+import { ForgotPasswordPage } from "../../pages/auth/ForgotPasswordPage";
+import { ResetPasswordPage } from "../../pages/auth/ResetPasswordPage";
 import { ProfilePage } from "../../pages/dashboard/DashboardPage";
 import { RecordDetailPage } from "../../pages/records/RecordDetailPage";
 import { AlbumDetailPage } from "../../pages/albums/AlbumDetailPage";
 import { CartPage } from "../../pages/cart/CartPage";
 import { OrdersPage } from "../../pages/orders/OrdersPage";
 import { DesignSystemPage } from "../../pages/design-system/DesignSystem";
+import { TerminosPage } from "../../pages/legal/TerminosPage";
+import { PrivacidadPage } from "../../pages/legal/PrivacidadPage";
+import { AyudaPage } from "../../pages/legal/AyudaPage";
+import { ContactoPage } from "../../pages/legal/ContactoPage";
 import { NotFoundPage } from "../../pages/NotFoundPage";
 
 export const router = createBrowserRouter([
@@ -25,11 +31,17 @@ export const router = createBrowserRouter([
       { path: "login", element: <LoginPage /> },
       { path: "register", element: <RegisterPage /> },
       { path: "verificar-correo", element: <VerifyEmailPage /> },
+      { path: "olvidaste-contrasena", element: <ForgotPasswordPage /> },
+      { path: "restablecer-contrasena", element: <ResetPasswordPage /> },
       { path: "records/:slug", element: <RecordDetailPage /> },
       { path: "albums/:albumId", element: <AlbumDetailPage /> },
       { path: "design-system", element: <DesignSystemPage /> },
       { path: "carritos", element: <CartPage /> },
       { path: "mis-ordenes", element: <OrdersPage /> },
+      { path: "terminos-y-condiciones", element: <TerminosPage /> },
+      { path: "politica-de-privacidad", element: <PrivacidadPage /> },
+      { path: "ayuda", element: <AyudaPage /> },
+      { path: "contacto", element: <ContactoPage /> },
       {
         element: <AuthGuard />,
         children: [{ path: "perfil", element: <ProfilePage /> }]
