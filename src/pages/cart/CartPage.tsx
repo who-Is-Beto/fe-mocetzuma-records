@@ -11,6 +11,7 @@ import {
   type ShippingDetails
 } from "../../app/services/cartService";
 import { HttpError } from "../../app/lib/httpClient";
+import { usePageTitle } from "../../app/hooks/usePageTitle";
 
 const CART_CODE_KEY = "moctezuma-cart-code";
 
@@ -68,6 +69,7 @@ const SHIPPING_REQUIRED_FIELDS: Array<keyof ShippingDetails> = [
 ];
 
 export function CartPage() {
+  usePageTitle("Tu carrito");
   const navigate = useNavigate();
   const { token, isAuthenticated, emailVerified, user, resendVerification } =
     useAuth();
@@ -107,7 +109,6 @@ export function CartPage() {
 
   const showToast = (message: string, tone: "error" | "success") => {
     setToast({ message, tone });
-    setTimeout(() => setToast(null), 5000);
   };
 
   const cartService = useMemo(
@@ -364,8 +365,8 @@ export function CartPage() {
     );
   }
 
-  // ── Loading ─────────────────────────────────────────────────────────────
-  if (isLoading) {
+  // ── Loading (only on initial fetch, not background refetch) ─────────────
+  if (isLoading && !data) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <Loader />
@@ -428,11 +429,11 @@ export function CartPage() {
           {items.map((item) => (
             <div
               key={item.id}
-              className="flex gap-4 rounded-2xl border border-navy/10 bg-cream/80 p-4 shadow-card backdrop-blur"
+              className="flex flex-col gap-3 rounded-2xl border border-navy/10 bg-cream/80 p-3 shadow-card backdrop-blur sm:flex-row sm:items-center sm:gap-4 sm:p-4"
             >
               <Link
                 to={`/records/${item.record.slug ?? item.record.id}`}
-                className="block h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-navy/10 bg-gradient-to-br from-denim/10 via-cream to-sand/80 shadow-inner"
+                className="block h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-navy/10 bg-gradient-to-br from-denim/10 via-cream to-sand/80 shadow-inner sm:h-20 sm:w-20"
               >
                 {item.record.cover_image_url ? (
                   <img
@@ -451,7 +452,7 @@ export function CartPage() {
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <Link
                   to={`/records/${item.record.slug ?? item.record.id}`}
-                  className="truncate font-display text-lg text-denim hover:text-orange"
+                  className="truncate font-display text-base text-denim hover:text-orange sm:text-lg"
                 >
                   {item.record.title}
                 </Link>
@@ -487,7 +488,7 @@ export function CartPage() {
                 </div>
               </div>
 
-              <div className="flex shrink-0 items-center gap-3 flex-col py-3 justify-center text-right">
+              <div className="flex items-center justify-between gap-3 border-t border-navy/10 pt-3 sm:border-0 sm:flex-col sm:items-end sm:justify-center sm:border-t-0 sm:pt-0">
                 <p className="text-lg font-semibold text-denim">
                   {currency(item.subtotal)}
                 </p>
@@ -502,7 +503,7 @@ export function CartPage() {
             </div>
           ))}
 
-          <div className="flex items-center justify-between rounded-2xl border border-navy/10 bg-cream/80 px-4 py-3 shadow-card">
+          <div className="flex items-center justify-between rounded-2xl border border-navy/10 bg-cream/80 px-3 py-3 shadow-card sm:px-4">
             <p className="text-sm text-navy/70">
               {items.length} {items.length === 1 ? "artículo" : "artículos"}
             </p>
@@ -525,7 +526,7 @@ export function CartPage() {
               <p className="text-[11px] uppercase tracking-[0.14em] text-orange">
                 Método de entrega
               </p>
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid gap-2 grid-cols-1 sm:grid-cols-3">
                 {DELIVERY_OPTIONS.map((option) => (
                   <button
                     key={option.key}

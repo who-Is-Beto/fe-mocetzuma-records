@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../config/api";
-import type { Record, RecordPage, RecordRepository } from "../domain/album";
+import type { Category, Record, RecordPage, RecordRepository } from "../domain/album";
 import { http } from "../lib/httpClient";
 
 type RecordServiceConfig = {
@@ -15,16 +15,24 @@ export function createRecordService(config: RecordServiceConfig = {}): RecordRep
   const getToken = config.getToken;
 
   return {
-    async list(params?: { page?: number }) {
+    async list(params?: { page?: number; available?: boolean; category?: string }) {
+      const query: { [key: string]: string | number | boolean } = {};
+      if (params?.page) query.page = params.page;
+      if (params?.available !== undefined) query.available = params.available;
+      if (params?.category) query.category = params.category;
       return http<RecordPage>(withBase(baseUrl, "/records"), {
         token: getToken?.() ?? undefined,
-        query: params,
+        query: Object.keys(query).length > 0 ? query : undefined,
       });
     },
-    async search(params: { query: string; page?: number }) {
+    async search(params: { query: string; page?: number; available?: boolean; category?: string }) {
+      const query: { [key: string]: string | number | boolean } = { query: params.query };
+      if (params.page) query.page = params.page;
+      if (params.available !== undefined) query.available = params.available;
+      if (params.category) query.category = params.category;
       return http<RecordPage>(withBase(baseUrl, "/search"), {
         token: getToken?.() ?? undefined,
-        query: { query: params.query, page: params.page },
+        query,
       });
     },
     async getRecordById(id: string) {
@@ -36,6 +44,11 @@ export function createRecordService(config: RecordServiceConfig = {}): RecordRep
       // Backend expects the record name/slug directly under /records/:record_name
       const safeSlug = encodeURIComponent(slug);
       return http<Record>(withBase(baseUrl, `/records/${safeSlug}`), {
+        token: getToken?.() ?? undefined,
+      });
+    },
+    async getCategories() {
+      return http<Category[]>(withBase(baseUrl, "/categories"), {
         token: getToken?.() ?? undefined,
       });
     },

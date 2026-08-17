@@ -6,7 +6,9 @@ import type {
   RegisterInput,
   ResendVerificationInput,
   User,
-  VerifyEmailInput
+  VerifyEmailInput,
+  PasswordResetRequestInput,
+  PasswordResetConfirmInput,
 } from "../domain/auth";
 import { http } from "../lib/httpClient";
 
@@ -92,8 +94,6 @@ export function createAuthService(config: AuthServiceConfig = {}): AuthRepositor
         method: "POST",
         body: { uid, token }
       });
-      // Backend responds with snake_case `email_verified`; expose it as
-      // camelCase like the rest of the auth domain.
       return {
         message: response.message,
         emailVerified: response.email_verified
@@ -103,6 +103,18 @@ export function createAuthService(config: AuthServiceConfig = {}): AuthRepositor
       return http<{ message?: string }>(withBase(baseUrl, "/auth/verify-email/resend/"), {
         method: "POST",
         body: { email }
+      });
+    },
+    async requestPasswordReset({ email }: PasswordResetRequestInput) {
+      return http<{ message?: string }>(withBase(baseUrl, "/auth/password-reset/"), {
+        method: "POST",
+        body: { email }
+      });
+    },
+    async confirmPasswordReset(input: PasswordResetConfirmInput) {
+      return http<{ message?: string }>(withBase(baseUrl, "/auth/password-reset/confirm/"), {
+        method: "POST",
+        body: input
       });
     }
   };

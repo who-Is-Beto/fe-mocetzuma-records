@@ -147,16 +147,18 @@ export function Navbar(): ReactNode {
       </nav>
 
       {showMobileSearch ? (
-        <div className="fixed inset-x-4 bottom-28 z-30 rounded-2xl border border-navy/10 bg-sand px-4 py-3 shadow-panel backdrop-blur md:hidden">
-          <SearchBar
-            value={searchTerm}
-            onChange={setSearchTerm}
-            onSubmit={(term) => {
-              submitSearch(term);
-              setShowMobileSearch(false);
-            }}
-            placeholder="Buscar en catálogo..."
-          />
+        <div className="fixed inset-x-0 bottom-20 z-30 px-4 md:hidden">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-navy/10 bg-sand px-4 py-3 shadow-panel backdrop-blur">
+            <SearchBar
+              value={searchTerm}
+              onChange={setSearchTerm}
+              onSubmit={(term) => {
+                submitSearch(term);
+                setShowMobileSearch(false);
+              }}
+              placeholder="Buscar en catálogo..."
+            />
+          </div>
         </div>
       ) : null}
 
@@ -183,13 +185,12 @@ export function Navbar(): ReactNode {
                 {link.label}
               </NavLink>
             ))}
-            <Button
-              tone="outline"
-              pill={false}
-              className={`flex h-12 flex-1 gap-0 flex-col items-center justify-center rounded-xl px-0 py-0 text-xs font-semibold text-center shadow-none hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 ${
+            <button
+              type="button"
+              className={`flex h-12 flex-1 flex-col items-center justify-center rounded-xl border text-[11px] leading-tight font-semibold transition hover:-translate-y-0.5 hover:border-orange hover:bg-sun/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange ${
                 showMobileSearch
-                  ? "border border-orange bg-sun/70 text-navy"
-                  : "border-none bg-transparent px-[1px] text-navy"
+                  ? "border-orange bg-sun/70 text-navy"
+                  : "border-transparent text-navy"
               }`}
               onClick={() => setShowMobileSearch((prev) => !prev)}
               aria-label={
@@ -198,7 +199,7 @@ export function Navbar(): ReactNode {
             >
               <span className="text-xl">🔎</span>
               <span>Buscar</span>
-            </Button>
+            </button>
           </div>
         </div>
       </nav>

@@ -9,6 +9,7 @@ import { useServiceQuery } from "../../app/hooks";
 import { HttpError } from "../../app/lib/httpClient";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { createCartService } from "../../app/services/cartService";
+import { usePageTitle } from "../../app/hooks/usePageTitle";
 
 const CART_CODE_KEY = "moctezuma-cart-code";
 
@@ -112,6 +113,8 @@ export function RecordDetailPage() {
     fetchRecord,
     { initialData: cachedRecord ?? undefined, enabled: Boolean(slug) }
   );
+
+  usePageTitle(data?.title ?? null);
 
   if (!slug) {
     return (

@@ -5,8 +5,10 @@ import { Button } from '../../components/Button'
 import { useAuth } from '../../app/providers/AuthProvider'
 import { createAuthService } from '../../app/services/authService'
 import { HttpError } from '../../app/lib/httpClient'
+import { usePageTitle } from "../../app/hooks/usePageTitle";
 
 export function LoginPage() {
+  usePageTitle("Iniciar sesión");
   const location = useLocation()
   const { login, isAuthenticated } = useAuth()
   const [email, setEmail] = useState('')
@@ -98,6 +100,14 @@ export function LoginPage() {
               minLength={6}
               required
             />
+          </div>
+          <div className="text-right">
+            <Link
+              to="/olvidaste-contrasena"
+              className="text-xs font-semibold text-orange hover:text-coral"
+            >
+              ¿Olvidaste tu contraseña?
+            </Link>
           </div>
         </div>
 

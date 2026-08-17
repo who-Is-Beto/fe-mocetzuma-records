@@ -3,11 +3,13 @@ import { Link, Navigate } from "react-router-dom";
 import { Button } from "../../components/Button";
 import { Toast } from "../../components/Toast";
 import { useAuth } from "../../app/providers/AuthProvider";
+import { usePageTitle } from "../../app/hooks/usePageTitle";
 
 const badgeStyles =
   "inline-flex items-center gap-2 rounded-pill border border-white/30 bg-white/20 px-3 py-1 text-xs font-semibold text-cream backdrop-blur-sm shadow-sm";
 
 export function ProfilePage() {
+  usePageTitle("Mi perfil");
   const { logout, user, isAuthenticated, emailVerified, resendVerification } = useAuth();
   const [resendStatus, setResendStatus] = useState<"idle" | "sending" | "sent">("idle");
   const [toast, setToast] = useState<{

@@ -27,7 +27,7 @@ export function SearchBar({ value, onChange, onSubmit, placeholder = "Buscar vin
         autoFocus={autoFocus}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-transparent text-sm text-navy placeholder:text-navy/50 focus:outline-none"
+        className="w-full bg-transparent text-base text-navy placeholder:text-navy/50 focus:outline-none"
         placeholder={placeholder}
       />
       <Button type="submit" tone="navy" className="px-3 py-1 text-xs">

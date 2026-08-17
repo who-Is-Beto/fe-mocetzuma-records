@@ -7,6 +7,7 @@ import { useAuth } from "../../app/providers/AuthProvider";
 import { useServiceQuery } from "../../app/hooks";
 import { http, HttpError } from "../../app/lib/httpClient";
 import { API_BASE_URL } from "../../app/config/api";
+import { usePageTitle } from "../../app/hooks/usePageTitle";
 
 export type OrderItemResponse = {
   id: number | string;
@@ -65,6 +66,7 @@ const isVerificationError = (err: unknown) =>
     "email_not_verified";
 
 export function OrdersPage() {
+  usePageTitle("Mis órdenes");
   const navigate = useNavigate();
   const { token, isAuthenticated, emailVerified, user, resendVerification } =
     useAuth();
@@ -80,7 +82,6 @@ export function OrdersPage() {
 
   const showToast = (message: string, tone: "error" | "success") => {
     setToast({ message, tone });
-    setTimeout(() => setToast(null), 5000);
   };
 
   // `null` (legacy session before email_verified existed) counts as unverified.

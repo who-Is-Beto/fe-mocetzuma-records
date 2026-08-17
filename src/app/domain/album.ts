@@ -33,9 +33,16 @@ export type RecordPage = {
   results: Record[];
 };
 
+export interface Category {
+  id: number | string;
+  name: string;
+  slug: string;
+}
+
 export interface RecordRepository {
-  list(params?: { page?: number }): Promise<RecordPage>;
-  search(params: { query: string; page?: number }): Promise<RecordPage>;
+  list(params?: { page?: number; available?: boolean; category?: string }): Promise<RecordPage>;
+  search(params: { query: string; page?: number; available?: boolean; category?: string }): Promise<RecordPage>;
   getRecordById(id: string): Promise<Record>;
   getRecordBySlug(slug: string): Promise<Record>;
+  getCategories(): Promise<Category[]>;
 }
