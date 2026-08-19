@@ -230,7 +230,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
       // Ensure artist exists: create if text provided but no ID selected
       let artistId: string | null = form.artist_id || null;
       if (!artistId && form.artist_text.trim()) {
-        const artistRes = await fetch(`${API_BASE_URL}artists/create/`, {
+        const artistRes = await fetch(``${API_BASE_URL}/artists/create/``, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -411,7 +411,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
     async (name: string) => {
       if (!token || !name.trim()) return;
       try {
-        const res = await fetch(`${API_BASE_URL}artists/create/`, {
+        const res = await fetch(``${API_BASE_URL}/artists/create/``, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
