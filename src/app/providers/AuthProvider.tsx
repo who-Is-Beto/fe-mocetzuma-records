@@ -19,6 +19,7 @@ type AuthState = {
 type AuthUser = {
   name: string
   email?: string
+  role?: 'ADMIN' | 'CUSTOMER'
 }
 
 type AuthContextValue = {
