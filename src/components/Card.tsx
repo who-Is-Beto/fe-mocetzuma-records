@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import { Link } from "react-router-dom";
 import type { Record } from "../app/domain/album";
+import { getEffectivePrice } from "../app/domain/album";
 import { Button } from "./Button";
 import { useAuth } from "../app/providers/AuthProvider";
 import { useState } from "react";
@@ -100,7 +101,7 @@ export function Card({ record }: CardProps): JSX.Element {
       className="group relative flex flex-col gap-3 overflow-hidden rounded-[22px] border border-navy/10 bg-cream/85 p-4 shadow-panel backdrop-blur transition hover:-translate-y-0.5 hover:shadow-panel focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange"
     >
       <article className="flex flex-col gap-3">
-        <div className="aspect-square overflow-hidden rounded-[18px] border border-navy/10 bg-gradient-to-br from-denim/10 via-cream to-sand/80 shadow-inner">
+        <div className="relative aspect-square overflow-hidden rounded-[18px] border border-navy/10 bg-gradient-to-br from-denim/10 via-cream to-sand/80 shadow-inner">
           {record.cover_image_url ? (
             <img
               src={record.cover_image_url}
@@ -113,6 +114,15 @@ export function Card({ record }: CardProps): JSX.Element {
               🎵
             </div>
           )}
+          {(() => {
+            const { discount, hasDiscount } = getEffectivePrice(record);
+            if (!hasDiscount) return null;
+            return (
+              <span className="absolute top-2.5 right-2.5 rounded-full bg-coral px-2.5 py-1 text-sm font-bold text-white shadow-lg">
+                -{discount}%
+              </span>
+            );
+          })()}
         </div>
 
         <div className="space-y-1">
@@ -140,9 +150,21 @@ export function Card({ record }: CardProps): JSX.Element {
         </div>
 
         <div className="flex items-center justify-between gap-2 pt-1">
-          <span className="rounded-pill bg-white/90 px-3 py-1 text-sm font-semibold text-navy shadow-sm">
-            {currency(record.price)}MXN
-          </span>
+          {(() => {
+            const { original, effective, hasDiscount } = getEffectivePrice(record);
+            return (
+              <span className="inline-flex flex-col">
+                {hasDiscount && (
+                  <span className="text-xs text-navy/40 line-through">
+                    {currency(original)} MXN
+                  </span>
+                )}
+                <span className={`rounded-pill bg-white/90 px-3 py-1 text-sm font-semibold shadow-sm ${hasDiscount ? "text-orange" : "text-navy"}`}>
+                  {currency(hasDiscount ? effective : original)} MXN
+                </span>
+              </span>
+            );
+          })()}
           <div className="flex flex-col items-end gap-1">
             <Button
               tone="orange"

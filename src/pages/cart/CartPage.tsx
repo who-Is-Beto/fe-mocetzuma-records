@@ -12,6 +12,7 @@ import {
 } from "../../app/services/cartService";
 import { HttpError } from "../../app/lib/httpClient";
 import { usePageTitle } from "../../app/hooks/usePageTitle";
+import { getEffectivePrice } from "../../app/domain/album";
 
 const CART_CODE_KEY = "moctezuma-cart-code";
 
@@ -425,7 +426,7 @@ export function CartPage() {
       </header>
 
       <div className="grid gap-5 lg:grid-cols-[1.2fr,0.85fr]">
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           {items.map((item) => (
             <div
               key={item.id}
@@ -452,11 +453,11 @@ export function CartPage() {
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <Link
                   to={`/records/${item.record.slug ?? item.record.id}`}
-                  className="truncate font-display text-base text-denim hover:text-orange sm:text-lg"
+                  className="line-clamp-2 font-display text-base text-denim hover:text-orange sm:text-lg"
                 >
                   {item.record.title}
                 </Link>
-                <p className="text-xs text-navy/70">
+                <p className="truncate text-xs text-navy/70">
                   {item.record.artist?.name ?? "Artista"}
                 </p>
                 <div className="mt-1 flex items-center gap-2">
@@ -489,9 +490,27 @@ export function CartPage() {
               </div>
 
               <div className="flex items-center justify-between gap-3 border-t border-navy/10 pt-3 sm:border-0 sm:flex-col sm:items-end sm:justify-center sm:border-t-0 sm:pt-0">
-                <p className="text-lg font-semibold text-denim">
-                  {currency(item.subtotal)}
-                </p>
+                {(() => {
+                  const { original, effective, discount, hasDiscount } = getEffectivePrice(item.record);
+                  const unitPrice = effective;
+                  return (
+                    <div className="flex items-baseline gap-2">
+                      <p className="text-lg font-semibold text-denim">
+                        {currency(unitPrice * item.quantity)}
+                      </p>
+                      {hasDiscount && (
+                        <>
+                          <span className="text-sm text-navy/40 line-through">
+                            {currency(original * item.quantity)}
+                          </span>
+                          <span className="rounded-full bg-coral/10 px-1.5 py-0.5 text-[10px] font-bold text-coral">
+                            -{discount}%
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
                 <button
                   type="button"
                   onClick={() => handleRemoveItem(item.record.id)}
@@ -517,7 +536,7 @@ export function CartPage() {
           </div>
         </div>
 
-        <aside className="h-fit space-y-4 rounded-2xl border border-navy/10 bg-cream/80 p-5 shadow-panel backdrop-blur">
+        <aside className="min-w-0 h-fit space-y-4 overflow-hidden rounded-2xl border border-navy/10 bg-cream/80 p-5 shadow-panel backdrop-blur">
           <div>
             <p className="text-xs uppercase tracking-[0.16em] text-orange">
               Resumen

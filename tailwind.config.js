@@ -43,11 +43,21 @@ module.exports = {
           '0%': { width: '100%' },
           '100%': { width: '0%' },
         },
+        overlayIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        modalIn: {
+          '0%': { opacity: '0', transform: 'scale(0.92) translateY(12px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
       },
       animation: {
         'toast-in': 'toastIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards',
         'toast-out': 'toastOut 0.25s ease-in forwards',
         'progress-shrink': 'progressShrink linear forwards',
+        'overlay-in': 'overlayIn 0.25s ease-out forwards',
+        'modal-in': 'modalIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards',
       },
     },
   },

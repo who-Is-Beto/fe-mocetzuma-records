@@ -3,6 +3,7 @@ export type User = {
   name: string;
   email?: string;
   emailVerified?: boolean;
+  role?: 'ADMIN' | 'CUSTOMER';
 };
 
 export type Credentials = {
@@ -42,6 +43,7 @@ export type AuthTokens = {
 export type AuthSession = AuthTokens & {
   user?: User;
   emailVerified?: boolean;
+  role?: 'ADMIN' | 'CUSTOMER';
 };
 
 export type VerifyEmailResult = {

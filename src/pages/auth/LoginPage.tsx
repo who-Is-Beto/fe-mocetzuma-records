@@ -4,11 +4,12 @@ import { Link, Navigate, useLocation } from 'react-router-dom'
 import { Button } from '../../components/Button'
 import { useAuth } from '../../app/providers/AuthProvider'
 import { createAuthService } from '../../app/services/authService'
-import { HttpError } from '../../app/lib/httpClient'
+import { HttpError, extractErrorMessage } from '../../app/lib/httpClient'
 import { usePageTitle } from "../../app/hooks/usePageTitle";
+import { T } from '../../app/i18n/strings'
 
 export function LoginPage() {
-  usePageTitle("Iniciar sesión");
+  usePageTitle(T.auth.login.pageTitle);
   const location = useLocation()
   const { login, isAuthenticated } = useAuth()
   const [email, setEmail] = useState('')
@@ -28,14 +29,14 @@ export function LoginPage() {
     setResendMessage(null)
     createAuthService()
       .resendVerification({ email })
-      .then(() => setResendMessage('Te reenviamos el enlace de verificación. Revisa tu bandeja de entrada.'))
-      .catch(() => setResendMessage('No pudimos reenviar el correo. Intenta de nuevo.'))
+      .then(() => setResendMessage(T.auth.login.resendSuccess))
+      .catch(() => setResendMessage(T.auth.login.resendError))
   }
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
     if (!email || !password) {
-      setError('Ingresa tu correo y contraseña para continuar.')
+      setError(T.auth.login.errorFillFields)
       return
     }
 
@@ -47,16 +48,14 @@ export function LoginPage() {
         const data = err.data as { error?: { code?: string; message?: string } } | undefined
         if (data?.error?.code === 'email_not_verified') {
           setNeedsVerification(true)
-          setError(data.error.message ?? 'Verifica tu correo antes de iniciar sesión.')
+          setError(data.error.message ?? T.auth.login.verifyEmailToLogin)
           return
         }
-        const message = typeof err.data === 'string' && err.data.trim().length > 0 ? err.data : err.message
-        setError(message)
-      } else if (err instanceof HttpError) {
-        const message = typeof err.data === 'string' && err.data.trim().length > 0 ? err.data : err.message
-        setError(message)
+      }
+      if (err instanceof HttpError) {
+        setError(extractErrorMessage(err.data, err.message))
       } else {
-        setError('No pudimos iniciar sesión. Intenta de nuevo.')
+        setError(T.auth.login.errorGeneric)
       }
     }).finally(() => setIsSubmitting(false))
   }
@@ -65,22 +64,22 @@ export function LoginPage() {
     <section className="space-y-6 rounded-[28px] border border-navy/10 bg-cream/80 p-6 shadow-panel backdrop-blur">
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-[0.18em] text-orange">Acceso</p>
-        <h1 className="font-display text-3xl text-denim">Inicia sesión</h1>
+        <h1 className="font-display text-3xl text-denim">{T.auth.login.title}</h1>
         <p className="text-sm text-navy/70">
-          Usa tu correo para acceder a tu perfil y mantener tu sesión activa en este dispositivo.
+          {T.auth.login.subtitle}
         </p>
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-navy/10 bg-white/80 p-5 shadow-card">
         <div className="space-y-1.5">
-          <label className="text-xs uppercase tracking-[0.16em] text-orange">Correo</label>
+          <label className="text-xs uppercase tracking-[0.16em] text-orange">{T.auth.login.email}</label>
           <div className="flex items-center gap-3 rounded-xl border border-navy/15 bg-cream px-3 py-2 focus-within:border-orange">
             <span className="text-lg">📧</span>
             <input
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               className="w-full bg-transparent text-sm text-navy placeholder:text-navy/50 focus:outline-none"
-              placeholder="tu@email.com"
+              placeholder={T.auth.login.emailPlaceholder}
               type="email"
               required
             />
@@ -88,14 +87,14 @@ export function LoginPage() {
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs uppercase tracking-[0.16em] text-orange">Contraseña</label>
+          <label className="text-xs uppercase tracking-[0.16em] text-orange">{T.auth.login.password}</label>
           <div className="flex items-center gap-3 rounded-xl border border-navy/15 bg-cream px-3 py-2 focus-within:border-orange">
             <span className="text-lg">🔒</span>
             <input
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               className="w-full bg-transparent text-sm text-navy placeholder:text-navy/50 focus:outline-none"
-              placeholder="••••••••"
+              placeholder={T.auth.login.passwordPlaceholder}
               type="password"
               minLength={6}
               required
@@ -106,7 +105,7 @@ export function LoginPage() {
               to="/olvidaste-contrasena"
               className="text-xs font-semibold text-orange hover:text-coral"
             >
-              ¿Olvidaste tu contraseña?
+              {T.auth.login.forgotPassword}
             </Link>
           </div>
         </div>
@@ -116,7 +115,7 @@ export function LoginPage() {
         {needsVerification ? (
           <div className="flex flex-col gap-2 rounded-xl border border-orange/40 bg-orange/10 px-3 py-3 text-sm">
             <Button tone="outline" onClick={handleResend}>
-              🔁 Reenviar enlace de verificación
+              🔁 {T.auth.login.resendVerification}
             </Button>
             {resendMessage ? <p className="text-xs font-semibold text-navy/70">{resendMessage}</p> : null}
           </div>
@@ -130,33 +129,33 @@ export function LoginPage() {
             disabled={isSubmitting}
           >
             <span>🎵</span>
-            {isSubmitting ? 'Entrando...' : 'Entrar'}
+            {isSubmitting ? T.auth.login.submitting : T.auth.login.submit}
           </Button>
-          <span className="text-xs uppercase tracking-[0.14em] text-navy/60">Sesión segura en este navegador</span>
+          <span className="text-xs uppercase tracking-[0.14em] text-navy/60">{T.auth.login.secureNote}</span>
         </div>
 
         <div className="flex flex-col gap-3 rounded-xl border border-navy/10 bg-cream px-3 py-3 text-sm text-navy shadow-inner md:hidden">
           <div className="space-y-0.5">
-            <p className="text-xs uppercase tracking-[0.16em] text-orange">¿Nuevo aquí?</p>
-            <p className="text-[11px] text-navy/70 leading-tight">Activa tu cuenta y guarda sesión.</p>
+            <p className="text-xs uppercase tracking-[0.16em] text-orange">{T.auth.login.noAccountTitle}</p>
+            <p className="text-[11px] text-navy/70 leading-tight">{T.auth.login.noAccountHint}</p>
           </div>
           <Link
             to="/register"
             className="w-full rounded-pill border border-orange/70 bg-orange px-3 py-2 text-center text-xs font-semibold text-charcoal shadow-panel transition hover:-translate-y-0.5 hover:bg-amber"
           >
-            Registrarme
+            {T.auth.login.createAccount}
           </Link>
         </div>
       </form>
 
       <div className="hidden flex-wrap items-center gap-3 rounded-2xl border border-navy/10 bg-white/70 px-4 py-3 text-sm text-navy/80 shadow-inner md:flex">
         <p>
-          Después de iniciar sesión serás redirigido a{' '}
+          {T.auth.login.redirectNote}{' '}
           <span className="font-semibold text-denim">{from}</span>
         </p>
         <span className="hidden text-orange md:inline">·</span>
         <Link to="/register" className="font-semibold text-orange hover:text-coral">
-          Crear cuenta
+          {T.auth.login.goToRegister}
         </Link>
       </div>
     </section>

@@ -4,6 +4,7 @@ import { Button } from '../../components/Button'
 import { createAuthService } from '../../app/services/authService'
 import { HttpError } from '../../app/lib/httpClient'
 import { useAuth } from '../../app/providers/AuthProvider'
+import { T } from '../../app/i18n/strings'
 
 type VerifyStatus = 'verifying' | 'success' | 'error'
 
@@ -20,7 +21,7 @@ export function VerifyEmailPage() {
 
     if (!uid || !token) {
       setStatus('error')
-      setMessage('El enlace de verificación es inválido o está incompleto.')
+      setMessage(T.auth.verifyEmail.invalidLinkMessage)
       return
     }
 
@@ -41,9 +42,9 @@ export function VerifyEmailPage() {
         if (err instanceof HttpError) {
           // DRF serializer errors come as { token: ["Invalid or expired verification link"] }.
           // The only 400 this endpoint returns is the token error, so localize it.
-          setMessage('El enlace no es válido o ya expiró. Solicita uno nuevo desde tu perfil.')
+          setMessage(T.auth.verifyEmail.invalidLinkMessage)
         } else {
-          setMessage('No pudimos verificar tu correo. Intenta de nuevo.')
+          setMessage(T.auth.verifyEmail.errorGeneric)
         }
       })
 
@@ -54,10 +55,10 @@ export function VerifyEmailPage() {
 
   const title =
     status === 'success'
-      ? '¡Correo verificado!'
+      ? T.auth.verifyEmail.successTitle
       : status === 'verifying'
-        ? 'Verificando tu correo…'
-        : 'No pudimos verificar tu correo'
+        ? T.auth.verifyEmail.verifying
+        : T.auth.verifyEmail.errorGeneric
 
   return (
     <section className="space-y-6 rounded-[28px] border border-navy/10 bg-cream/80 p-6 text-center shadow-panel backdrop-blur">
@@ -70,7 +71,7 @@ export function VerifyEmailPage() {
         {status === 'verifying'
           ? 'Un momento, por favor.'
           : status === 'success'
-            ? 'Tu cuenta está lista. Ya puedes disfrutar de Moctezuma Records.'
+            ? T.auth.verifyEmail.successMessage
             : message}
       </p>
 

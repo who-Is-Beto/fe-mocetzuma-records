@@ -19,6 +19,7 @@ type AuthState = {
 type AuthUser = {
   name: string
   email?: string
+  role?: 'ADMIN' | 'CUSTOMER'
 }
 
 type AuthContextValue = {
@@ -27,6 +28,7 @@ type AuthContextValue = {
   refreshToken: string | null
   user: AuthUser | null
   emailVerified: boolean | null
+  role: 'ADMIN' | 'CUSTOMER' | null
   login: (credentials: Credentials) => Promise<void>
   register: (payload: RegisterInput) => Promise<void>
   logout: () => void
@@ -111,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!prev.token) return prev
           return {
             ...prev,
-            user: { name: profile.name, email: profile.email },
+            user: { name: profile.name, email: profile.email, role: profile.role },
             // Never downgrade a just-verified `true` with a stale profile
             // response fetched before verification completed.
             emailVerified:
@@ -144,7 +146,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         response.user ??
         ({
           name: credentials.email.split('@')[0] || 'Usuario',
-          email: credentials.email
+          email: credentials.email,
+          role: response.role
         } satisfies AuthUser)
 
       setSession(response.accessToken, response.refreshToken ?? null, user, response.emailVerified ?? null)
@@ -159,7 +162,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         response.user ??
         ({
           name: payload.username,
-          email: payload.email
+          email: payload.email,
+          role: response.role
         } satisfies AuthUser)
 
       setSession(response.accessToken, response.refreshToken ?? null, user, response.emailVerified ?? null)
@@ -212,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshToken: authState.refreshToken,
       user: authState.user,
       emailVerified: authState.emailVerified,
+      role: authState.user?.role ?? null,
       login,
       register,
       logout,
