@@ -13,7 +13,6 @@ export function Navbar(): ReactNode {
   const [searchTerm, setSearchTerm] = useState(params.get("search") ?? "");
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [hideMobileNav, setHideMobileNav] = useState(false);
-  const [kbOffset, setKbOffset] = useState(0);
   const lastScrollRef = useRef(0);
 
   const accountLink = isAuthenticated
@@ -57,29 +56,6 @@ export function Navbar(): ReactNode {
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  // Track visual viewport to reposition search bar above the virtual keyboard.
-  // Browsers like Arc (WebKit) zoom into inputs on mobile, shrinking the
-  // visual viewport while `position: fixed` still references the layout
-  // viewport — causing the search bar to hide behind the keyboard.
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-
-    const recalc = () => {
-      const offset = window.innerHeight - (vv.height + vv.offsetTop);
-      setKbOffset(Math.max(0, Math.round(offset)));
-    };
-
-    vv.addEventListener("resize", recalc);
-    vv.addEventListener("scroll", recalc);
-    recalc();
-
-    return () => {
-      vv.removeEventListener("resize", recalc);
-      vv.removeEventListener("scroll", recalc);
-    };
   }, []);
 
   return (
@@ -195,12 +171,11 @@ export function Navbar(): ReactNode {
       />
 
       <div
-        className={`fixed inset-x-0 z-30 px-4 transition-all duration-300 ease-out md:hidden ${
+        className={`fixed inset-x-0 top-4 z-30 px-4 transition-all duration-300 ease-out md:hidden ${
           showMobileSearch
             ? "translate-y-0 opacity-100 scale-100 pointer-events-auto"
-            : "translate-y-2 opacity-0 scale-95 pointer-events-none"
+            : "-translate-y-2 opacity-0 scale-95 pointer-events-none"
         }`}
-        style={{ bottom: showMobileSearch ? `${80 + kbOffset}px` : undefined }}
       >
         <div className="mx-auto max-w-6xl rounded-2xl border border-navy/10 bg-sand px-4 py-3 shadow-panel backdrop-blur">
           <SearchBar
