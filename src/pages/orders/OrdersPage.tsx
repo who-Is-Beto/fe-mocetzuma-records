@@ -93,7 +93,7 @@ export function OrdersPage() {
     if (!canFetchOrders) return [];
     try {
       const data = await http<OrderResponse[]>(
-        ``${API_BASE_URL}/orders/`,
+        `${API_BASE_URL}/orders/`,
         { token }
       );
       return data;
