@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Button } from '../../components/Button'
 import { createAuthService } from '../../app/services/authService'
-import { HttpError } from '../../app/lib/httpClient'
+import { HttpError, extractErrorMessage } from '../../app/lib/httpClient'
+import { T } from '../../app/i18n/strings'
 
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
@@ -25,12 +26,12 @@ export function ResetPasswordPage() {
     setFieldErrors({})
 
     if (!newPassword || !confirmPassword) {
-      setError('Completa ambos campos de contraseña.')
+      setError(T.auth.resetPassword.errorFillBoth)
       return
     }
 
     if (newPassword !== confirmPassword) {
-      setFieldErrors({ confirm_password: 'Las contraseñas no coinciden.' })
+      setFieldErrors({ confirm_password: T.auth.register.errorPasswordMismatch })
       return
     }
 
@@ -39,27 +40,10 @@ export function ResetPasswordPage() {
       .confirmPasswordReset({ uid, token, new_password: newPassword, confirm_password: confirmPassword })
       .then(() => setSuccess(true))
       .catch((err: unknown) => {
-        if (err instanceof HttpError && typeof err.data === 'object' && err.data !== null) {
-          const data = err.data as Record<string, string | string[]>
-          const newFieldErrors: Record<string, string> = {}
-          let genericMessage = 'No pudimos restablecer tu contraseña.'
-
-          for (const [key, value] of Object.entries(data)) {
-            const msg = Array.isArray(value) ? value[0] : String(value)
-            if (key === 'token') {
-              genericMessage = msg
-            } else {
-              newFieldErrors[key] = msg
-            }
-          }
-
-          if (Object.keys(newFieldErrors).length === 0) {
-            setError(genericMessage)
-          } else {
-            setFieldErrors(newFieldErrors)
-          }
+        if (err instanceof HttpError) {
+          setError(extractErrorMessage(err.data, T.auth.resetPassword.errorGeneric))
         } else {
-          setError('No pudimos restablecer tu contraseña. Intenta de nuevo.')
+          setError(T.auth.resetPassword.errorGeneric)
         }
       })
       .finally(() => setIsSubmitting(false))
@@ -69,17 +53,17 @@ export function ResetPasswordPage() {
     return (
       <section className="space-y-6 rounded-[28px] border border-navy/10 bg-cream/80 p-6 text-center shadow-panel backdrop-blur">
         <header className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.18em] text-orange">Seguridad</p>
-          <h1 className="font-display text-3xl text-denim">Enlace inválido</h1>
+          <p className="text-xs uppercase tracking-[0.18em] text-orange">{T.auth.resetPassword.securityBadge}</p>
+          <h1 className="font-display text-3xl text-denim">{T.auth.resetPassword.invalidLinkTitle}</h1>
         </header>
         <p className="text-sm text-navy/70">
-          El enlace de recuperación es inválido o está incompleto. Solicita uno nuevo desde la página de inicio de sesión.
+          {T.auth.resetPassword.invalidLinkMessage}
         </p>
         <Link
           to="/olvidaste-contrasena"
           className="inline-flex items-center justify-center gap-2 rounded-pill bg-orange px-4 py-2 text-sm font-semibold text-charcoal shadow-panel transition hover:-translate-y-0.5 hover:bg-amber"
         >
-          Solicitar nuevo enlace
+          {T.auth.resetPassword.requestNewLink}
         </Link>
       </section>
     )
@@ -89,18 +73,18 @@ export function ResetPasswordPage() {
     return (
       <section className="space-y-6 rounded-[28px] border border-navy/10 bg-cream/80 p-6 text-center shadow-panel backdrop-blur">
         <header className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.18em] text-orange">Seguridad</p>
-          <h1 className="font-display text-3xl text-denim">¡Contraseña actualizada!</h1>
+          <p className="text-xs uppercase tracking-[0.18em] text-orange">{T.auth.resetPassword.securityBadge}</p>
+          <h1 className="font-display text-3xl text-denim">{T.auth.resetPassword.successTitle}</h1>
         </header>
         <div className="text-4xl">✅</div>
         <p className="text-sm text-navy/70">
-          Tu contraseña ha sido restablecida exitosamente. Ya puedes iniciar sesión con tu nueva contraseña.
+          {T.auth.resetPassword.successMessage}
         </p>
         <Link
           to="/login"
           className="inline-flex items-center justify-center gap-2 rounded-pill bg-orange px-4 py-2 text-sm font-semibold text-charcoal shadow-panel transition hover:-translate-y-0.5 hover:bg-amber"
         >
-          Iniciar sesión
+          {T.auth.resetPassword.successButton}
         </Link>
       </section>
     )
@@ -109,39 +93,42 @@ export function ResetPasswordPage() {
   return (
     <section className="space-y-6 rounded-[28px] border border-navy/10 bg-cream/80 p-6 shadow-panel backdrop-blur">
       <header className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.18em] text-orange">Seguridad</p>
-        <h1 className="font-display text-3xl text-denim">Restablece tu contraseña</h1>
+        <p className="text-xs uppercase tracking-[0.18em] text-orange">{T.auth.resetPassword.securityBadge}</p>
+        <h1 className="font-display text-3xl text-denim">{T.auth.resetPassword.title}</h1>
         <p className="text-sm text-navy/70">
-          Elige una contraseña nueva para tu cuenta. Asegúrate de que sea segura y fácil de recordar.
+          {T.auth.resetPassword.subtitle}
         </p>
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-navy/10 bg-white/80 p-5 shadow-card">
         <div className="space-y-1.5">
-          <label className="text-xs uppercase tracking-[0.16em] text-orange">Nueva contraseña</label>
+          <label className="text-xs uppercase tracking-[0.16em] text-orange">{T.auth.resetPassword.newPassword}</label>
           <div className="flex items-center gap-3 rounded-xl border border-navy/15 bg-cream px-3 py-2 focus-within:border-orange">
             <span className="text-lg">🔒</span>
             <input
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
               className="w-full bg-transparent text-sm text-navy placeholder:text-navy/50 focus:outline-none"
-              placeholder="••••••••"
+              placeholder={T.auth.resetPassword.passwordPlaceholder}
               type="password"
               minLength={8}
               required
             />
           </div>
+          {fieldErrors.new_password ? (
+            <p className="text-xs font-semibold text-coral">{fieldErrors.new_password}</p>
+          ) : null}
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs uppercase tracking-[0.16em] text-orange">Confirmar contraseña</label>
+          <label className="text-xs uppercase tracking-[0.16em] text-orange">{T.auth.resetPassword.confirmPassword}</label>
           <div className="flex items-center gap-3 rounded-xl border border-navy/15 bg-cream px-3 py-2 focus-within:border-orange">
             <span className="text-lg">🔒</span>
             <input
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               className="w-full bg-transparent text-sm text-navy placeholder:text-navy/50 focus:outline-none"
-              placeholder="••••••••"
+              placeholder={T.auth.resetPassword.passwordPlaceholder}
               type="password"
               minLength={8}
               required
@@ -162,15 +149,15 @@ export function ResetPasswordPage() {
             disabled={isSubmitting}
           >
             <span>🔐</span>
-            {isSubmitting ? 'Guardando...' : 'Restablecer contraseña'}
+            {isSubmitting ? T.auth.resetPassword.submitting : T.auth.resetPassword.submit}
           </Button>
         </div>
       </form>
 
       <div className="text-center text-sm text-navy/70">
-        ¿Recordaste tu contraseña?{' '}
+        {T.auth.resetPassword.rememberPassword}{' '}
         <Link to="/login" className="font-semibold text-orange hover:text-coral">
-          Iniciar sesión
+          {T.auth.resetPassword.goToLogin}
         </Link>
       </div>
     </section>

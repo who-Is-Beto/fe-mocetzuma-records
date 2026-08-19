@@ -48,6 +48,7 @@ export function Navbar(): ReactNode {
       if (Math.abs(delta) < 6) return;
       if (current > lastScrollRef.current && current > 24) {
         setHideMobileNav(true);
+        setShowMobileSearch(false);
       } else {
         setHideMobileNav(false);
       }
@@ -136,6 +137,15 @@ export function Navbar(): ReactNode {
               </Button>
             </div>
           )}
+          {user?.role === "ADMIN" && (
+            <Button
+              tone="outline"
+              className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap"
+              onClick={() => navigate("/inventario")}
+            >
+              📦 Inventario
+            </Button>
+          )}
           <Button
             tone="navy"
             className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap"
@@ -146,25 +156,43 @@ export function Navbar(): ReactNode {
         </div>
       </nav>
 
-      {showMobileSearch ? (
-        <div className="fixed inset-x-0 bottom-20 z-30 px-4 md:hidden">
-          <div className="mx-auto max-w-6xl rounded-2xl border border-navy/10 bg-sand px-4 py-3 shadow-panel backdrop-blur">
-            <SearchBar
-              value={searchTerm}
-              onChange={setSearchTerm}
-              onSubmit={(term) => {
-                submitSearch(term);
-                setShowMobileSearch(false);
-              }}
-              placeholder="Buscar en catálogo..."
-            />
-          </div>
+      {/*
+        Backdrop: taps outside the searchbar close it.
+        Only visible on mobile when the searchbar is open.
+      */}
+      <div
+        className={`fixed inset-0 z-29 bg-navy/20 backdrop-blur-sm transition-opacity duration-300 ease-out md:hidden ${
+          showMobileSearch
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
+        }`}
+        onClick={() => setShowMobileSearch(false)}
+        aria-hidden="true"
+      />
+
+      <div
+        className={`fixed inset-x-0 bottom-20 z-30 px-4 transition-all duration-300 ease-out md:hidden ${
+          showMobileSearch
+            ? "translate-y-0 opacity-100 scale-100 pointer-events-auto"
+            : "translate-y-2 opacity-0 scale-95 pointer-events-none"
+        }`}
+      >
+        <div className="mx-auto max-w-6xl rounded-2xl border border-navy/10 bg-sand px-4 py-3 shadow-panel backdrop-blur">
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            onSubmit={(term) => {
+              submitSearch(term);
+              setShowMobileSearch(false);
+            }}
+            placeholder="Buscar en catálogo..."
+          />
         </div>
-      ) : null}
+      </div>
 
       <nav
-        className={`fixed inset-x-0 bottom-4 z-20 mx-auto w-[min(480px,calc(100%-28px))] transition-transform duration-200 md:hidden ${
-          hideMobileNav ? "translate-y-[120%]" : "translate-y-0"
+        className={`fixed inset-x-0 bottom-4 z-20 mx-auto w-[min(480px,calc(100%-28px))] transition-all duration-300 ease-out md:hidden ${
+          hideMobileNav ? "translate-y-[120%] opacity-0 scale-95" : "translate-y-0 opacity-100 scale-100"
         }`}
       >
         <div className="rounded-2xl border bg-sand border-navy/10 px-4 py-3 shadow-panel backdrop-blur">
@@ -173,6 +201,7 @@ export function Navbar(): ReactNode {
               <NavLink
                 key={link.label}
                 to={link.href}
+                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
                 className={({ isActive }) =>
                   `flex h-12 flex-1 flex-col items-center justify-center rounded-xl border text-[11px] leading-tight font-semibold transition hover:-translate-y-0.5 hover:border-orange hover:bg-sun/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange ${
                     isActive
@@ -200,6 +229,22 @@ export function Navbar(): ReactNode {
               <span className="text-xl">🔎</span>
               <span>Buscar</span>
             </button>
+            {user?.role === "ADMIN" && (
+              <NavLink
+                to="/inventario"
+                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                className={({ isActive }) =>
+                  `flex h-12 flex-1 flex-col items-center justify-center rounded-xl border text-[10px] leading-tight font-semibold transition hover:-translate-y-0.5 hover:border-orange hover:bg-sun/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange ${
+                    isActive
+                      ? "border-orange bg-sun/70 text-navy"
+                      : "border-transparent text-navy"
+                  }`
+                }
+              >
+                <span className="text-lg">📦</span>
+                <span className="truncate">Inv.</span>
+              </NavLink>
+            )}
           </div>
         </div>
       </nav>

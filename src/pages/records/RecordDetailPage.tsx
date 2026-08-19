@@ -4,7 +4,8 @@ import { Button } from "../../components/Button";
 import { Loader } from "../../components/Loader";
 import { Toast } from "../../components/Toast";
 import { createRecordService } from "../../app/services/recordService";
-import type { Record } from "../../app/domain/album";
+import type { Record as MusicRecord } from "../../app/domain/album";
+import { getEffectivePrice } from "../../app/domain/album";
 import { useServiceQuery } from "../../app/hooks";
 import { HttpError } from "../../app/lib/httpClient";
 import { useAuth } from "../../app/providers/AuthProvider";
@@ -31,6 +32,93 @@ const currency = (value?: number | string) =>
       })
     : "—";
 
+type CarouselProps = { images: string[]; title: string };
+
+function RecordImageCarousel({ images, title }: CarouselProps) {
+  const [current, setCurrent] = useState(0);
+  const [loaded, setLoaded] = useState<Record<number, boolean>>({});
+
+  const prev = () =>
+    setCurrent((i) => (i === 0 ? images.length - 1 : i - 1));
+  const next = () =>
+    setCurrent((i) => (i === images.length - 1 ? 0 : i + 1));
+
+  if (images.length === 1) {
+    return (
+      <img
+        src={images[0]}
+        alt={title}
+        className="h-full w-full object-contain"
+        loading="lazy"
+      />
+    );
+  }
+
+  return (
+    <div className="relative h-full w-full bg-navy/5">
+      {/* Preload next/prev for smooth navigation */}
+      {images.map((src, idx) =>
+        idx === current ? null : (
+          <link
+            key={`preload-${idx}`}
+            rel="prefetch"
+            as="image"
+            href={src}
+          />
+        )
+      )}
+      <img
+        src={images[current]}
+        alt={`${title} — imagen ${current + 1}`}
+        className={`h-full w-full object-contain transition-opacity duration-200 ${
+          loaded[current] ? "opacity-100" : "opacity-0"
+        }`}
+        loading="eager"
+        onLoad={() => setLoaded((prev) => ({ ...prev, [current]: true }))}
+      />
+      {!loaded[current] && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-navy/20 border-t-orange" />
+        </div>
+      )}
+      {/* Nav arrows */}
+      <button
+        type="button"
+        onClick={prev}
+        className="absolute left-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white text-sm backdrop-blur-sm transition hover:bg-black/60"
+        aria-label="Imagen anterior"
+      >
+        &#8249;
+      </button>
+      <button
+        type="button"
+        onClick={next}
+        className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white text-sm backdrop-blur-sm transition hover:bg-black/60"
+        aria-label="Siguiente imagen"
+      >
+        &#8250;
+      </button>
+      {/* Dots */}
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+        {images.map((_, idx) => (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => setCurrent(idx)}
+            className={`h-2 w-2 rounded-full transition ${
+              idx === current
+                ? "bg-white scale-110"
+                : "bg-white/50 hover:bg-white/70"
+            }`}
+            aria-label={`Imagen ${idx + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 export function RecordDetailPage() {
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
@@ -56,20 +144,19 @@ export function RecordDetailPage() {
     () => (slug ? `record-detail:${slug}` : null),
     [slug]
   );
-  const cachedRecord = useMemo<Record | null>(() => {
+  const cachedRecord = useMemo<MusicRecord | null>(() => {
     if (!cacheKey || typeof window === "undefined") return null;
     const raw = sessionStorage.getItem(cacheKey);
     if (!raw) return null;
     try {
-      return JSON.parse(raw) as Record;
+      return JSON.parse(raw) as MusicRecord;
     } catch {
       return null;
     }
   }, [cacheKey]);
 
-  const fetchRecord = useCallback(async (): Promise<Record | null> => {
+  const fetchRecord = useCallback(async (): Promise<MusicRecord | null> => {
     if (!slug) return null;
-    if (cachedRecord) return cachedRecord;
 
     try {
       const record = await recordService.getRecordBySlug(slug);
@@ -106,9 +193,9 @@ export function RecordDetailPage() {
 
       throw err;
     }
-  }, [cacheKey, cachedRecord, recordService, slug]);
+  }, [cacheKey, recordService, slug]);
 
-  const { data, isLoading, isError, error } = useServiceQuery<Record | null>(
+  const { data, isLoading, isError, error } = useServiceQuery<MusicRecord | null>(
     [recordService, slug],
     fetchRecord,
     { initialData: cachedRecord ?? undefined, enabled: Boolean(slug) }
@@ -164,12 +251,7 @@ export function RecordDetailPage() {
     );
   }
 
-  const effectivePrice = data.discount_percentage
-    ? Math.max(0, Number(data.price) * (1 - data.discount_percentage / 100))
-    : Number(data.price);
-  const hasDiscount = Boolean(
-    data.discount_percentage && data.discount_percentage > 0
-  );
+  const { original, effective: effectivePrice, discount: discountPct, hasDiscount } = getEffectivePrice(data);
   const genereLabel =
     typeof data.genere === "string"
       ? data.genere
@@ -258,46 +340,49 @@ export function RecordDetailPage() {
   };
 
   return (
-    <section className="grid gap-5 rounded-[28px] border border-navy/10 bg-cream/80 p-5 shadow-panel backdrop-blur lg:grid-cols-[1.05fr,0.95fr] lg:p-6">
+    <section className="grid gap-4 rounded-[28px] border border-navy/10 bg-cream/80 p-4 shadow-panel backdrop-blur sm:p-5 lg:grid-cols-[1.05fr,0.95fr] lg:gap-5 lg:p-6">
       <div className="space-y-4">
-        <div className="relative overflow-hidden rounded-[24px] border border-navy/10 bg-gradient-to-br from-denim/10 via-cream to-sand/80 shadow-inner">
-          {data.cover_image_url ? (
-            <img
-              src={data.cover_image_url}
-              alt={data.title}
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            <div className="flex aspect-square items-center justify-center text-4xl">
-              🎵
-            </div>
-          )}
-          <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-            <span className="rounded-pill bg-sun px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-navy shadow-sm">
+        <div className="relative aspect-square overflow-hidden rounded-[24px] border border-navy/10 bg-gradient-to-br from-denim/10 via-cream to-sand/80 shadow-inner">
+          {(() => {
+            const images: string[] = data.images?.length
+              ? data.images
+              : data.cover_image_url
+              ? [data.cover_image_url]
+              : [];
+            if (images.length === 0) {
+              return (
+                <div className="flex h-full w-full items-center justify-center text-4xl">
+                  🎵
+                </div>
+              );
+            }
+            return <RecordImageCarousel images={images} title={data.title} />;
+          })()}
+          <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-1.5 sm:left-4 sm:top-4 sm:gap-2">
+            <span className="rounded-pill bg-sun px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-navy shadow-sm sm:px-3 sm:py-1 sm:text-[11px]">
               {data.category?.name ?? "Categoría"}
             </span>
-            <span className="rounded-pill border border-navy/10 bg-white/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/70">
+            <span className="rounded-pill border border-navy/10 bg-white/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-navy/70 sm:px-3 sm:py-1 sm:text-[11px]">
               {data.condition}
             </span>
             {data.featured ? (
-              <span className="rounded-pill border border-orange/60 bg-orange px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-charcoal shadow-panel">
+              <span className="rounded-pill border border-orange/60 bg-orange px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-charcoal shadow-panel sm:px-3 sm:py-1 sm:text-[11px]">
                 Destacado
               </span>
             ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
           <Button
             tone="outline"
-            className="px-4 py-2 text-sm"
+            className="w-full px-4 py-2.5 text-sm sm:w-auto"
             onClick={() => navigate(-1)}
           >
             ← Regresar
           </Button>
           <Button
             tone="outline"
-            className="px-4 py-2 text-sm"
+            className="w-full px-4 py-2.5 text-sm sm:w-auto"
             onClick={() => void handleShare()}
           >
             <svg
@@ -322,7 +407,7 @@ export function RecordDetailPage() {
           </Button>
           <Button
             tone="orange"
-            className="px-4 py-2 text-sm"
+            className="w-full px-4 py-2.5 text-sm sm:w-auto"
             onClick={handleAddToCart}
             disabled={cartStatus === "adding" || requiresVerification || data.stock <= 0}
             title={requiresVerification ? verifyHint : undefined}
@@ -353,19 +438,19 @@ export function RecordDetailPage() {
       </div>
 
       <div className="space-y-4">
-        <div className="rounded-2xl border border-navy/10 bg-white/90 p-5 shadow-card">
+        <div className="rounded-2xl border border-navy/10 bg-white/90 p-4 shadow-card sm:p-5">
           <p className="text-xs uppercase tracking-[0.18em] text-orange">
             Disco
           </p>
-          <h1 className="mt-2 font-display text-3xl text-denim">
+          <h1 className="mt-2 font-display text-2xl text-denim sm:text-3xl">
             {data.title}
           </h1>
-          <p className="text-sm text-navy/70">
+          <p className="mt-1 text-sm text-navy/70">
             {typeof data.artist === "string" ? data.artist : data.artist?.name}
           </p>
 
           <div className="mt-4 space-y-3">
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-navy/10 bg-cream/70 px-4 py-3">
+            <div className="flex flex-col gap-2 rounded-xl border border-navy/10 bg-cream/70 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.14em] text-orange">
                   Precio
@@ -375,9 +460,14 @@ export function RecordDetailPage() {
                     {currency(effectivePrice)}
                   </p>
                   {hasDiscount ? (
+                    <>
                     <span className="text-sm text-navy/60 line-through">
-                      {currency(data.price)}
+                      {currency(original)}
                     </span>
+                      <span className="rounded-full bg-coral/10 px-2 py-0.5 text-[10px] font-bold text-coral">
+                        -{discountPct}%
+                      </span>
+                    </>
                   ) : null}
                 </div>
               </div>
@@ -417,12 +507,12 @@ export function RecordDetailPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-navy/10 bg-white/90 p-5 shadow-card">
+        <div className="rounded-2xl border border-navy/10 bg-white/90 p-4 shadow-card sm:p-5">
           <p className="text-xs uppercase tracking-[0.16em] text-orange">
             Detalle
           </p>
           <div className="mt-3 grid gap-3 text-sm text-navy">
-            <div className="rounded-xl border border-navy/10 bg-cream/60 p-4 shadow-inner">
+            <div className="rounded-xl border border-navy/10 bg-cream/60 p-3 shadow-inner sm:p-4">
               <p className="text-xs uppercase tracking-[0.14em] text-orange">
                 Categoría
               </p>
@@ -430,7 +520,7 @@ export function RecordDetailPage() {
                 {data.category?.name ?? "—"}
               </p>
             </div>
-            <div className="rounded-xl border border-navy/10 bg-cream/60 p-4 shadow-inner">
+            <div className="rounded-xl border border-navy/10 bg-cream/60 p-3 shadow-inner sm:p-4">
               <p className="text-xs uppercase tracking-[0.14em] text-orange">
                 Estado
               </p>
@@ -438,7 +528,7 @@ export function RecordDetailPage() {
                 {data.condition ?? "—"}
               </p>
             </div>
-            <div className="rounded-xl border border-navy/10 bg-cream/60 p-4 shadow-inner">
+            <div className="rounded-xl border border-navy/10 bg-cream/60 p-3 shadow-inner sm:p-4">
               <p className="text-xs uppercase tracking-[0.14em] text-orange">
                 Descripción
               </p>

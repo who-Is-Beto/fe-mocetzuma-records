@@ -17,6 +17,7 @@ import { TerminosPage } from "../../pages/legal/TerminosPage";
 import { PrivacidadPage } from "../../pages/legal/PrivacidadPage";
 import { AyudaPage } from "../../pages/legal/AyudaPage";
 import { ContactoPage } from "../../pages/legal/ContactoPage";
+import { AdminPage } from "../../pages/admin/AdminPage";
 import { NotFoundPage } from "../../pages/NotFoundPage";
 
 export const router = createBrowserRouter([
@@ -44,7 +45,10 @@ export const router = createBrowserRouter([
       { path: "contacto", element: <ContactoPage /> },
       {
         element: <AuthGuard />,
-        children: [{ path: "perfil", element: <ProfilePage /> }]
+        children: [
+          { path: "perfil", element: <ProfilePage /> },
+          { path: "inventario", element: <AdminPage /> },
+        ]
       },
       { path: "*", element: <NotFoundPage /> }
     ]

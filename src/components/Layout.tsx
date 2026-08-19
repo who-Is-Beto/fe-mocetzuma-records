@@ -15,7 +15,7 @@ const footerLinks = [
 
 export function Layout({ children }: LayoutProps) {
   return (
-    <div className="min-h-screen overflow-hidden bg-sand text-navy">
+    <div className="min-h-screen overflow-x-hidden bg-sand text-navy">
       <div className="relative isolate flex min-h-screen flex-col">
         <div className="pointer-events-none absolute inset-0 -z-20 retro-blob opacity-90" />
         <div className="pointer-events-none absolute -right-20 top-10 -z-10 h-72 w-[52rem] rotate-6 bg-stripes opacity-60 blur-[28px]" />
@@ -40,6 +40,7 @@ export function Layout({ children }: LayoutProps) {
                   key={item.to}
                   to={item.to}
                   className="text-sm font-semibold text-navy transition hover:text-orange"
+                  onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
                 >
                   {item.label}
                 </Link>

@@ -27,6 +27,7 @@ type AuthResponse = {
   user?: User;
   message?: string;
   email_verified?: boolean;
+  role?: 'ADMIN' | 'CUSTOMER';
 };
 
 const mapTokens = (response: AuthResponse): AuthSession => {
@@ -41,7 +42,8 @@ const mapTokens = (response: AuthResponse): AuthSession => {
     accessToken,
     refreshToken,
     user: response.user,
-    emailVerified: response.email_verified
+    emailVerified: response.email_verified,
+    role: response.role
   };
 };
 
@@ -76,6 +78,7 @@ export function createAuthService(config: AuthServiceConfig = {}): AuthRepositor
         username: string;
         email?: string;
         email_verified?: boolean;
+        role?: 'ADMIN' | 'CUSTOMER';
       }>(withBase(baseUrl, "/auth/me/"), {
         token
       });
@@ -83,7 +86,8 @@ export function createAuthService(config: AuthServiceConfig = {}): AuthRepositor
         id: response.id,
         name: response.username,
         email: response.email,
-        emailVerified: response.email_verified
+        emailVerified: response.email_verified,
+        role: response.role
       };
     },
     async verifyEmail({ uid, token }: VerifyEmailInput) {
