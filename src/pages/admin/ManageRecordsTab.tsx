@@ -50,7 +50,7 @@ export function ManageRecordsTab({ onEdit }: Props) {
   const openSellModal = (record: AlbumRecord) => {
     setSellingRecord(record);
     setSellQty(1);
-    setSellPrice(String(record.sell_price ?? record.price ?? ""));
+    setSellPrice(String(record.sell_price || record.price || ""));
     setSellError(null);
     setSellSuccess(false);
   };
