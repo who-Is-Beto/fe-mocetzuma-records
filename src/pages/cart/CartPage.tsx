@@ -8,7 +8,9 @@ import { useServiceQuery } from "../../app/hooks";
 import {
   createCartService,
   type CartResponse,
-  type ShippingDetails
+  type ShippingDetails,
+  type ShippingLocation,
+  type ShippingQuoteResponse
 } from "../../app/services/cartService";
 import { HttpError } from "../../app/lib/httpClient";
 import { usePageTitle } from "../../app/hooks/usePageTitle";
@@ -49,7 +51,7 @@ const DELIVERY_OPTIONS = [
   {
     key: "home" as const,
     label: "Envío a domicilio",
-    helper: "Calculamos el envío al pagar."
+    helper: "Calculamos el envío con tu código postal."
   },
   {
     key: "bazar" as const,
@@ -100,6 +102,14 @@ export function CartPage() {
     Record<string, string>
   >({});
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [shippingQuote, setShippingQuote] =
+    useState<ShippingQuoteResponse | null>(null);
+  const [isQuoting, setIsQuoting] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  // Sepomex colonias for the entered ZIP (one ZIP can cover several). Empty
+  // list → fall back to the free-text colonia input.
+  const [locations, setLocations] = useState<ShippingLocation[]>([]);
+  const [locationsZip, setLocationsZip] = useState<string | null>(null);
   const shippingFormRef = useRef<HTMLFormElement | null>(null);
 
   useEffect(() => {
@@ -151,9 +161,105 @@ export function CartPage() {
   const cartCode = cart?.cart_code ?? getCartCode();
   const items = cart?.cart_items ?? [];
 
+  // Content signature of the cart (which records × how many). Quantity edits
+  // change the package weight, so the shipping quote must be recalculated —
+  // items.length alone misses same-line quantity changes.
+  const cartSignature = useMemo(
+    () =>
+      items
+        .map((item) => `${item.record?.id ?? item.id}x${item.quantity}`)
+        .sort()
+        .join("|"),
+    [items]
+  );
+
   const refreshCart = useCallback(() => {
     void refetch();
   }, [refetch]);
+
+  // Live shipping quote: once a home-delivery ZIP is complete, ask the
+  // backend (Envíos Perros) for the cost so the total stays up to date.
+  // The final charge is always re-quoted server-side at checkout.
+  useEffect(() => {
+    if (deliveryOption !== "home" || !cartCode) {
+      setShippingQuote(null);
+      setQuoteError(null);
+      return;
+    }
+    const zip = shippingAddress.zip.trim();
+    if (!/^\d{5}$/.test(zip)) {
+      setShippingQuote(null);
+      setQuoteError(null);
+      return;
+    }
+    let cancelled = false;
+    setIsQuoting(true);
+    const timer = setTimeout(() => {
+      cartService
+        .quoteShipping(cartCode, zip)
+        .then((quote) => {
+          if (cancelled) return;
+          setShippingQuote(quote);
+          setQuoteError(null);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setShippingQuote(null);
+          setQuoteError(
+            "No pudimos calcular el envío a ese código postal."
+          );
+        })
+        .finally(() => {
+          if (!cancelled) setIsQuoting(false);
+        });
+    }, 600);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    deliveryOption,
+    cartCode,
+    cartService,
+    shippingAddress.zip,
+    cartSignature
+  ]);
+
+  // Sepomex colonias for the ZIP: powers the colonia dropdown and pre-fills
+  // city/state. Label generation later requires the exact Sepomex name, so we
+  // never let users free-type when valid options exist.
+  useEffect(() => {
+    const zip = shippingAddress.zip.trim();
+    if (!/^\d{5}$/.test(zip)) {
+      setLocations([]);
+      setLocationsZip(null);
+      return;
+    }
+    if (zip === locationsZip) return;
+    let cancelled = false;
+    cartService
+      .fetchLocations(zip)
+      .then(({ locations: found }) => {
+        if (cancelled) return;
+        setLocations(found);
+        setLocationsZip(zip);
+        // The previously chosen colonia belonged to another ZIP.
+        setShippingAddress((prev) => ({
+          ...prev,
+          neighborhood: "",
+          ...(found.length > 0
+            ? { city: found[0].city, state: found[0].state }
+            : {})
+        }));
+      })
+      .catch(() => {
+        // Upstream hiccup: keep whatever mode the form was in.
+        if (!cancelled) setLocationsZip(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [shippingAddress.zip, locationsZip, cartService]);
 
   const handleUpdateQuantity = async (
     itemId: number | string,
@@ -672,15 +778,40 @@ export function CartPage() {
                       <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy/80">
                         Colonia / Barrio
                       </label>
-                      <input
-                        type="text"
-                        name="neighborhood"
-                        value={shippingAddress.neighborhood}
-                        onChange={(e) =>
-                          handleShippingChange("neighborhood", e.target.value)
-                        }
-                        className="mt-1 w-full rounded-xl border border-navy/10 bg-white/80 px-3 py-2 text-sm text-navy shadow-inner focus:outline-none focus:ring-2 focus:ring-orange"
-                      />
+                      {locations.length > 0 ? (
+                        <select
+                          name="neighborhood"
+                          value={shippingAddress.neighborhood}
+                          onChange={(e) =>
+                            handleShippingChange("neighborhood", e.target.value)
+                          }
+                          className="mt-1 w-full rounded-xl border border-navy/10 bg-white/80 px-3 py-2 text-sm text-navy shadow-inner focus:outline-none focus:ring-2 focus:ring-orange"
+                        >
+                          <option value="">
+                            Selecciona tu colonia ({locations.length})
+                          </option>
+                          {locations.map((loc) => (
+                            <option key={loc.neighborhood} value={loc.neighborhood}>
+                              {loc.neighborhood}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          name="neighborhood"
+                          value={shippingAddress.neighborhood}
+                          onChange={(e) =>
+                            handleShippingChange("neighborhood", e.target.value)
+                          }
+                          className="mt-1 w-full rounded-xl border border-navy/10 bg-white/80 px-3 py-2 text-sm text-navy shadow-inner focus:outline-none focus:ring-2 focus:ring-orange"
+                        />
+                      )}
+                      {locations.length > 0 ? (
+                        <p className="mt-1 text-[11px] text-navy/40">
+                          Colonias oficiales para el CP {locationsZip}.
+                        </p>
+                      ) : null}
                       {shippingErrors.neighborhood ? (
                         <p className="text-[11px] text-coral">
                           {shippingErrors.neighborhood}
@@ -766,9 +897,34 @@ export function CartPage() {
             </div>
           </div>
           <div className="flex items-center justify-between border-t border-navy/10 pt-3">
+            <span className="text-sm font-semibold text-navy">Subtotal</span>
+            <span className="text-sm text-navy">
+              {currency(cart.total_price)}
+            </span>
+          </div>
+          {deliveryOption === "home" ? (
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-sm font-semibold text-navy">Envío</span>
+              <span className="text-right text-sm text-navy">
+                {isQuoting
+                  ? "Calculando…"
+                  : quoteError
+                    ? quoteError
+                    : shippingQuote
+                      ? `${currency(shippingQuote.selected.total)} · ${shippingQuote.selected.title}`
+                      : "Ingresa tu código postal"}
+              </span>
+            </div>
+          ) : null}
+          <div className="flex items-center justify-between border-t border-navy/10 pt-3">
             <span className="text-sm font-semibold text-navy">Total</span>
             <span className="font-display text-2xl text-denim">
-              {currency(cart.total_price)}
+              {currency(
+                Number(cart.total_price) +
+                  (deliveryOption === "home" && shippingQuote
+                    ? Number(shippingQuote.selected.total)
+                    : 0)
+              )}
             </span>
           </div>
           <Button

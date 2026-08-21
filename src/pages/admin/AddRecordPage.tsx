@@ -40,6 +40,7 @@ type RecordForm = {
   discount: string;
   release_year: string;
   items_inside: string;
+  weight_grams: string;
   category_id: string;
   featured: boolean;
 };
@@ -59,6 +60,7 @@ const INITIAL_FORM: RecordForm = {
   discount: "",
   release_year: "",
   items_inside: "1",
+  weight_grams: "",
   category_id: "",
   featured: true,
 };
@@ -134,6 +136,7 @@ type AddRecordPageProps = {
     release_date?: string | number;
     featured?: boolean;
     items_inside?: number;
+    weight_grams?: number | null;
     artist?: { id: string; name: string } | null;
     genere?: { id: string; name: string } | { id?: string | number } | string | number | null;
     category?: { id: string; name: string } | null;
@@ -194,6 +197,10 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
       discount: String(editingRecord.discount_porcentage ?? ""),
       release_year: editingRecord.release_date ? String(editingRecord.release_date) : "",
       items_inside: String(editingRecord.items_inside ?? "1"),
+      weight_grams:
+        editingRecord.weight_grams != null
+          ? String(editingRecord.weight_grams)
+          : "",
       category_id: editingRecord.category?.id ? String(editingRecord.category.id) : "",
       featured: editingRecord.featured ?? true,
     });
@@ -263,6 +270,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
         release_date: form.release_year ? Number(form.release_year) : null,
         featured: form.featured,
         items_inside: Number(form.items_inside) || 1,
+        weight_grams: form.weight_grams ? Number(form.weight_grams) : null,
         category: form.category_id ? Number(form.category_id) : null,
       };
 
@@ -502,6 +510,13 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
               data.styles ?? [],
               categories
             ),
+          // Prefill shipping weight from Discogs (format-based estimate or
+          // Discogs' own estimated_weight), unless the admin already set one.
+          weight_grams:
+            prev.weight_grams ||
+            (data.weight_grams_suggestion
+              ? String(data.weight_grams_suggestion)
+              : ""),
         }));
       } catch {
         // Silently fail
@@ -945,8 +960,8 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
           )}
         </div>
 
-        {/* Release year + Items inside */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Release year + Items inside + Weight */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-semibold text-navy">
               {T.admin.addRecord.fields.releaseYear}
@@ -973,6 +988,23 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
               className={inputClass}
               placeholder="1"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-navy">
+              Peso (g)
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={form.weight_grams}
+              onChange={(e) => updateField("weight_grams", e.target.value)}
+              className={inputClass}
+              placeholder="300"
+            />
+            <p className="mt-1 text-[11px] text-navy/40">
+              Para el envío. Se llena desde Discogs; vacío usa default por
+              formato (LP 300 g, 7&quot; 100 g, CD 85 g).
+            </p>
           </div>
         </div>
 

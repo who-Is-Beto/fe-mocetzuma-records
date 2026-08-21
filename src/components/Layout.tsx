@@ -31,7 +31,7 @@ export function Layout({ children }: LayoutProps) {
             <div className="flex items-center gap-3">
               <span className="text-lg">🎵</span>
               <p className="font-semibold text-denim">
-                Moctezuma Records © {new Date().getFullYear()} v.1.2
+                Moctezuma Records © {new Date().getFullYear()}
               </p>
             </div>
             <div className="flex flex-wrap gap-4">

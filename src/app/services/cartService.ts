@@ -31,6 +31,31 @@ export type ShippingDetails = {
   reference: string;
 };
 
+export type ShippingQuote = {
+  title: string;
+  total: number | string;
+  currency: string;
+  courier: string;
+  serviceType: string;
+  deliveryCommitment?: string;
+};
+
+export type ShippingQuoteResponse = {
+  zip_code: string;
+  subtotal: number | string;
+  currency: string;
+  selected: ShippingQuote;
+  quotes: ShippingQuote[];
+};
+
+// Sepomex colonia data for a ZIP (one ZIP can cover several colonias).
+export type ShippingLocation = {
+  zipCode: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+};
+
 export type CartRepository = {
   getCarts(): Promise<CartResponse[]>;
   getCart(cartCode: string): Promise<CartResponse>;
@@ -41,6 +66,11 @@ export type CartRepository = {
     email?: string
   ): Promise<CartResponse>;
   updateItem(itemId: string | number, quantity: number): Promise<CartResponse>;
+  quoteShipping(
+    cartCode: string,
+    zip: string
+  ): Promise<ShippingQuoteResponse>;
+  fetchLocations(zip: string): Promise<{ zip: string; locations: ShippingLocation[] }>;
   removeItem(cartCode: string, recordId: string | number): Promise<{ message?: string }>;
   removeAll(cartCode: string): Promise<{ message?: string }>;
   createCheckoutSession(
@@ -48,6 +78,9 @@ export type CartRepository = {
     shippedTo: "store" | "home" | "bazar",
     shippingDetails?: ShippingDetails
   ): Promise<{ checkout_url?: string; session_id?: string }>;
+  // Fallback for when the Stripe webhook can't reach the backend (local dev):
+  // asks the server to fulfill a paid session on return from checkout.
+  completeCheckoutSession(sessionId: string): Promise<{ message?: string }>;
 };
 
 type CartServiceConfig = {
@@ -101,6 +134,26 @@ export function createCartService(config: CartServiceConfig = {}): CartRepositor
         }
       });
     },
+    async quoteShipping(cartCode: string, zip: string) {
+      return http<ShippingQuoteResponse>(withBase(baseUrl, "/shipping/quote"), {
+        method: "POST",
+        token: getToken?.() ?? undefined,
+        body: {
+          cart_code: cartCode,
+          zip
+        }
+      });
+    },
+    async fetchLocations(zip: string) {
+      return http<{ zip: string; locations: ShippingLocation[] }>(
+        withBase(baseUrl, "/shipping/locations"),
+        {
+          method: "GET",
+          token: getToken?.() ?? undefined,
+          query: { zip }
+        }
+      );
+    },
     async createCheckoutSession(
       cartCode: string,
       shippedTo: "store" | "home" | "bazar",
@@ -116,6 +169,18 @@ export function createCartService(config: CartServiceConfig = {}): CartRepositor
             shipped_to: shippedTo,
             ...(shippingDetails ? { shipping_details: shippingDetails } : {})
           }
+        }
+      );
+    },
+    // Fallback for when the Stripe webhook can't reach the backend (e.g. local
+    // dev): asks the server to fulfill a paid session on return from checkout.
+    async completeCheckoutSession(sessionId: string) {
+      return http<{ message?: string }>(
+        withBase(baseUrl, "/checkout/complete"),
+        {
+          method: "POST",
+          token: getToken?.() ?? undefined,
+          body: { session_id: sessionId }
         }
       );
     },

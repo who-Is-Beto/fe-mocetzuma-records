@@ -24,7 +24,7 @@ export function Navbar(): ReactNode {
   const bottomLinks = [
     { label: "Inicio", icon: "🏠", href: "/" },
     { label: "Bazares", icon: "🛍️", href: "/bazares" },
-    { label: "Carritos", icon: "🛒", href: "/carritos" },
+    { label: "Carrito", icon: "🛒", href: "/carritos" },
     {
       label: accountLink.shortLabel ?? accountLink.label,
       icon: isAuthenticated ? "👤" : "💿",
