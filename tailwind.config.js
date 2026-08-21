@@ -51,6 +51,23 @@ module.exports = {
           '0%': { opacity: '0', transform: 'scale(0.92) translateY(12px)' },
           '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
         },
+        recordVanish: {
+          '0%': {
+            opacity: '1',
+            transform: 'scale(1) translateX(0) rotate(0deg)',
+            filter: 'blur(0px)',
+          },
+          '30%': {
+            opacity: '0.9',
+            transform: 'scale(0.96) translateX(14px) rotate(1.5deg)',
+            filter: 'blur(1px)',
+          },
+          '100%': {
+            opacity: '0',
+            transform: 'scale(0.82) translateX(72px) rotate(4deg)',
+            filter: 'blur(6px)',
+          },
+        },
       },
       animation: {
         'toast-in': 'toastIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards',
@@ -58,6 +75,7 @@ module.exports = {
         'progress-shrink': 'progressShrink linear forwards',
         'overlay-in': 'overlayIn 0.25s ease-out forwards',
         'modal-in': 'modalIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards',
+        'record-out': 'recordVanish 0.5s cubic-bezier(0.4,0,1,1) forwards',
       },
     },
   },

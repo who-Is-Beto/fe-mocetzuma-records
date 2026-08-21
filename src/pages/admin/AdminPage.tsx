@@ -7,6 +7,7 @@ import { Button } from "../../components/Button";
 import { AddRecordPage } from "./AddRecordPage";
 import { ManageRecordsTab } from "./ManageRecordsTab";
 import { ManageUsersTab } from "./ManageUsersTab";
+import { ManageOrdersTab } from "./ManageOrdersTab";
 import type { Record as AlbumRecord } from "../../app/domain/album";
 
 /* ── Tabs ── */
@@ -14,6 +15,7 @@ import type { Record as AlbumRecord } from "../../app/domain/album";
 const TABS = [
   { id: "add-record" as const, label: T.admin.tabs.addRecord, icon: "➕" },
   { id: "manage-records" as const, label: T.admin.tabs.manageRecords, icon: "💿" },
+  { id: "manage-orders" as const, label: T.admin.tabs.manageOrders, icon: "📦" },
   { id: "manage-users" as const, label: T.admin.tabs.manageUsers, icon: "👥" },
 ];
 
@@ -61,8 +63,8 @@ export function AdminPage() {
         {T.admin.pageSubtitle}
       </p>
 
-      {/* ── Tab bar ── */}
-      <div className="mt-6 sm:mt-8 flex gap-1 rounded-2xl border border-navy/10 bg-cream/60 p-1 backdrop-blur">
+      {/* ── Tab bar (scrolls horizontally on mobile) ── */}
+      <div className="mt-6 sm:mt-8 flex gap-1 justify-between overflow-x-auto rounded-2xl border border-navy/10 bg-cream/60 p-1.5 backdrop-blur lg:mx-auto lg:w-[calc(70%+2rem)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -71,21 +73,14 @@ export function AdminPage() {
               setActiveTab(tab.id);
               if (tab.id !== "add-record") setEditingRecord(null);
             }}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold transition ${
+            className={`flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold transition ${
               activeTab === tab.id
                 ? "bg-orange text-charcoal shadow-sm"
                 : "text-navy/60 hover:text-navy hover:bg-white/60"
             }`}
           >
             <span className="text-base leading-none">{tab.icon}</span>
-            <span className="hidden sm:inline">{tab.label}</span>
-            <span className="sm:hidden">
-              {tab.id === "add-record"
-                ? "Agregar"
-                : tab.id === "manage-records"
-                  ? "Discos"
-                  : "Usuarios"}
-            </span>
+            <span>{tab.label}</span>
           </button>
         ))}
       </div>
@@ -101,6 +96,7 @@ export function AdminPage() {
         {activeTab === "manage-records" && (
           <ManageRecordsTab onEdit={handleEdit} />
         )}
+        {activeTab === "manage-orders" && <ManageOrdersTab />}
         {activeTab === "manage-users" && <ManageUsersTab />}
       </div>
     </section>

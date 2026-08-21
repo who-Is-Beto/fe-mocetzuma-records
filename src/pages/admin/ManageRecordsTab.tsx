@@ -47,6 +47,38 @@ export function ManageRecordsTab({ onEdit }: Props) {
   const [sellError, setSellError] = useState<string | null>(null);
   const [sellSuccess, setSellSuccess] = useState(false);
 
+  /* ── Permanent delete ── */
+  const [deleteTarget, setDeleteTarget] = useState<AlbumRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Row/card currently playing the vanish animation (already deleted server-side).
+  const [vanishingId, setVanishingId] = useState<string | number | null>(null);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || !token) return;
+    const id = deleteTarget.id;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await http(withBase(`/records/${id}/delete/`), {
+        method: "DELETE",
+        token,
+      });
+      setDeleteTarget(null);
+      // Play the vanish animation, then drop the row from the list.
+      setVanishingId(id);
+      setTimeout(() => {
+        setRecords((prev) => prev.filter((r) => r.id !== id));
+        setTotalCount((c) => Math.max(0, c - 1));
+        setVanishingId(null);
+      }, 520);
+    } catch (err: unknown) {
+      setDeleteError(extractErrorMessage(err, "Error al eliminar el disco."));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const openSellModal = (record: AlbumRecord) => {
     setSellingRecord(record);
     setSellQty(1);
@@ -288,7 +320,11 @@ export function ManageRecordsTab({ onEdit }: Props) {
                 {records.map((record) => (
                   <tr
                     key={record.id}
-                    className="border-b border-navy/5 transition hover:bg-sun/10 last:border-0"
+                    className={`border-b border-navy/5 transition hover:bg-sun/10 last:border-0 ${
+                      vanishingId === record.id
+                        ? "animate-record-out pointer-events-none [&>td]:border-transparent [&>td]:!py-0 [&>td]:transition-all [&>td]:duration-500"
+                        : ""
+                    }`}
                   >
                     <td className="px-3 py-3 lg:px-4">
                       {record.cover_image_url ? (
@@ -354,6 +390,33 @@ export function ManageRecordsTab({ onEdit }: Props) {
                         >
                           Editar
                         </button>
+                        <button
+                          onClick={() => {
+                            setDeleteTarget(record);
+                            setDeleteError(null);
+                          }}
+                          disabled={vanishingId === record.id}
+                          title="Eliminar permanentemente"
+                          aria-label="Eliminar permanentemente"
+                          className="flex h-7 w-7 items-center justify-center rounded-full text-coral transition hover:bg-coral/10 hover:text-coral/80 disabled:opacity-50"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-4 w-4"
+                          >
+                            <path d="M3 6h18" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            <line x1="10" y1="11" x2="10" y2="17" />
+                            <line x1="14" y1="11" x2="14" y2="17" />
+                          </svg>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -367,7 +430,11 @@ export function ManageRecordsTab({ onEdit }: Props) {
             {records.map((record) => (
               <div
                 key={record.id}
-                className="flex items-center gap-3 rounded-xl border border-navy/10 bg-white/60 p-3 backdrop-blur"
+                className={`flex items-center gap-3 rounded-xl border border-navy/10 bg-white/60 p-3 backdrop-blur ${
+                  vanishingId === record.id
+                    ? "animate-record-out pointer-events-none"
+                    : ""
+                }`}
               >
                 {record.cover_image_url ? (
                   <img
@@ -422,6 +489,33 @@ export function ManageRecordsTab({ onEdit }: Props) {
                       className="rounded-full border border-navy/15 bg-white px-3 py-1 text-[11px] font-semibold text-navy transition hover:bg-navy/5"
                     >
                       Editar
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDeleteTarget(record);
+                        setDeleteError(null);
+                      }}
+                      disabled={vanishingId === record.id}
+                      title="Eliminar permanentemente"
+                      aria-label="Eliminar permanentemente"
+                      className="ml-auto flex h-7 w-7 items-center justify-center rounded-full text-coral transition hover:bg-coral/10 hover:text-coral/80 disabled:opacity-50"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-4 w-4"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <line x1="10" y1="11" x2="10" y2="17" />
+                        <line x1="14" y1="11" x2="14" y2="17" />
+                      </svg>
                     </button>
                   </div>
                 </div>
@@ -545,6 +639,64 @@ export function ManageRecordsTab({ onEdit }: Props) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+      {/* ── Delete confirmation modal ── */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm animate-overlay-in"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-navy/10 bg-sand p-5 shadow-panel animate-modal-in sm:p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-coral/15 text-xl">
+                🗑️
+              </div>
+              <div>
+                <h3 className="font-display text-lg text-denim">
+                  ¿Eliminar este disco?
+                </h3>
+                <p className="mt-1 text-sm font-semibold text-navy">
+                  {deleteTarget.title}
+                  {typeof deleteTarget.artist === "object" &&
+                    deleteTarget.artist &&
+                    ` — ${deleteTarget.artist.name}`}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-coral/30 bg-coral/10 px-4 py-3 text-xs leading-relaxed text-navy/80">
+              Esta acción es <strong>permanente</strong>: el disco desaparecerá
+              de la tienda junto con sus reseñas. Las órdenes pasadas conservan
+              su historial.
+            </div>
+
+            {deleteError && (
+              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="rounded-full border border-navy/15 bg-white px-4 py-2 text-xs font-semibold text-navy transition hover:bg-navy/5 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="rounded-pill bg-coral px-5 py-2 text-xs font-semibold text-white shadow-panel transition hover:bg-coral/80 disabled:opacity-50"
+              >
+                {deleting ? "Eliminando…" : "Sí, eliminar para siempre"}
+              </button>
+            </div>
           </div>
         </div>
       )}

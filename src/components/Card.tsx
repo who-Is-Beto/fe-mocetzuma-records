@@ -23,6 +23,11 @@ const persistCartCode = (code?: string | null) => {
 
 type CardProps = {
   record: Record;
+  /**
+   * Above-the-fold cards should load their cover eagerly with high priority:
+   * lazy-loading them delays the LCP image. Set for the first grid row only.
+   */
+  priority?: boolean;
 };
 
 const currency = (value?: number | string) =>
@@ -38,7 +43,7 @@ const getArtistName = (artist?: string | { name?: string } | null) => {
   return typeof artist === "string" ? artist : artist.name ?? "Unknown artist";
 };
 
-export function Card({ record }: CardProps): JSX.Element {
+export function Card({ record, priority = false }: CardProps): JSX.Element {
   const { token, isAuthenticated, emailVerified } = useAuth();
   const [status, setStatus] = useState<"idle" | "adding" | "added" | "error">("idle");
   const [toast, setToast] = useState<{ message: string; tone: "error" | "success" } | null>(null);
@@ -107,7 +112,9 @@ export function Card({ record }: CardProps): JSX.Element {
               src={record.cover_image_url}
               alt={record.title}
               className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-              loading="lazy"
+              loading={priority ? "eager" : "lazy"}
+              fetchPriority={priority ? "high" : "auto"}
+              decoding="async"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-2xl">

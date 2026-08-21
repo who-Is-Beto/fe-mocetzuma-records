@@ -346,6 +346,7 @@ export const T = {
       addRecord: "Agregar disco",
       manageRecords: "Gestionar discos",
       manageUsers: "Gestionar usuarios",
+      manageOrders: "Pedidos",
     },
 
     addRecord: {

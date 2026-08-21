@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../../components/Button";
 import { Loader } from "../../components/Loader";
@@ -8,6 +8,7 @@ import { useServiceQuery } from "../../app/hooks";
 import { http, HttpError } from "../../app/lib/httpClient";
 import { API_BASE_URL } from "../../app/config/api";
 import { usePageTitle } from "../../app/hooks/usePageTitle";
+import { createCartService } from "../../app/services/cartService";
 
 export type OrderItemResponse = {
   id: number | string;
@@ -30,7 +31,7 @@ export type OrderResponse = {
   user_email: string;
   shipped_to: string;
   shipping_details?: Record<string, string> | null;
-  ship_link: string;
+  shipping_link: string;
   status: string;
   created_at: string;
   order_items?: OrderItemResponse[];
@@ -44,13 +45,13 @@ const currency = (value?: number | string) =>
       })
     : "—";
 
+// Keys must match Order.status_choices on the backend ("canceled", one L).
 const statusLabel: Record<string, string> = {
-  paid: "Pagada",
   pending: "Pendiente",
+  paid: "Pagada",
   shipped: "Enviada",
   delivered: "Entregada",
-  cancelled: "Cancelada",
-  failed: "Fallida"
+  canceled: "Cancelada"
 };
 
 const DELIVERY_LABELS: Record<string, string> = {
@@ -64,6 +65,9 @@ const isVerificationError = (err: unknown) =>
   err.status === 403 &&
   (err.data as { error?: { code?: string } } | undefined)?.error?.code ===
     "email_not_verified";
+
+// Only real URLs become clickable; plain tracking codes stay static text.
+const isHttpUrl = (value: string) => /^https?:\/\//i.test(value.trim());
 
 export function OrdersPage() {
   usePageTitle("Mis órdenes");
@@ -111,6 +115,37 @@ export function OrdersPage() {
   >([canFetchOrders, token], fetchOrders, { enabled: canFetchOrders });
 
   const orders = data ?? [];
+
+  // Returning from Stripe Checkout lands here with ?session_id=... The webhook
+  // can't reach a locally-running backend, so ask the server to fulfill the
+  // paid session directly (idempotent: it no-ops if the order already exists).
+  const cartService = useMemo(
+    () => createCartService({ getToken: () => token }),
+    [token]
+  );
+  useEffect(() => {
+    if (!canFetchOrders) return;
+    const sessionId = new URLSearchParams(window.location.search).get(
+      "session_id"
+    );
+    if (!sessionId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await cartService.completeCheckoutSession(sessionId);
+      } catch {
+        // Not fatal: the webhook may still confirm it later; show orders as-is.
+      } finally {
+        if (!cancelled) {
+          window.history.replaceState({}, "", window.location.pathname);
+          void refetch();
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canFetchOrders, cartService, refetch]);
 
   const handleResend = async () => {
     if (!user?.email) return;
@@ -273,11 +308,47 @@ export function OrdersPage() {
                     {items.length === 1 ? "artículo" : "artículos"}
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  {order.ship_link ? (
-                    <span className="rounded-pill border border-navy/10 bg-white/80 px-3 py-1 text-xs font-semibold text-navy shadow-sm">
-                      {order.ship_link}
-                    </span>
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
+                  {order.shipping_link ? (
+                    isHttpUrl(order.shipping_link) ? (
+                      <a
+                        href={order.shipping_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        title={order.shipping_link}
+                        className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-pill border border-navy/10 bg-white/80 py-1 pl-3 pr-2 text-xs font-semibold text-denim shadow-sm transition hover:border-orange/50 hover:bg-orange/10"
+                      >
+                        <span className="truncate">
+                          {order.shipping_link}
+                        </span>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                          className="h-3 w-3 shrink-0"
+                        >
+                          <path d="M15 3h6v6" />
+                          <path d="M10 14 21 3" />
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        </svg>
+                      </a>
+                    ) : (
+                      // Plain tracking code (not a URL): show as static pill.
+                      <span
+                        title={order.shipping_link}
+                        className="inline-flex max-w-full min-w-0 items-center rounded-pill border border-navy/10 bg-white/80 px-3 py-1 text-xs font-semibold text-navy shadow-sm"
+                      >
+                        <span className="truncate">
+                          {order.shipping_link}
+                        </span>
+                      </span>
+                    )
                   ) : null}
                   {order.shipped_to ? (
                     <span className="rounded-pill border border-orange/40 bg-orange/10 px-3 py-1 text-xs font-semibold text-denim shadow-sm">
@@ -337,7 +408,7 @@ export function OrdersPage() {
                         )}
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-display text-sm text-denim">
-                            {item.record?.title ?? "Disco"}
+                            {item.record?.title ?? "(disco eliminado)"}
                           </p>
                           <p className="truncate text-xs text-navy/70">
                             {item.record?.artist?.name ?? ""}

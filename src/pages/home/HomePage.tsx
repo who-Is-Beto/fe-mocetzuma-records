@@ -10,6 +10,26 @@ import type { Category } from "../../app/domain/album";
 import { usePageTitle } from "../../app/hooks/usePageTitle";
 // optional: import { useAuth } from "../../app/providers/AuthProvider";
 
+// Little per-format icon for the filter chips (slug-based, resilient to
+// future categories via sensible fallbacks).
+const categoryIcon = (slug: string): string => {
+  if (slug.includes("boxset")) return "📦";
+  if (slug.includes("-") || slug.includes("dvd")) return "🎁";
+  switch (slug) {
+    case "lp":
+      return "💿";
+    case "cd":
+      return "📀";
+    case "7":
+    case "10":
+      return "🔘";
+    case "12":
+      return "💿";
+    default:
+      return "🎵";
+  }
+};
+
 export const HomePage = () => {
   usePageTitle("Catálogo");
   const [searchParams, setSearchParams] = useSearchParams();
@@ -23,6 +43,7 @@ export const HomePage = () => {
   const availableOnly = searchParams.get("available") !== "false"; // default true
   const categorySlug = (searchParams.get("category") ?? "").trim();
   const [categories, setCategories] = useState<Category[]>([]);
+  const activeCategoryName = categories.find((c) => c.slug === categorySlug)?.name;
   const lastSearchRef = useRef(searchValue);
   const cacheRef = useRef(new Map<string, RecordPage>());
 
@@ -170,68 +191,106 @@ export const HomePage = () => {
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-display text-2xl text-denim">Catálogo</h1>
+      <h1 className="font-display text-2xl text-denim">Catálogo</h1>
 
-        <button
-          type="button"
-          onClick={toggleAvailable}
-          className="group flex items-center gap-2.5 self-start"
-          aria-label={availableOnly ? "Mostrar todos los discos" : "Mostrar solo discos disponibles"}
-        >
-          {/* Toggle track */}
-          <span
-            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-navy/10 shadow-inner transition-colors duration-200 ${
-              availableOnly ? "bg-orange" : "bg-navy/15"
-            }`}
-          >
-            {/* Toggle thumb */}
-            <span
-              className={`inline-block h-4 w-4 rounded-full bg-cream shadow-sm transition-transform duration-200 ${
-                availableOnly ? "translate-x-[22px]" : "translate-x-[3px]"
-              }`}
-            />
-          </span>
-          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-navy/70 transition group-hover:text-navy">
-            Solo disponibles
-          </span>
-        </button>
-      </div>
+      {/* ── Filter bar ── */}
+      <div className="rounded-2xl border border-navy/10 bg-cream/80 p-3 shadow-card backdrop-blur sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-navy/50">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              className="h-3.5 w-3.5 text-orange"
+            >
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+            Filtros
+            {categorySlug ? (
+              <button
+                type="button"
+                onClick={() => setCategory("")}
+                className="ml-1 inline-flex items-center gap-1 rounded-full bg-coral/10 px-2 py-0.5 text-[10px] font-bold normal-case tracking-normal text-coral transition hover:bg-coral/20"
+                aria-label="Quitar filtro de categoría"
+              >
+                ✕ {activeCategoryName}
+              </button>
+            ) : null}
+          </p>
 
-      {/* Category filter chips */}
-      {categories.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => setCategory("")}
-            className={`rounded-pill border px-3 py-1 text-xs font-semibold shadow-sm transition hover:-translate-y-0.5 ${
-              !categorySlug
-                ? "border-orange bg-orange text-charcoal"
-                : "border-navy/10 bg-white/80 text-navy hover:border-orange hover:text-orange"
-            }`}
+            onClick={toggleAvailable}
+            className="group flex items-center gap-2.5"
+            aria-label={availableOnly ? "Mostrar todos los discos" : "Mostrar solo discos disponibles"}
           >
-            Todos
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat.slug}
-              type="button"
-              onClick={() => setCategory(cat.slug)}
-              className={`rounded-pill border px-3 py-1 text-xs font-semibold shadow-sm transition hover:-translate-y-0.5 ${
-                categorySlug === cat.slug
-                  ? "border-orange bg-orange text-charcoal"
-                  : "border-navy/10 bg-white/80 text-navy hover:border-orange hover:text-orange"
+            {/* Toggle track */}
+            <span
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-navy/10 shadow-inner transition-colors duration-200 ${
+                availableOnly ? "bg-orange" : "bg-navy/15"
               }`}
             >
-              {cat.name}
-            </button>
-          ))}
+              {/* Toggle thumb */}
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-cream shadow-sm transition-transform duration-200 ${
+                  availableOnly ? "translate-x-[22px]" : "translate-x-[3px]"
+                }`}
+              />
+            </span>
+            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-navy/70 transition group-hover:text-navy">
+              Solo disponibles
+            </span>
+          </button>
         </div>
-      ) : null}
+
+        {/* Category chips — single scrollable row on narrow screens */}
+        {categories.length > 0 ? (
+          <div className="-mx-1 mt-3 p-1 overflow-x-auto px-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex w-max gap-2 sm:w-auto sm:flex-wrap">
+              <button
+                type="button"
+                onClick={() => setCategory("")}
+                className={`flex shrink-0 items-center gap-1.5 rounded-pill border px-3.5 py-1.5 text-xs font-semibold transition ${
+                  !categorySlug
+                    ? "-translate-y-0.5 border-transparent bg-gradient-to-r from-orange to-amber text-charcoal shadow-panel ring-2 ring-orange/30"
+                    : "border-navy/10 bg-white/80 text-navy hover:-translate-y-0.5 hover:border-orange/40 hover:text-orange"
+                }`}
+              >
+                🎶 Todos
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat.slug}
+                  type="button"
+                  onClick={() => setCategory(cat.slug)}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-pill border px-3.5 py-1.5 text-xs font-semibold transition ${
+                    categorySlug === cat.slug
+                      ? "-translate-y-0.5 border-transparent bg-gradient-to-r from-orange to-amber text-charcoal shadow-panel ring-2 ring-orange/30"
+                      : "border-navy/10 bg-white/80 text-navy hover:-translate-y-0.5 hover:border-orange/40 hover:text-orange"
+                  }`}
+                >
+                  <span aria-hidden="true">{categoryIcon(cat.slug)}</span>
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {(data?.results ?? []).map((record) => (
-          <Card key={record.id} record={record} />
+        {(data?.results ?? []).map((record, index) => (
+          <Card
+            key={record.id}
+            record={record}
+            // First grid row is above the fold: load covers eagerly (LCP).
+            priority={index < 3}
+          />
         ))}
       </div>
 
