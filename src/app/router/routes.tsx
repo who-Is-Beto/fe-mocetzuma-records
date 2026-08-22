@@ -39,7 +39,7 @@ export const router = createBrowserRouter([
       { path: "records/:slug", element: <RecordDetailPage /> },
       { path: "albums/:albumId", element: <AlbumDetailPage /> },
       { path: "design-system", element: <DesignSystemPage /> },
-      { path: "carritos", element: <CartPage /> },
+      { path: "carrito", element: <CartPage /> },
       { path: "mis-ordenes", element: <OrdersPage /> },
       { path: "terminos-y-condiciones", element: <TerminosPage /> },
       { path: "politica-de-privacidad", element: <PrivacidadPage /> },

@@ -97,7 +97,7 @@ export function createCartService(config: CartServiceConfig = {}): CartRepositor
 
   return {
     async getCarts() {
-      return http<CartResponse[]>(withBase(baseUrl, "/carts"), {
+      return http<CartResponse[]>(withBase(baseUrl, "/cart"), {
         token: getToken?.() ?? undefined
       });
     },
