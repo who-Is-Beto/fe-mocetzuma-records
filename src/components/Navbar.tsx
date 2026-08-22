@@ -24,7 +24,7 @@ export function Navbar(): ReactNode {
   const bottomLinks = [
     { label: "Inicio", icon: "🏠", href: "/" },
     { label: "Bazares", icon: "🛍️", href: "/bazares" },
-    { label: "Carrito", icon: "🛒", href: "/carritos" },
+    { label: "Carrito", icon: "🛒", href: "/carrito" },
     {
       label: accountLink.shortLabel ?? accountLink.label,
       icon: isAuthenticated ? "👤" : "💿",
@@ -162,7 +162,7 @@ export function Navbar(): ReactNode {
           <Button
             tone="navy"
             className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap"
-            onClick={() => navigate("/carritos")}
+            onClick={() => navigate("/carrito")}
           >
             🛒 Carrito
           </Button>
