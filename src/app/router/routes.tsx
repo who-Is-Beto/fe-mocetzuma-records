@@ -2,6 +2,7 @@ import { createBrowserRouter, Outlet } from "react-router-dom";
 import { Layout } from "../../components/Layout";
 import { AuthGuard } from "./AuthGuard";
 import { HomePage } from "../../pages/home/HomePage";
+import { CatalogoPage } from "../../pages/catalog/CatalogoPage";
 import { LoginPage } from "../../pages/auth/LoginPage";
 import { RegisterPage } from "../../pages/auth/RegisterPage";
 import { VerifyEmailPage } from "../../pages/auth/VerifyEmailPage";
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <HomePage /> },
+      { path: "catalogo", element: <CatalogoPage /> },
       { path: "login", element: <LoginPage /> },
       { path: "register", element: <RegisterPage /> },
       { path: "verificar-correo", element: <VerifyEmailPage /> },

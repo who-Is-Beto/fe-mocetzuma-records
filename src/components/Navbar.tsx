@@ -35,27 +35,40 @@ export function Navbar(): ReactNode {
   const submitSearch = (term: string) => {
     const query = term.trim();
     if (!query) {
-      navigate("/");
+      navigate("/catalogo");
       return;
     }
-    navigate(`/?search=${encodeURIComponent(query)}&page=1`);
+    navigate(`/catalogo/?search=${encodeURIComponent(query)}&page=1`);
   };
 
   useEffect(() => {
+    let raf = 0;
     const handleScroll = () => {
-      const current = window.scrollY;
-      const delta = current - lastScrollRef.current;
-      if (Math.abs(delta) < 6) return;
-      if (current > lastScrollRef.current && current > 24) {
-        setHideMobileNav(true);
-        setShowMobileSearch(false);
-      } else {
-        setHideMobileNav(false);
-      }
-      lastScrollRef.current = current;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const current = window.scrollY;
+        const delta = current - lastScrollRef.current;
+        if (Math.abs(delta) < 6) return;
+        const docHeight = document.documentElement.scrollHeight;
+        // Rubber-band overscroll at the page bottom (iOS/Android) fires
+        // phantom upward deltas; without this guard the bar slides back up
+        // and covers the footer exactly when the user reaches it.
+        const nearPageBottom =
+          current + window.innerHeight >= docHeight - 48;
+        if (current > lastScrollRef.current && current > 24) {
+          setHideMobileNav(true);
+          setShowMobileSearch(false);
+        } else if (!nearPageBottom) {
+          setHideMobileNav(false);
+        }
+        lastScrollRef.current = current;
+      });
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", handleScroll);
+    };
   }, []);
 
   return (
