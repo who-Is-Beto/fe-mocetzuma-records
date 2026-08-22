@@ -242,7 +242,7 @@ export function RecordDetailPage() {
           <Button
             tone="navy"
             className="px-4 py-2 text-sm"
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/catalogo")}
           >
             Ir al catálogo
           </Button>
