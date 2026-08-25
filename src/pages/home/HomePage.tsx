@@ -7,7 +7,7 @@ import type { Record as RecordItem, RecordPage } from "../../app/domain/album";
 import { getEffectivePrice } from "../../app/domain/album";
 import { useServiceQuery } from "../../app/hooks";
 import { createRecordService } from "../../app/services/recordService";
-import { usePageTitle } from "../../app/hooks/usePageTitle";
+import { useSeo } from "../../app/hooks/useSeo";
 
 const INSTAGRAM_URL = "https://www.instagram.com/moctezuma_records/";
 
@@ -33,7 +33,12 @@ const safePage = async (
 };
 
 export const HomePage = () => {
-  usePageTitle(null); // just "Moctezuma Records" on the landing
+  useSeo({
+    // null → title stays just "Moctezuma Records" on the landing
+    title: null,
+    description:
+      "Tienda de discos de vinilo en la Ciudad de México: LPs nuevos y coleccionables, rock nacional, importados y joyas usadas con gradación honesta. Envíos a todo México."
+  });
   const navigate = useNavigate();
 
   const recordService = useMemo(() => createRecordService({}), []);

@@ -7,8 +7,11 @@ import { useAuth } from "../../app/providers/AuthProvider";
 import { useServiceQuery } from "../../app/hooks";
 import { http, HttpError } from "../../app/lib/httpClient";
 import { API_BASE_URL } from "../../app/config/api";
-import { usePageTitle } from "../../app/hooks/usePageTitle";
+import { useSeo } from "../../app/hooks/useSeo";
 import { createCartService } from "../../app/services/cartService";
+import { currency } from "../../app/lib/format";
+import type { PickupBazar } from "../../app/domain/bazares";
+import { PickupBazarInfo, isHttpUrl } from "./PickupBazarInfo";
 
 export type OrderItemResponse = {
   id: number | string;
@@ -32,18 +35,11 @@ export type OrderResponse = {
   shipped_to: string;
   shipping_details?: Record<string, string> | null;
   shipping_link: string;
+  pickup_bazar?: PickupBazar | null;
   status: string;
   created_at: string;
   order_items?: OrderItemResponse[];
 };
-
-const currency = (value?: number | string) =>
-  typeof value === "string" || typeof value === "number"
-    ? Number(value).toLocaleString("es-mx", {
-        style: "currency",
-        currency: "MXN"
-      })
-    : "—";
 
 // Keys must match Order.status_choices on the backend ("canceled", one L).
 const statusLabel: Record<string, string> = {
@@ -66,11 +62,8 @@ const isVerificationError = (err: unknown) =>
   (err.data as { error?: { code?: string } } | undefined)?.error?.code ===
     "email_not_verified";
 
-// Only real URLs become clickable; plain tracking codes stay static text.
-const isHttpUrl = (value: string) => /^https?:\/\//i.test(value.trim());
-
 export function OrdersPage() {
-  usePageTitle("Mis órdenes");
+  useSeo({ title: "Mis órdenes", noindex: true });
   const navigate = useNavigate();
   const { token, isAuthenticated, emailVerified, user, resendVerification } =
     useAuth();
@@ -424,6 +417,10 @@ export function OrdersPage() {
                         </div>
                       </div>
                     ))}
+
+                    {order.pickup_bazar ? (
+                      <PickupBazarInfo bazar={order.pickup_bazar} />
+                    ) : null}
 
                     {isHome && order.shipping_details ? (
                       <div className="rounded-xl border border-navy/10 bg-cream/70 p-3 text-xs text-navy/80 shadow-inner">

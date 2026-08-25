@@ -5,11 +5,11 @@ import { Button } from '../../components/Button'
 import { useAuth } from '../../app/providers/AuthProvider'
 import { createAuthService } from '../../app/services/authService'
 import { HttpError, extractErrorMessage } from '../../app/lib/httpClient'
-import { usePageTitle } from "../../app/hooks/usePageTitle";
+import { useSeo } from "../../app/hooks/useSeo";
 import { T } from '../../app/i18n/strings'
 
 export function LoginPage() {
-  usePageTitle(T.auth.login.pageTitle);
+  useSeo({ title: T.auth.login.pageTitle, noindex: true });
   const location = useLocation()
   const { login, isAuthenticated } = useAuth()
   const [email, setEmail] = useState('')

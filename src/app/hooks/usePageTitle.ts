@@ -1,17 +1,9 @@
-import { useEffect } from "react";
-
-const SITE_NAME = "Moctezuma Records";
+import { useSeo } from "./useSeo";
 
 /**
- * Sets `document.title` on mount and cleans up on unmount.
- * Pass `null` to keep the base site name only.
+ * Legacy convenience wrapper kept for the many pages that only need a title.
+ * New pages should prefer `useSeo` (title + description + robots).
  */
 export function usePageTitle(title: string | null) {
-  useEffect(() => {
-    const prev = document.title;
-    document.title = title ? `${title} — ${SITE_NAME}` : SITE_NAME;
-    return () => {
-      document.title = prev;
-    };
-  }, [title]);
+  useSeo({ title });
 }

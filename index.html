@@ -27,6 +27,27 @@
     <!-- Theme color -->
     <meta name="theme-color" content="#f4903c" />
 
+    <!-- Structured data: local business (record store). SameAs points at the
+         store's Instagram; geo/address from the Contacto/Ayuda pages. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "MusicStore",
+        "name": "Moctezuma Records",
+        "description": "Tienda de vinilos en la Ciudad de México. Discos de segunda mano y nuevos: LP, CD, 12\", 7\" y más. Envío a domicilio o recoge en tienda.",
+        "image": "/moctelogo.png",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Av. África #51",
+          "addressLocality": "Venustiano Carranza",
+          "addressRegion": "Ciudad de México",
+          "addressCountry": "MX"
+        },
+        "priceRange": "$$",
+        "sameAs": ["https://www.instagram.com/moctezuma_records/"]
+      }
+    </script>
+
     <!-- Self-hosted webfonts, preloaded: takes the Google Fonts round-trip
          (CSS -> font CSS -> woff2) out of the critical rendering path. -->
     <link

@@ -1,6 +1,10 @@
-import { usePageTitle } from "../../app/hooks/usePageTitle";
+import { useSeo } from "../../app/hooks/useSeo";
 export function ContactoPage() {
-  usePageTitle("Contacto");
+  useSeo({
+    title: "Contacto",
+    description:
+      "Ubicación de Moctezuma Records: Av. África #51, Romero Rubio, Venustiano Carranza, CDMX. Horarios, teléfono, WhatsApp y redes para contactarnos por tus discos de vinilo."
+  });
   return (
     <section className="space-y-6 rounded-[28px] border border-navy/10 bg-cream/80 p-6 shadow-panel backdrop-blur sm:p-8">
       <header className="space-y-2">

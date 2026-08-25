@@ -76,3 +76,44 @@ El catálogo siempre es público (puedes ver los discos sin cuenta), pero la **c
 
 - El usuario ya autenticado antes de esta feature tendrá `emailVerified` ausente en su sesión guardada; el frontend lo trata como no verificado hasta el próximo login/refresh.
 - Los mensajes de la verificación están en español, igual que el resto de la app.
+
+## Bazares 🎪 (recoger en bazar)
+
+La tienda participa en bazares de discos; el backend expone los eventos y el
+frontend los usa en tres lugares:
+
+- **Página pública** (`/bazares`, `src/pages/bazares/BazaresPage.tsx`): grid
+  con los próximos bazares (`GET /bazares/`), tarjeta por evento
+  (`BazarCard.tsx`) con flyer, badge de fecha, link a Google Maps y botón de
+  compartir (Web Share API, con fallback a copiar al portapapeles).
+- **Checkout** (`CartPage.tsx`): método de entrega "Recoger en bazar"
+  (`DeliveryOptions.tsx`). Al elegirlo se cargan los próximos bazares con el
+  hook `useUpcomingBazares` y se muestran en un radiogroup accesible
+  (`BazarPicker.tsx`); no se puede pagar sin elegir uno (el backend además
+  revalida: `missing_bazar` / `invalid_bazar` / `bazar_in_past`).
+- **Órdenes** (`OrdersPage.tsx`): las órdenes con recoger-en-bazar muestran la
+  tarjeta `PickupBazarInfo.tsx` con nombre, fecha, dirección y mapa.
+- **Admin** (Inventario → pestaña Bazares, `ManageBazaresTab.tsx`): CRUD
+  completo con modal de formulario (`BazarFormModal.tsx`, imagen opcional) y
+  confirmación de borrado; los eventos pasados se ven atenuados.
+
+## Módulos compartidos 🧩
+
+| Archivo | Qué hace |
+|---------|----------|
+| `src/app/domain/bazares.ts` | Tipos `Bazar` / `PickupBazar`; única fuente de verdad (las páginas ya no importan tipos entre sí). |
+| `src/app/services/bazarService.ts` | Repositorio `createBazarService(config)`: listar públicos, listar todos, crear/actualizar (multipart) y eliminar. |
+| `src/app/hooks/useUpcomingBazares.ts` | Query de próximos bazares con opción `{ enabled }` (el carrito solo consulta cuando se elige bazar). |
+| `src/app/lib/format.ts` | Formateadores compartidos: `currency`, `formatEventDate`, `formatShortDate`, `formatAdminDate`, `getDateParts`, `isPastDate`. |
+| `src/app/hooks/useSeo.ts` | SEO por página: título, descripción, robots, Open Graph/Twitter y canonical (origin calculado en runtime); `noindex: true` en páginas privadas. |
+| `src/components/Modal.tsx` | Diálogo accesible (role=dialog, aria-modal, foco atrapado y restaurado, Escape/overlay con `dismissible`). |
+| `src/components/ConfirmDialog.tsx` | Confirmación reutilizable sobre `Modal` (tono danger/primary, estado busy, slot de error). |
+| `src/pages/cart/CartItemRow.tsx` | Renglón de artículo del carrito (stepper, precio con descuento). |
+| `src/pages/cart/DeliveryOptions.tsx` | Radiogroup de métodos de entrega (tienda / domicilio / bazar). |
+| `src/pages/cart/BazarPicker.tsx` | Selección del bazar para recoger (radiogroup accesible). |
+| `src/pages/cart/ShippingAddressFields.tsx` | Formulario de dirección con labels asociados (`htmlFor`/`id`) y errores con `aria-invalid`. |
+| `index.html` | JSON-LD `MusicStore` (dirección, Instagram) + meta tags base. |
+
+> Verificación: backend `python3 -m pytest apiApp/tests -q` (167 passed);
+> frontend `npm run build` (`tsc -b`) sin errores. No hay framework de tests
+> en el frontend todavía.

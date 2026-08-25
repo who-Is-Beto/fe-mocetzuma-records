@@ -5,6 +5,8 @@ import { Loader } from "../../components/Loader";
 import { Toast } from "../../components/Toast";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useServiceQuery } from "../../app/hooks";
+import { useSeo } from "../../app/hooks/useSeo";
+import { useUpcomingBazares } from "../../app/hooks/useUpcomingBazares";
 import {
   createCartService,
   type CartResponse,
@@ -12,9 +14,16 @@ import {
   type ShippingLocation,
   type ShippingQuoteResponse
 } from "../../app/services/cartService";
-import { HttpError } from "../../app/lib/httpClient";
-import { usePageTitle } from "../../app/hooks/usePageTitle";
-import { getEffectivePrice } from "../../app/domain/album";
+import { HttpError, extractErrorMessage } from "../../app/lib/httpClient";
+import type { DeliveryOptionKey } from "./DeliveryOptions";
+import { DeliveryOptions } from "./DeliveryOptions";
+import { BazarPicker } from "./BazarPicker";
+import { CartItemRow } from "./CartItemRow";
+import {
+  ShippingAddressFields,
+  type ShippingAddressValues
+} from "./ShippingAddressFields";
+import { currency } from "../../app/lib/format";
 
 const CART_CODE_KEY = "moctezuma-cart-code";
 
@@ -28,37 +37,11 @@ const persistCartCode = (code?: string | null) => {
   localStorage.setItem(CART_CODE_KEY, code);
 };
 
-const currency = (value?: number | string) =>
-  typeof value === "string" || typeof value === "number"
-    ? Number(value).toLocaleString("es-mx", {
-        style: "currency",
-        currency: "MXN"
-      })
-    : "—";
-
 const isVerificationError = (err: unknown) =>
   err instanceof HttpError &&
   err.status === 403 &&
   (err.data as { error?: { code?: string } } | undefined)?.error?.code ===
     "email_not_verified";
-
-const DELIVERY_OPTIONS = [
-  {
-    key: "store" as const,
-    label: "Recoger en tienda",
-    helper: "Sin costo, agenda tu visita."
-  },
-  {
-    key: "home" as const,
-    label: "Envío a domicilio",
-    helper: "Calculamos el envío con tu código postal."
-  },
-  {
-    key: "bazar" as const,
-    label: "Recoger en bazar",
-    helper: "Coordina en el próximo evento."
-  }
-];
 
 const SHIPPING_REQUIRED_FIELDS: Array<keyof ShippingDetails> = [
   "fullName",
@@ -71,8 +54,14 @@ const SHIPPING_REQUIRED_FIELDS: Array<keyof ShippingDetails> = [
   "zip"
 ];
 
+/**
+ * /carrito — cart contents plus the checkout summary. This component owns
+ * state and orchestration (cart fetch, shipping quote, Sepomex colonias,
+ * checkout call); presentation is delegated to CartItemRow, DeliveryOptions,
+ * BazarPicker and ShippingAddressFields.
+ */
 export function CartPage() {
-  usePageTitle("Tu carrito");
+  useSeo({ title: "Tu carrito", noindex: true });
   const navigate = useNavigate();
   const { token, isAuthenticated, emailVerified, user, resendVerification } =
     useAuth();
@@ -84,10 +73,9 @@ export function CartPage() {
     "idle" | "sending" | "sent"
   >("idle");
   const [blockedByApi, setBlockedByApi] = useState(false);
-  const [deliveryOption, setDeliveryOption] = useState<
-    "store" | "home" | "bazar" | null
-  >(null);
-  const [shippingAddress, setShippingAddress] = useState({
+  const [deliveryOption, setDeliveryOption] =
+    useState<DeliveryOptionKey | null>(null);
+  const [shippingAddress, setShippingAddress] = useState<ShippingAddressValues>({
     fullName: "",
     phone: "",
     street: "",
@@ -112,11 +100,46 @@ export function CartPage() {
   const [locationsZip, setLocationsZip] = useState<string | null>(null);
   const shippingFormRef = useRef<HTMLFormElement | null>(null);
 
+  /* ── Bazar pickup: upcoming bazares to choose from ──
+     Fetched through the shared hook once the picker option is selected
+     (re-opening the option refreshes the list; errors offer a retry). */
+  const [selectedBazarId, setSelectedBazarId] = useState<number | null>(null);
+  const [bazaresRequested, setBazaresRequested] = useState(false);
+  const {
+    bazares,
+    isLoading: bazaresLoading,
+    error: bazaresError,
+    retry: retryFetchBazares
+  } = useUpcomingBazares({ enabled: bazaresRequested });
+
+  useEffect(() => {
+    if (deliveryOption === "bazar") {
+      setBazaresRequested(true);
+    } else {
+      setSelectedBazarId(null);
+    }
+  }, [deliveryOption]);
+
   useEffect(() => {
     if (deliveryOption !== "home") {
       setShippingErrors({});
     }
   }, [deliveryOption]);
+
+  /* ── Checkout gating for bazar pickup ──
+     No bazares loaded & none available → can't fulfill pickup at all.
+     Bazares exist but none picked → must choose first.
+     While the list hasn't been requested/is loading we don't know yet, so
+     the button stays clickable and handleCheckout's toast covers it. */
+  const noBazaresAvailable =
+    deliveryOption === "bazar" &&
+    bazaresRequested &&
+    !bazaresLoading &&
+    !bazaresError &&
+    bazares.length === 0;
+  const bazarNotSelected = deliveryOption === "bazar" && selectedBazarId == null;
+  const checkoutDisabled =
+    !deliveryOption || isCheckingOut || noBazaresAvailable || bazarNotSelected;
 
   const showToast = (message: string, tone: "error" | "success") => {
     setToast({ message, tone });
@@ -270,13 +293,7 @@ export function CartPage() {
       await cartService.updateItem(itemId, next);
       refreshCart();
     } catch (err) {
-      const message =
-        err instanceof HttpError &&
-        (err.data as { error?: { message?: string } })?.error?.message
-          ? (err.data as { error?: { message?: string } }).error?.message ??
-            "No se pudo actualizar el carrito."
-          : "No se pudo actualizar el carrito.";
-      showToast(message, "error");
+      showToast(extractErrorMessage(err, "No se pudo actualizar el carrito."), "error");
     }
   };
 
@@ -309,7 +326,7 @@ export function CartPage() {
   };
 
   const handleShippingChange = useCallback(
-    (field: keyof typeof shippingAddress, value: string) => {
+    (field: keyof ShippingAddressValues, value: string) => {
       setShippingAddress((prev) => ({ ...prev, [field]: value }));
       if (shippingErrors[field]) {
         setShippingErrors((prev) => {
@@ -366,12 +383,18 @@ export function CartPage() {
       setShippingErrors({});
     }
 
+    if (deliveryOption === "bazar" && selectedBazarId == null) {
+      showToast("Selecciona el bazar donde quieres recoger tu pedido.", "error");
+      return;
+    }
+
     setIsCheckingOut(true);
     try {
       const { checkout_url } = await cartService.createCheckoutSession(
         cartCode,
         deliveryOption,
-        shippingDetails ?? undefined
+        shippingDetails ?? undefined,
+        deliveryOption === "bazar" ? selectedBazarId ?? undefined : undefined
       );
       if (checkout_url) {
         window.location.href = checkout_url;
@@ -383,13 +406,7 @@ export function CartPage() {
         setBlockedByApi(true);
         return;
       }
-      const message =
-        err instanceof HttpError &&
-        (err.data as { error?: { message?: string } })?.error?.message
-          ? (err.data as { error?: { message?: string } }).error?.message ??
-            "No se pudo iniciar el pago."
-          : "No se pudo iniciar el pago.";
-      showToast(message, "error");
+      showToast(extractErrorMessage(err, "No se pudo iniciar el pago."), "error");
     } finally {
       setIsCheckingOut(false);
     }
@@ -534,98 +551,14 @@ export function CartPage() {
       <div className="grid gap-5 lg:grid-cols-[1.2fr,0.85fr]">
         <div className="min-w-0 space-y-3">
           {items.map((item) => (
-            <div
+            <CartItemRow
               key={item.id}
-              className="flex flex-col gap-3 rounded-2xl border border-navy/10 bg-cream/80 p-3 shadow-card backdrop-blur sm:flex-row sm:items-center sm:gap-4 sm:p-4"
-            >
-              <Link
-                to={`/records/${item.record.slug ?? item.record.id}`}
-                className="block h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-navy/10 bg-gradient-to-br from-denim/10 via-cream to-sand/80 shadow-inner sm:h-20 sm:w-20"
-              >
-                {item.record.cover_image_url ? (
-                  <img
-                    src={item.record.cover_image_url}
-                    alt={item.record.title}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-xl">
-                    🎵
-                  </div>
-                )}
-              </Link>
-
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <Link
-                  to={`/records/${item.record.slug ?? item.record.id}`}
-                  className="line-clamp-2 font-display text-base text-denim hover:text-orange sm:text-lg"
-                >
-                  {item.record.title}
-                </Link>
-                <p className="truncate text-xs text-navy/70">
-                  {item.record.artist?.name ?? "Artista"}
-                </p>
-                <div className="mt-1 flex items-center gap-2">
-                  <Button
-                    tone="outline"
-                    className="h-8 w-8 px-0 text-base"
-                    onClick={() =>
-                      handleUpdateQuantity(item.id, item.quantity - 1)
-                    }
-                    disabled={item.quantity <= 1}
-                    aria-label="Disminuir cantidad"
-                  >
-                    −
-                  </Button>
-                  <span className="min-w-[2rem] text-center text-sm font-semibold text-navy">
-                    {item.quantity}
-                  </span>
-                  <Button
-                    tone="outline"
-                    className="h-8 w-8 px-0 text-base"
-                    onClick={() =>
-                      handleUpdateQuantity(item.id, item.quantity + 1)
-                    }
-                    disabled={item.quantity >= item.record.stock}
-                    aria-label="Aumentar cantidad"
-                  >
-                    +
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 border-t border-navy/10 pt-3 sm:border-0 sm:flex-col sm:items-end sm:justify-center sm:border-t-0 sm:pt-0">
-                {(() => {
-                  const { original, effective, discount, hasDiscount } = getEffectivePrice(item.record);
-                  const unitPrice = effective;
-                  return (
-                    <div className="flex items-baseline gap-2">
-                      <p className="text-lg font-semibold text-denim">
-                        {currency(unitPrice * item.quantity)}
-                      </p>
-                      {hasDiscount && (
-                        <>
-                          <span className="text-sm text-navy/40 line-through">
-                            {currency(original * item.quantity)}
-                          </span>
-                          <span className="rounded-full bg-coral/10 px-1.5 py-0.5 text-[10px] font-bold text-coral">
-                            -{discount}%
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  );
-                })()}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveItem(item.record.id)}
-                  className="font-semibold text-coral underline text-sm underline-offset-2 transition hover:text-navy"
-                >
-                  Quitar del Carrito
-                </button>
-              </div>
-            </div>
+              item={item}
+              onUpdateQuantity={(itemId, next) =>
+                void handleUpdateQuantity(itemId, next)
+              }
+              onRemove={(recordId) => void handleRemoveItem(recordId)}
+            />
           ))}
 
           <div className="flex items-center justify-between rounded-2xl border border-navy/10 bg-cream/80 px-3 py-3 shadow-card sm:px-4">
@@ -634,7 +567,7 @@ export function CartPage() {
             </p>
             <button
               type="button"
-              onClick={handleRemoveAll}
+              onClick={() => void handleRemoveAll()}
               className="text-xs font-semibold text-coral underline underline-offset-2 transition hover:text-navy"
             >
               Vaciar carrito
@@ -651,257 +584,78 @@ export function CartPage() {
               <p className="text-[11px] uppercase tracking-[0.14em] text-orange">
                 Método de entrega
               </p>
-              <div className="grid gap-2 grid-cols-1 sm:grid-cols-3">
-                {DELIVERY_OPTIONS.map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setDeliveryOption(option.key)}
-                    className={`flex w-full flex-col items-start gap-1 rounded-xl border px-3 py-2 text-left text-xs font-semibold shadow-card transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange ${
-                      deliveryOption === option.key
-                        ? "border-orange bg-white text-denim"
-                        : "border-navy/10 bg-white/80 text-navy"
-                    }`}
-                  >
-                    <span>{option.label}</span>
-                    <span className="text-[11px] font-normal text-navy/70">
-                      {option.helper}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <DeliveryOptions
+                value={deliveryOption}
+                onChange={setDeliveryOption}
+              />
               {!deliveryOption ? (
                 <p className="text-[11px] font-semibold text-coral">
                   Selecciona una opción para continuar.
                 </p>
               ) : null}
-              {deliveryOption === "home" ? (
-                <form
-                  ref={shippingFormRef}
-                  id="shipping-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void handleCheckout();
-                  }}
-                  className="space-y-2 rounded-xl border border-navy/10 bg-white/80 p-3 shadow-inner"
-                >
+
+              {/* ── Bazar pickup picker ── */}
+              {deliveryOption === "bazar" ? (
+                <div className="space-y-2 rounded-xl border border-navy/10 bg-white/80 p-3 shadow-inner">
                   <div className="flex items-center justify-between">
                     <p className="text-[11px] uppercase tracking-[0.14em] text-orange">
-                      Dirección de envío
+                      Elige tu bazar
                     </p>
                     <span className="rounded-pill bg-sun px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-navy">
                       Requerido
                     </span>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div>
-                      <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy/80">
-                        Nombre completo
-                      </label>
-                      <input
-                        type="text"
-                        name="fullName"
-                        value={shippingAddress.fullName}
-                        onChange={(e) =>
-                          handleShippingChange("fullName", e.target.value)
-                        }
-                        className="mt-1 w-full rounded-xl border border-navy/10 bg-white/80 px-3 py-2 text-sm text-navy shadow-inner focus:outline-none focus:ring-2 focus:ring-orange"
-                      />
-                      {shippingErrors.fullName ? (
-                        <p className="text-[11px] text-coral">
-                          {shippingErrors.fullName}
-                        </p>
-                      ) : null}
+
+                  {bazaresLoading ? (
+                    <p className="py-2 text-xs text-navy/60">Cargando bazares...</p>
+                  ) : bazaresError ? (
+                    <div className="flex items-center justify-between gap-2 py-1">
+                      <p className="text-xs text-coral">{bazaresError}</p>
+                      <button
+                        type="button"
+                        onClick={retryFetchBazares}
+                        className="shrink-0 rounded-pill border border-navy/15 bg-white px-3 py-1 text-[11px] font-semibold text-navy transition hover:border-orange hover:bg-orange hover:text-white"
+                      >
+                        Reintentar
+                      </button>
                     </div>
-                    <div>
-                      <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy/80">
-                        Teléfono
-                      </label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={shippingAddress.phone}
-                        onChange={(e) =>
-                          handleShippingChange("phone", e.target.value)
-                        }
-                        className="mt-1 w-full rounded-xl border border-navy/10 bg-white/80 px-3 py-2 text-sm text-navy shadow-inner focus:outline-none focus:ring-2 focus:ring-orange"
-                      />
-                      {shippingErrors.phone ? (
-                        <p className="text-[11px] text-coral">
-                          {shippingErrors.phone}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-[2fr,1fr]">
-                    <div>
-                      <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy/80">
-                        Calle
-                      </label>
-                      <input
-                        type="text"
-                        name="street"
-                        value={shippingAddress.street}
-                        onChange={(e) =>
-                          handleShippingChange("street", e.target.value)
-                        }
-                        className="mt-1 w-full rounded-xl border border-navy/10 bg-white/80 px-3 py-2 text-sm text-navy shadow-inner focus:outline-none focus:ring-2 focus:ring-orange"
-                      />
-                      {shippingErrors.street ? (
-                        <p className="text-[11px] text-coral">
-                          {shippingErrors.street}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy/80">
-                        Número
-                      </label>
-                      <input
-                        type="text"
-                        name="number"
-                        value={shippingAddress.number}
-                        onChange={(e) =>
-                          handleShippingChange("number", e.target.value)
-                        }
-                        className="mt-1 w-full rounded-xl border border-navy/10 bg-white/80 px-3 py-2 text-sm text-navy shadow-inner focus:outline-none focus:ring-2 focus:ring-orange"
-                      />
-                      {shippingErrors.number ? (
-                        <p className="text-[11px] text-coral">
-                          {shippingErrors.number}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div>
-                      <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy/80">
-                        Colonia / Barrio
-                      </label>
-                      {locations.length > 0 ? (
-                        <select
-                          name="neighborhood"
-                          value={shippingAddress.neighborhood}
-                          onChange={(e) =>
-                            handleShippingChange("neighborhood", e.target.value)
-                          }
-                          className="mt-1 w-full rounded-xl border border-navy/10 bg-white/80 px-3 py-2 text-sm text-navy shadow-inner focus:outline-none focus:ring-2 focus:ring-orange"
-                        >
-                          <option value="">
-                            Selecciona tu colonia ({locations.length})
-                          </option>
-                          {locations.map((loc) => (
-                            <option key={loc.neighborhood} value={loc.neighborhood}>
-                              {loc.neighborhood}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type="text"
-                          name="neighborhood"
-                          value={shippingAddress.neighborhood}
-                          onChange={(e) =>
-                            handleShippingChange("neighborhood", e.target.value)
-                          }
-                          className="mt-1 w-full rounded-xl border border-navy/10 bg-white/80 px-3 py-2 text-sm text-navy shadow-inner focus:outline-none focus:ring-2 focus:ring-orange"
-                        />
-                      )}
-                      {locations.length > 0 ? (
-                        <p className="mt-1 text-[11px] text-navy/40">
-                          Colonias oficiales para el CP {locationsZip}.
-                        </p>
-                      ) : null}
-                      {shippingErrors.neighborhood ? (
-                        <p className="text-[11px] text-coral">
-                          {shippingErrors.neighborhood}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy/80">
-                        Ciudad
-                      </label>
-                      <input
-                        type="text"
-                        name="city"
-                        value={shippingAddress.city}
-                        onChange={(e) =>
-                          handleShippingChange("city", e.target.value)
-                        }
-                        className="mt-1 w-full rounded-xl border border-navy/10 bg-white/80 px-3 py-2 text-sm text-navy shadow-inner focus:outline-none focus:ring-2 focus:ring-orange"
-                      />
-                      {shippingErrors.city ? (
-                        <p className="text-[11px] text-coral">
-                          {shippingErrors.city}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div>
-                      <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy/80">
-                        Estado
-                      </label>
-                      <input
-                        type="text"
-                        name="state"
-                        value={shippingAddress.state}
-                        onChange={(e) =>
-                          handleShippingChange("state", e.target.value)
-                        }
-                        className="mt-1 w-full rounded-xl border border-navy/10 bg-white/80 px-3 py-2 text-sm text-navy shadow-inner focus:outline-none focus:ring-2 focus:ring-orange"
-                      />
-                      {shippingErrors.state ? (
-                        <p className="text-[11px] text-coral">
-                          {shippingErrors.state}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy/80">
-                        Código postal
-                      </label>
-                      <input
-                        type="text"
-                        name="zip"
-                        value={shippingAddress.zip}
-                        onChange={(e) =>
-                          handleShippingChange("zip", e.target.value)
-                        }
-                        className="mt-1 w-full rounded-xl border border-navy/10 bg-white/80 px-3 py-2 text-sm text-navy shadow-inner focus:outline-none focus:ring-2 focus:ring-orange"
-                      />
-                      {shippingErrors.zip ? (
-                        <p className="text-[11px] text-coral">
-                          {shippingErrors.zip}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy/80">
-                      Referencias (opcional)
-                    </label>
-                    <input
-                      type="text"
-                      name="reference"
-                      value={shippingAddress.reference}
-                      onChange={(e) =>
-                        handleShippingChange("reference", e.target.value)
-                      }
-                      className="mt-1 w-full rounded-xl border border-navy/10 bg-white/80 px-3 py-2 text-sm text-navy shadow-inner focus:outline-none focus:ring-2 focus:ring-orange"
+                  ) : bazares.length === 0 ? (
+                    <p className="py-2 text-xs text-navy/60">
+                      No hay bazares agendados por ahora. Elige otro método de
+                      entrega y nos vemos en la próxima. 🎪
+                    </p>
+                  ) : (
+                    <BazarPicker
+                      bazares={bazares}
+                      selectedId={selectedBazarId}
+                      onSelect={setSelectedBazarId}
                     />
-                  </div>
-                </form>
+                  )}
+                </div>
+              ) : null}
+
+              {/* ── Home delivery address form ── */}
+              {deliveryOption === "home" ? (
+                <ShippingAddressFields
+                  formRef={shippingFormRef}
+                  values={shippingAddress}
+                  errors={shippingErrors}
+                  locations={locations}
+                  locationsZip={locationsZip}
+                  onChange={handleShippingChange}
+                  onSubmit={() => void handleCheckout()}
+                />
               ) : null}
             </div>
           </div>
+
           <div className="flex items-center justify-between border-t border-navy/10 pt-3">
             <span className="text-sm font-semibold text-navy">Subtotal</span>
             <span className="text-sm text-navy">
               {currency(cart.total_price)}
             </span>
           </div>
+
           {deliveryOption === "home" ? (
             <div className="flex items-start justify-between gap-2">
               <span className="text-sm font-semibold text-navy">Envío</span>
@@ -916,6 +670,7 @@ export function CartPage() {
               </span>
             </div>
           ) : null}
+
           <div className="flex items-center justify-between border-t border-navy/10 pt-3">
             <span className="text-sm font-semibold text-navy">Total</span>
             <span className="font-display text-2xl text-denim">
@@ -927,14 +682,27 @@ export function CartPage() {
               )}
             </span>
           </div>
+
           <Button
             tone="orange"
             className="w-full justify-center py-3"
             onClick={() => void handleCheckout()}
-            disabled={!deliveryOption || isCheckingOut}
+            disabled={checkoutDisabled}
           >
             {isCheckingOut ? "Procesando..." : "Proceder al pago"}
           </Button>
+
+          {noBazaresAvailable ? (
+            <p className="text-center text-[11px] text-coral">
+              No hay bazares disponibles para recoger por ahora. Elige otro
+              método de entrega.
+            </p>
+          ) : bazarNotSelected && deliveryOption === "bazar" ? (
+            <p className="text-center text-[11px] text-coral">
+              Elige el bazar donde recogerás tu pedido.
+            </p>
+          ) : null}
+
           <p className="text-center text-[11px] text-navy/60">
             Pago seguro procesado por Stripe.
           </p>

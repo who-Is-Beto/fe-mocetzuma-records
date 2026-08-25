@@ -76,7 +76,8 @@ export type CartRepository = {
   createCheckoutSession(
     cartCode: string,
     shippedTo: "store" | "home" | "bazar",
-    shippingDetails?: ShippingDetails
+    shippingDetails?: ShippingDetails,
+    bazarId?: number
   ): Promise<{ checkout_url?: string; session_id?: string }>;
   // Fallback for when the Stripe webhook can't reach the backend (local dev):
   // asks the server to fulfill a paid session on return from checkout.
@@ -157,7 +158,8 @@ export function createCartService(config: CartServiceConfig = {}): CartRepositor
     async createCheckoutSession(
       cartCode: string,
       shippedTo: "store" | "home" | "bazar",
-      shippingDetails?: ShippingDetails
+      shippingDetails?: ShippingDetails,
+      bazarId?: number
     ) {
       return http<{ checkout_url?: string; session_id?: string }>(
         withBase(baseUrl, "/create-checkout-session"),
@@ -167,7 +169,8 @@ export function createCartService(config: CartServiceConfig = {}): CartRepositor
           body: {
             cart_code: cartCode,
             shipped_to: shippedTo,
-            ...(shippingDetails ? { shipping_details: shippingDetails } : {})
+            ...(shippingDetails ? { shipping_details: shippingDetails } : {}),
+            ...(bazarId != null ? { bazar_id: bazarId } : {})
           }
         }
       );

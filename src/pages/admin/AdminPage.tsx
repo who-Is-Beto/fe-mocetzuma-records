@@ -1,13 +1,14 @@
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../app/providers/AuthProvider";
-import { usePageTitle } from "../../app/hooks/usePageTitle";
+import { useSeo } from "../../app/hooks/useSeo";
 import { T } from "../../app/i18n/strings";
 import { Button } from "../../components/Button";
 import { AddRecordPage } from "./AddRecordPage";
 import { ManageRecordsTab } from "./ManageRecordsTab";
 import { ManageUsersTab } from "./ManageUsersTab";
 import { ManageOrdersTab } from "./ManageOrdersTab";
+import { ManageBazaresTab } from "./ManageBazaresTab";
 import type { Record as AlbumRecord } from "../../app/domain/album";
 
 /* ── Tabs ── */
@@ -15,6 +16,7 @@ import type { Record as AlbumRecord } from "../../app/domain/album";
 const TABS = [
   { id: "add-record" as const, label: T.admin.tabs.addRecord, icon: "➕" },
   { id: "manage-records" as const, label: T.admin.tabs.manageRecords, icon: "💿" },
+  { id: "manage-bazares" as const, label: T.admin.tabs.manageBazares, icon: "🎪" },
   { id: "manage-orders" as const, label: T.admin.tabs.manageOrders, icon: "📦" },
   { id: "manage-users" as const, label: T.admin.tabs.manageUsers, icon: "👥" },
 ];
@@ -24,7 +26,7 @@ type TabId = (typeof TABS)[number]["id"];
 /* ── Component ── */
 
 export function AdminPage() {
-  usePageTitle(T.admin.pageTitle);
+  useSeo({ title: T.admin.pageTitle, noindex: true });
   const { role } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabId>("add-record");
@@ -96,6 +98,7 @@ export function AdminPage() {
         {activeTab === "manage-records" && (
           <ManageRecordsTab onEdit={handleEdit} />
         )}
+        {activeTab === "manage-bazares" && <ManageBazaresTab />}
         {activeTab === "manage-orders" && <ManageOrdersTab />}
         {activeTab === "manage-users" && <ManageUsersTab />}
       </div>

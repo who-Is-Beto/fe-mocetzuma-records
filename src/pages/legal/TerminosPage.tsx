@@ -1,6 +1,10 @@
-import { usePageTitle } from "../../app/hooks/usePageTitle";
+import { useSeo } from "../../app/hooks/useSeo";
 export function TerminosPage() {
-  usePageTitle("Términos y condiciones");
+  useSeo({
+    title: "Términos y condiciones",
+    description:
+      "Términos y condiciones de compra en Moctezuma Records: precios, pagos, envíos, garantías y políticas de devolución de discos de vinilo."
+  });
   return (
     <section className="space-y-5 rounded-[28px] border border-navy/10 bg-cream/80 p-6 shadow-panel backdrop-blur sm:p-8">
       <header className="space-y-2">
