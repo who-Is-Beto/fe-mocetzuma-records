@@ -7,7 +7,7 @@ import type { RecordPage, Record as RecordItem } from "../../app/domain/album";
 import { useServiceQuery } from "../../app/hooks";
 import { createRecordService } from "../../app/services/recordService";
 import type { Category } from "../../app/domain/album";
-import { usePageTitle } from "../../app/hooks/usePageTitle";
+import { useSeo } from "../../app/hooks/useSeo";
 
 // Little per-format icon for the filter chips (slug-based, resilient to
 // future categories via sensible fallbacks).
@@ -35,7 +35,11 @@ const categoryIcon = (slug: string): string => {
  * Lives at /catalogo/ so the landing can be a proper storefront.
  */
 export const CatalogoPage = () => {
-  usePageTitle("Catálogo");
+  useSeo({
+    title: "Catálogo",
+    description:
+      "Todo el inventario de Moctezuma Records: LPs, CDs, sencillos y box sets de vinilo nuevos y usados, con gradación honesta. Busca por género, artista o formato."
+  });
   const [searchParams, setSearchParams] = useSearchParams();
   const parsePage = useCallback((params: URLSearchParams) => {
     const raw = Number(params.get("page"));

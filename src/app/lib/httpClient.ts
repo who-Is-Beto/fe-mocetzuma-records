@@ -58,8 +58,12 @@ export async function http<T>(
     ...headers
   };
 
-  const isJsonBody = body !== undefined && body !== null;
-  if (isJsonBody) {
+  // FormData bodies are passed through untouched so the browser sets the
+  // multipart boundary header itself (used for image uploads).
+  const isFormData =
+    typeof FormData !== "undefined" && body instanceof FormData;
+  const hasBody = body !== undefined && body !== null;
+  if (hasBody && !isFormData) {
     finalHeaders["Content-Type"] =
       finalHeaders["Content-Type"] ?? "application/json";
   }
@@ -71,7 +75,7 @@ export async function http<T>(
   const response = await fetch(resolvedUrl, {
     method,
     headers: finalHeaders,
-    body: isJsonBody ? JSON.stringify(body) : undefined,
+    body: hasBody ? ((isFormData ? body : JSON.stringify(body)) as BodyInit) : undefined,
     signal,
     credentials
   });

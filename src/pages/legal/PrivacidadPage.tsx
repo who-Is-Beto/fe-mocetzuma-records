@@ -1,6 +1,10 @@
-import { usePageTitle } from "../../app/hooks/usePageTitle";
+import { useSeo } from "../../app/hooks/useSeo";
 export function PrivacidadPage() {
-  usePageTitle("Política de privacidad");
+  useSeo({
+    title: "Política de privacidad",
+    description:
+      "Cómo Moctezuma Records recopila, usa y protege tus datos personales: información de cuenta, pedidos y pagos procesados de forma segura."
+  });
   return (
     <section className="space-y-5 rounded-[28px] border border-navy/10 bg-cream/80 p-6 shadow-panel backdrop-blur sm:p-8">
       <header className="space-y-2">

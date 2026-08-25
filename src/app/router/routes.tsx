@@ -12,6 +12,7 @@ import { ProfilePage } from "../../pages/dashboard/DashboardPage";
 import { RecordDetailPage } from "../../pages/records/RecordDetailPage";
 import { AlbumDetailPage } from "../../pages/albums/AlbumDetailPage";
 import { CartPage } from "../../pages/cart/CartPage";
+import { BazaresPage } from "../../pages/bazares/BazaresPage";
 import { OrdersPage } from "../../pages/orders/OrdersPage";
 import { DesignSystemPage } from "../../pages/design-system/DesignSystem";
 import { TerminosPage } from "../../pages/legal/TerminosPage";
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
       { path: "albums/:albumId", element: <AlbumDetailPage /> },
       { path: "design-system", element: <DesignSystemPage /> },
       { path: "carrito", element: <CartPage /> },
+      { path: "bazares", element: <BazaresPage /> },
       { path: "mis-ordenes", element: <OrdersPage /> },
       { path: "terminos-y-condiciones", element: <TerminosPage /> },
       { path: "politica-de-privacidad", element: <PrivacidadPage /> },

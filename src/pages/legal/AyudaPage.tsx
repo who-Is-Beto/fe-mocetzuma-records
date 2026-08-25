@@ -1,4 +1,4 @@
-import { usePageTitle } from "../../app/hooks/usePageTitle";
+import { useSeo } from "../../app/hooks/useSeo";
 import { useState } from "react";
 
 type FaqItem = {
@@ -118,7 +118,11 @@ function FaqAccordion({ item }: { item: FaqItem }) {
 }
 
 export function AyudaPage() {
-  usePageTitle("Centro de ayuda");
+  useSeo({
+    title: "Centro de ayuda",
+    description:
+      "Preguntas frecuentes de Moctezuma Records: métodos de entrega, envíos a todo México, gradación de vinilos usados, pagos y contacto."
+  });
   return (
     <section className="space-y-5 rounded-[28px] border border-navy/10 bg-cream/80 p-6 shadow-panel backdrop-blur sm:p-8">
       <header className="space-y-2">

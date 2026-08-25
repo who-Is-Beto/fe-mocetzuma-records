@@ -10,7 +10,7 @@ import { useServiceQuery } from "../../app/hooks";
 import { HttpError } from "../../app/lib/httpClient";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { createCartService } from "../../app/services/cartService";
-import { usePageTitle } from "../../app/hooks/usePageTitle";
+import { useSeo } from "../../app/hooks/useSeo";
 
 const CART_CODE_KEY = "moctezuma-cart-code";
 
@@ -201,7 +201,15 @@ export function RecordDetailPage() {
     { initialData: cachedRecord ?? undefined, enabled: Boolean(slug) }
   );
 
-  usePageTitle(data?.title ?? null);
+  // Dynamic SEO: the record title + a short pitch once data arrives.
+  useSeo({
+    title: data?.title ?? null,
+    description: data
+      ? `${data.title} de ${data.artist.name} — vinilo ${
+          data.condition ? `(${data.condition})` : ""
+        } disponible en Moctezuma Records. Compra segura con envíos a todo México.`
+      : undefined
+  });
 
   if (!slug) {
     return (

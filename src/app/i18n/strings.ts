@@ -345,6 +345,7 @@ export const T = {
     tabs: {
       addRecord: "Agregar disco",
       manageRecords: "Gestionar discos",
+      manageBazares: "Manejo de bazares",
       manageUsers: "Gestionar usuarios",
       manageOrders: "Pedidos",
     },
