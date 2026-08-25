@@ -94,6 +94,8 @@ export function CartPage() {
     useState<ShippingQuoteResponse | null>(null);
   const [isQuoting, setIsQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | number | null>(null);
+  const [isClearing, setIsClearing] = useState(false);
   // Sepomex colonias for the entered ZIP (one ZIP can cover several). Empty
   // list → fall back to the free-text colonia input.
   const [locations, setLocations] = useState<ShippingLocation[]>([]);
@@ -289,39 +291,55 @@ export function CartPage() {
     next: number
   ) => {
     if (next < 1) return;
+    setActionLoadingId(itemId);
     try {
-      await cartService.updateItem(itemId, next);
-      refreshCart();
+      const resp = await cartService.updateItem(itemId, next);
+      // updateItem returns the updated cart — use it directly
+      if (resp && 'cart_items' in resp) {
+        // Update react-query cache directly so the UI reflects changes immediately
+        refetch();
+      } else {
+        refreshCart();
+      }
     } catch (err) {
       showToast(extractErrorMessage(err, "No se pudo actualizar el carrito."), "error");
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
   const handleRemoveItem = async (recordId: string) => {
     if (!cartCode) return;
+    setActionLoadingId(recordId);
     try {
       await cartService.removeItem(cartCode, recordId);
-      refreshCart();
+      // The backend now returns the updated cart — refetch to pick it up
+      refetch();
     } catch (err) {
       if (isVerificationError(err)) {
         setBlockedByApi(true);
         return;
       }
       showToast("No se pudo quitar el artículo.", "error");
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
   const handleRemoveAll = async () => {
     if (!cartCode) return;
+    setIsClearing(true);
     try {
       await cartService.removeAll(cartCode);
-      refreshCart();
+      refetch();
     } catch (err) {
       if (isVerificationError(err)) {
         setBlockedByApi(true);
         return;
       }
       showToast("No se pudo vaciar el carrito.", "error");
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -554,6 +572,7 @@ export function CartPage() {
             <CartItemRow
               key={item.id}
               item={item}
+              isUpdating={actionLoadingId === item.id}
               onUpdateQuantity={(itemId, next) =>
                 void handleUpdateQuantity(itemId, next)
               }
@@ -568,9 +587,10 @@ export function CartPage() {
             <button
               type="button"
               onClick={() => void handleRemoveAll()}
-              className="text-xs font-semibold text-coral underline underline-offset-2 transition hover:text-navy"
+              disabled={isClearing}
+              className="text-xs font-semibold text-coral underline underline-offset-2 transition hover:text-navy disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Vaciar carrito
+              {isClearing ? "Vaciando…" : "Vaciar carrito"}
             </button>
           </div>
         </div>
