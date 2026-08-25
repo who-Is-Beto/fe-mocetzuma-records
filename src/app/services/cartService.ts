@@ -71,8 +71,8 @@ export type CartRepository = {
     zip: string
   ): Promise<ShippingQuoteResponse>;
   fetchLocations(zip: string): Promise<{ zip: string; locations: ShippingLocation[] }>;
-  removeItem(cartCode: string, recordId: string | number): Promise<{ message?: string }>;
-  removeAll(cartCode: string): Promise<{ message?: string }>;
+  removeItem(cartCode: string, recordId: string | number): Promise<CartResponse>;
+  removeAll(cartCode: string): Promise<CartResponse>;
   createCheckoutSession(
     cartCode: string,
     shippedTo: "store" | "home" | "bazar",
@@ -188,7 +188,7 @@ export function createCartService(config: CartServiceConfig = {}): CartRepositor
       );
     },
     async removeItem(cartCode: string, recordId: string | number) {
-      return http<{ message?: string }>(withBase(baseUrl, "/cart/remove"), {
+      return http<CartResponse>(withBase(baseUrl, "/cart/remove"), {
         method: "DELETE",
         token: getToken?.() ?? undefined,
         body: {
@@ -198,7 +198,7 @@ export function createCartService(config: CartServiceConfig = {}): CartRepositor
       });
     },
     async removeAll(cartCode: string) {
-      return http<{ message?: string }>(withBase(baseUrl, "/cart/remove-all"), {
+      return http<CartResponse>(withBase(baseUrl, "/cart/remove-all"), {
         method: "DELETE",
         token: getToken?.() ?? undefined,
         body: {

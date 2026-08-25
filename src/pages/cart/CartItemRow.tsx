@@ -6,6 +6,7 @@ import type { CartItem } from "../../app/services/cartService";
 
 type CartItemRowProps = {
   item: CartItem;
+  isUpdating?: boolean;
   onUpdateQuantity: (itemId: number | string, next: number) => void;
   onRemove: (recordId: string) => void;
 };
@@ -14,12 +15,12 @@ type CartItemRowProps = {
  * One record in the cart list: cover, title link, quantity stepper and
  * price with discount badge.
  */
-export function CartItemRow({ item, onUpdateQuantity, onRemove }: CartItemRowProps) {
+export function CartItemRow({ item, isUpdating = false, onUpdateQuantity, onRemove }: CartItemRowProps) {
   const detailHref = `/records/${item.record.slug ?? item.record.id}`;
   const { original, effective, discount, hasDiscount } = getEffectivePrice(item.record);
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-navy/10 bg-cream/80 p-3 shadow-card backdrop-blur sm:flex-row sm:items-center sm:gap-4 sm:p-4">
+    <div className={`flex flex-col gap-3 rounded-2xl border border-navy/10 bg-cream/80 p-3 shadow-card backdrop-blur sm:flex-row sm:items-center sm:gap-4 sm:p-4 transition-opacity duration-200 ${isUpdating ? 'opacity-60 pointer-events-none' : ''}`}>
       <Link
         to={detailHref}
         className="block h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-navy/10 bg-gradient-to-br from-denim/10 via-cream to-sand/80 shadow-inner sm:h-20 sm:w-20"
@@ -53,7 +54,7 @@ export function CartItemRow({ item, onUpdateQuantity, onRemove }: CartItemRowPro
             tone="outline"
             className="h-8 w-8 px-0 text-base"
             onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
-            disabled={item.quantity <= 1}
+            disabled={item.quantity <= 1 || isUpdating}
             aria-label={`Disminuir cantidad de ${item.record.title}`}
           >
             −
@@ -65,7 +66,7 @@ export function CartItemRow({ item, onUpdateQuantity, onRemove }: CartItemRowPro
             tone="outline"
             className="h-8 w-8 px-0 text-base"
             onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-            disabled={item.quantity >= item.record.stock}
+            disabled={item.quantity >= item.record.stock || isUpdating}
             aria-label={`Aumentar cantidad de ${item.record.title}`}
           >
             +
@@ -92,9 +93,10 @@ export function CartItemRow({ item, onUpdateQuantity, onRemove }: CartItemRowPro
         <button
           type="button"
           onClick={() => onRemove(item.record.id)}
-          className="font-semibold text-coral underline text-sm underline-offset-2 transition hover:text-navy"
+          disabled={isUpdating}
+          className="font-semibold text-coral underline text-sm underline-offset-2 transition hover:text-navy disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Quitar del Carrito
+          {isUpdating ? "Quitando…" : "Quitar del Carrito"}
         </button>
       </div>
     </div>

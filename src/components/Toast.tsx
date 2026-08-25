@@ -64,7 +64,9 @@ export function Toast({
     return () => clearTimeout(timer);
   }, [duration, onClose]);
 
-  const handleClose = () => {
+  const handleClose = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     setClosing(true);
     setTimeout(() => onClose?.(), 280);
   };
@@ -74,8 +76,12 @@ export function Toast({
   const config = toneConfig[tone];
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-0 z-50 flex items-start justify-center px-4 pt-4 sm:px-6 sm:pt-6">
+    <div
+      className="pointer-events-none fixed inset-0 z-50 flex items-end justify-start px-4 pb-4 sm:items-end sm:justify-start sm:px-6 sm:pb-6 md:px-8 md:pb-8 lg:items-end lg:justify-start"
+      onClick={handleClose}
+    >
       <div
+        onClick={(e) => e.stopPropagation()}
         className={`pointer-events-auto w-full max-w-sm overflow-hidden rounded-2xl border shadow-panel backdrop-blur-md ${
           config.border
         } ${
