@@ -3,9 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Loader } from "../../components/Loader";
-import type { RecordPage, Record as RecordItem } from "../../app/domain/album";
+import type { RecordPage } from "../../app/domain/album";
 import { useServiceQuery } from "../../app/hooks";
 import { createRecordService } from "../../app/services/recordService";
+import { useAuth } from "../../app/providers/AuthProvider";
 import type { Category } from "../../app/domain/album";
 import { useSeo } from "../../app/hooks/useSeo";
 
@@ -55,30 +56,17 @@ export const CatalogoPage = () => {
   const lastSearchRef = useRef(searchValue);
   const cacheRef = useRef(new Map<string, RecordPage>());
 
-  const normalizeResponse = (
-    payload: RecordPage | RecordItem[] | undefined
-  ): RecordPage => {
-    if (!payload) return { count: 0, next: null, previous: null, results: [] };
-    if (Array.isArray(payload)) {
-      return {
-        count: payload.length,
-        next: null,
-        previous: null,
-        results: payload
-      };
-    }
-    // Some endpoints might return { results: [...] } without count
-    return {
-      count: payload.count ?? payload.results?.length ?? 0,
-      next: payload.next ?? null,
-      previous: payload.previous ?? null,
-      results: payload.results ?? []
-    };
-  };
+  // Both /records/ and /search/ return the same paginated envelope, so no
+  // response reshaping is needed — just guard the pre-fetch undefined.
+  const normalizeResponse = (payload?: RecordPage): RecordPage =>
+    payload ?? { count: 0, next: null, previous: null, results: [] };
 
   useEffect(() => {
     const urlPage = parsePage(searchParams);
     if (urlPage !== page) {
+      // URL is the source of truth; mirroring it into local state is an
+      // intentional one-way sync bridge (back/forward navigation).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPage(urlPage);
     }
   }, [searchParams]);
@@ -97,6 +85,9 @@ export const CatalogoPage = () => {
       lastSearchRef.current = searchValue;
       cacheRef.current = new Map();
       if (page !== 1) {
+        // A new query must start on page 1; this reset is an intentional
+        // state adjustment triggered by an external (URL) change.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPage(1);
       }
     }
@@ -109,6 +100,8 @@ export const CatalogoPage = () => {
       lastCategoryRef.current = categorySlug;
       cacheRef.current = new Map();
       if (page !== 1) {
+        // A new category must start on page 1 (see comment above).
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPage(1);
       }
     }
@@ -121,17 +114,21 @@ export const CatalogoPage = () => {
       lastAvailableRef.current = availableOnly;
       cacheRef.current = new Map();
       if (page !== 1) {
+        // Toggling availability must start on page 1 (see comment above).
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPage(1);
       }
     }
   }, [availableOnly]);
+  const { token } = useAuth();
   const recordService = useMemo(
     () =>
       createRecordService({
-        // getToken: () => token ?? null,
+        // Public endpoint, but the token lets the maintenance middleware tell
+        // an admin (full access) from a customer (503 while the window is open).
+        getToken: () => token ?? null,
       }),
-    []
-    // include `token` in deps if you wire auth: [token]
+    [token]
   );
 
   // Fetch categories once
@@ -151,7 +148,7 @@ export const CatalogoPage = () => {
       const normalized = normalizeResponse(response);
       cacheRef.current.set(cacheKey, normalized);
       return normalized;
-    } catch (_err) {
+    } catch {
       return { count: 0, next: null, previous: null, results: [] };
     }
   }, [recordService, page, searchValue, availableOnly, categorySlug]);
@@ -400,8 +397,8 @@ function Pagination({
     pages.push(1);
 
     // Calculate the window of pages around the current page
-    let windowStart = Math.max(2, page - 2);
-    let windowEnd = Math.min(totalPages - 1, page + 2);
+    const windowStart = Math.max(2, page - 2);
+    const windowEnd = Math.min(totalPages - 1, page + 2);
 
     // Adjust window if it's too small or shifted
     if (windowStart > 2) pages.push("...");

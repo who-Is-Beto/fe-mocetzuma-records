@@ -1,15 +1,29 @@
-import { useCallback, useState } from "react";
+import { Suspense, lazy, useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useSeo } from "../../app/hooks/useSeo";
 import { T } from "../../app/i18n/strings";
 import { Button } from "../../components/Button";
-import { AddRecordPage } from "./AddRecordPage";
-import { ManageRecordsTab } from "./ManageRecordsTab";
-import { ManageUsersTab } from "./ManageUsersTab";
-import { ManageOrdersTab } from "./ManageOrdersTab";
-import { ManageBazaresTab } from "./ManageBazaresTab";
+import { Loader } from "../../components/Loader";
+import { MaintenanceCard } from "./MaintenanceCard";
 import type { Record as AlbumRecord } from "../../app/domain/album";
+
+/* ── Tab-level code splitting: only the active tab is loaded ── */
+const AddRecordPage = lazy(() =>
+  import("./AddRecordPage").then((m) => ({ default: m.AddRecordPage }))
+);
+const ManageRecordsTab = lazy(() =>
+  import("./ManageRecordsTab").then((m) => ({ default: m.ManageRecordsTab }))
+);
+const ManageUsersTab = lazy(() =>
+  import("./ManageUsersTab").then((m) => ({ default: m.ManageUsersTab }))
+);
+const ManageOrdersTab = lazy(() =>
+  import("./ManageOrdersTab").then((m) => ({ default: m.ManageOrdersTab }))
+);
+const ManageBazaresTab = lazy(() =>
+  import("./ManageBazaresTab").then((m) => ({ default: m.ManageBazaresTab }))
+);
 
 /* ── Tabs ── */
 
@@ -65,6 +79,9 @@ export function AdminPage() {
         {T.admin.pageSubtitle}
       </p>
 
+      {/* ── Maintenance window (site-wide, admin visible always) ── */}
+      <MaintenanceCard />
+
       {/* ── Tab bar (scrolls horizontally on mobile) ── */}
       <div className="mt-6 sm:mt-8 flex gap-1 justify-between overflow-x-auto rounded-2xl border border-navy/10 bg-cream/60 p-1.5 backdrop-blur lg:mx-auto lg:w-[calc(70%+2rem)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((tab) => (
@@ -89,18 +106,20 @@ export function AdminPage() {
 
       {/* ── Tab content ── */}
       <div className="mt-6">
-        {activeTab === "add-record" && (
-          <AddRecordPage
-            editingRecord={editingRecord}
-            onEditDone={handleEditDone}
-          />
-        )}
-        {activeTab === "manage-records" && (
-          <ManageRecordsTab onEdit={handleEdit} />
-        )}
-        {activeTab === "manage-bazares" && <ManageBazaresTab />}
-        {activeTab === "manage-orders" && <ManageOrdersTab />}
-        {activeTab === "manage-users" && <ManageUsersTab />}
+        <Suspense fallback={<Loader />}>
+          {activeTab === "add-record" && (
+            <AddRecordPage
+              editingRecord={editingRecord}
+              onEditDone={handleEditDone}
+            />
+          )}
+          {activeTab === "manage-records" && (
+            <ManageRecordsTab onEdit={handleEdit} />
+          )}
+          {activeTab === "manage-bazares" && <ManageBazaresTab />}
+          {activeTab === "manage-orders" && <ManageOrdersTab />}
+          {activeTab === "manage-users" && <ManageUsersTab />}
+        </Suspense>
       </div>
     </section>
   );

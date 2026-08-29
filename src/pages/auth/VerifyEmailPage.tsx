@@ -12,18 +12,20 @@ export function VerifyEmailPage() {
   const [searchParams] = useSearchParams()
   const uid = searchParams.get('uid') ?? ''
   const token = searchParams.get('token') ?? ''
-  const [status, setStatus] = useState<VerifyStatus>('verifying')
-  const [message, setMessage] = useState('')
+  const invalidLink = !uid || !token
+  // Derive the initial state from the URL instead of a mount effect, so a bad
+  // link renders its error on first paint (no flash of "verifying").
+  const [status, setStatus] = useState<VerifyStatus>(
+    invalidLink ? 'error' : 'verifying'
+  )
+  const [message, setMessage] = useState(
+    invalidLink ? T.auth.verifyEmail.invalidLinkMessage : ''
+  )
   const { markEmailVerified } = useAuth()
 
   useEffect(() => {
+    if (invalidLink) return
     let cancelled = false
-
-    if (!uid || !token) {
-      setStatus('error')
-      setMessage(T.auth.verifyEmail.invalidLinkMessage)
-      return
-    }
 
     createAuthService()
       .verifyEmail({ uid, token })
@@ -51,7 +53,7 @@ export function VerifyEmailPage() {
     return () => {
       cancelled = true
     }
-  }, [uid, token, markEmailVerified])
+  }, [uid, token, markEmailVerified, invalidLink])
 
   const title =
     status === 'success'

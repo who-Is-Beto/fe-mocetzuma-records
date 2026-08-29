@@ -4,7 +4,7 @@
 > project so a fresh agent session can pick up where the last one left off.
 > Conventions live in `AGENTS.md` — this file is the *what we just did* snapshot.
 
-Last updated: 2026-08-24
+Last updated: 2026-08-29
 
 ---
 

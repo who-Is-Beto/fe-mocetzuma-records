@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { T } from "../../app/i18n/strings";
 import { Button } from "../../components/Button";
-import { http, extractErrorMessage } from "../../app/lib/httpClient";
-import { API_BASE_URL } from "../../app/config/api";
-import type { Record as AlbumRecord, RecordPage } from "../../app/domain/album";
+import { extractErrorMessage } from "../../app/lib/httpClient";
+import type { Record as AlbumRecord } from "../../app/domain/album";
 import { getEffectivePrice } from "../../app/domain/album";
+import { currency } from "../../app/lib/format";
+import { useAdminRecords } from "../../app/hooks/useAdminRecords";
 
 const CONDITION_LABELS: { [key: string]: string } = {
   M: "Mint",
@@ -18,9 +19,6 @@ const CONDITION_LABELS: { [key: string]: string } = {
   P: "Poor",
 };
 
-const withBase = (path: string) =>
-  `${API_BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
-
 type Props = {
   onEdit?: (record: AlbumRecord) => void;
 };
@@ -29,16 +27,12 @@ type Props = {
 
 export function ManageRecordsTab({ onEdit }: Props) {
   const { token } = useAuth();
+  const { records, totalCount, hasNext, loading, error, loadPage, sell, remove } =
+    useAdminRecords({ token });
 
-  const [records, setRecords] = useState<AlbumRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-  const [hasNext, setHasNext] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
 
   const [sellingRecord, setSellingRecord] = useState<AlbumRecord | null>(null);
   const [sellQty, setSellQty] = useState(1);
@@ -52,26 +46,25 @@ export function ManageRecordsTab({ onEdit }: Props) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   // Row/card currently playing the vanish animation (already deleted server-side).
-  const [vanishingId, setVanishingId] = useState<string | number | null>(null);
+  const [vanishing, setVanishing] = useState<{
+    id: string | number;
+    record: AlbumRecord;
+    index: number;
+  } | null>(null);
 
   const confirmDelete = async () => {
-    if (!deleteTarget || !token) return;
-    const id = deleteTarget.id;
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    const idx = records.findIndex((r) => r.id === target.id);
     setDeleting(true);
     setDeleteError(null);
     try {
-      await http(withBase(`/records/${id}/delete/`), {
-        method: "DELETE",
-        token,
-      });
+      await remove(target.id);
       setDeleteTarget(null);
-      // Play the vanish animation, then drop the row from the list.
-      setVanishingId(id);
-      setTimeout(() => {
-        setRecords((prev) => prev.filter((r) => r.id !== id));
-        setTotalCount((c) => Math.max(0, c - 1));
-        setVanishingId(null);
-      }, 520);
+      // The hook already dropped the row; re-insert it temporarily so it can
+      // play the vanish animation, then drop it for good.
+      setVanishing({ id: target.id, record: target, index: Math.max(0, idx) });
+      setTimeout(() => setVanishing(null), 520);
     } catch (err: unknown) {
       setDeleteError(extractErrorMessage(err, "Error al eliminar el disco."));
     } finally {
@@ -88,35 +81,19 @@ export function ManageRecordsTab({ onEdit }: Props) {
   };
 
   const confirmSell = async () => {
-    if (!sellingRecord || !token) return;
+    if (!sellingRecord) return;
     const qty = Math.max(1, Math.min(sellQty, sellingRecord.stock ?? 0));
     const newStock = (sellingRecord.stock ?? 0) - qty;
-    const payload: Record<string, unknown> = { stock: newStock };
-    if (sellPrice.trim()) {
-      payload.final_sale_price = Number(sellPrice);
-    }
+    const sellPriceNumber = Number(sellPrice);
 
     setSelling(true);
     setSellError(null);
     try {
-      await http(withBase(`/records/${sellingRecord.id}/update/`), {
-        method: "PATCH",
-        body: payload,
-        token,
+      await sell(sellingRecord.id, {
+        stock: newStock,
+        final_sale_price: sellPrice.trim() ? sellPriceNumber : undefined,
       });
       setSellSuccess(true);
-      setRecords((prev) =>
-        prev.map((r) =>
-          r.id === sellingRecord.id
-            ? {
-                ...r,
-                stock: newStock,
-                final_sale_price:
-                  Number(sellPrice) || r.final_sale_price,
-              }
-            : r
-        )
-      );
       setTimeout(() => {
         setSellingRecord(null);
         setSellSuccess(false);
@@ -128,65 +105,18 @@ export function ManageRecordsTab({ onEdit }: Props) {
     }
   };
 
-  const fetchRecords = useCallback(
-    async (query: string, pageNum: number) => {
-      if (!token) return;
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      setLoading(true);
-      setError(null);
-      try {
-        let data: RecordPage;
-
-        if (query.trim()) {
-          const searchUrl = new URL(withBase("/search/"));
-          searchUrl.searchParams.set("query", query.trim());
-          const results = await http<AlbumRecord[]>(searchUrl.toString(), {
-            token,
-            signal: controller.signal,
-          });
-          data = { count: results.length, results, next: null, previous: null };
-        } else {
-          const url = new URL(withBase("/records/"));
-          url.searchParams.set("page", String(pageNum));
-          data = await http<RecordPage>(url.toString(), {
-            token,
-            signal: controller.signal,
-          });
-        }
-
-        if (!controller.signal.aborted) {
-          setRecords(data.results ?? []);
-          setTotalCount(data.count ?? 0);
-          setHasNext(Boolean(data.next));
-        }
-      } catch (err: unknown) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        if (!controller.signal.aborted) {
-          setError(extractErrorMessage(err, "Error al cargar los discos."));
-        }
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    },
-    [token]
-  );
-
-  /* Initial fetch & re-fetch on page change */
+  /* ── Load on mount & on page change ── */
   useEffect(() => {
-    fetchRecords(search, page);
-    return () => abortRef.current?.abort();
-  }, [fetchRecords, page]); // eslint-disable-line react-hooks/exhaustive-deps
+    void loadPage(search, page);
+  }, [loadPage, page]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Debounced search */
+  /* ── Debounced search ── */
   const onSearchChange = (value: string) => {
     setSearch(value);
     setPage(1);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
-      fetchRecords(value, 1);
+      void loadPage(value, 1);
     }, 350);
   };
 
@@ -196,13 +126,17 @@ export function ManageRecordsTab({ onEdit }: Props) {
     };
   }, []);
 
-  const formatPrice = (value: number | string | undefined) => {
-    const num = Number(value) || 0;
-    return num.toLocaleString("es-mx", {
-      style: "currency",
-      currency: "MXN",
-    });
-  };
+  /* ── Rows to render (keeps the vanishing row visible mid-animation) ── */
+  const displayRecords = useMemo(() => {
+    if (!vanishing) return records;
+    const { id, record, index } = vanishing;
+    if (records.some((r) => r.id === id)) return records;
+    const list = [...records];
+    list.splice(Math.min(index, list.length), 0, record);
+    return list;
+  }, [records, vanishing]);
+
+  const isVanishing = (id: string | number): boolean => vanishing?.id === id;
 
   /* ── Price display with discount badge ── */
   const PriceDisplay = ({ record }: { record: AlbumRecord }) => {
@@ -210,14 +144,14 @@ export function ManageRecordsTab({ onEdit }: Props) {
 
     if (!hasDiscount) {
       return (
-        <span className="text-sm font-medium text-navy">{formatPrice(original)}</span>
+        <span className="text-sm font-medium text-navy">{currency(original)}</span>
       );
     }
 
     return (
       <span className="inline-flex items-center gap-1.5">
-        <span className="text-xs text-navy/40 line-through">{formatPrice(original)}</span>
-        <span className="text-sm font-bold text-orange">{formatPrice(effective)}</span>
+        <span className="text-xs text-navy/40 line-through">{currency(original)}</span>
+        <span className="text-sm font-bold text-orange">{currency(effective)}</span>
         <span className="rounded-full bg-coral/10 px-1.5 py-0.5 text-[9px] font-bold text-coral">
           -{discount}%
         </span>
@@ -252,7 +186,7 @@ export function ManageRecordsTab({ onEdit }: Props) {
           <Button
             tone="outline"
             className="ml-3 px-3 py-1 text-xs"
-            onClick={() => fetchRecords(search, page)}
+            onClick={() => void loadPage(search, page)}
           >
             {T.shared.retry}
           </Button>
@@ -267,7 +201,7 @@ export function ManageRecordsTab({ onEdit }: Props) {
       )}
 
       {/* ── Empty state ── */}
-      {!loading && !error && records.length === 0 && (
+      {!loading && !error && displayRecords.length === 0 && (
         <div className="mt-12 text-center">
           <p className="text-lg text-navy/40">💿</p>
           <p className="mt-2 text-sm text-navy/50">
@@ -277,11 +211,11 @@ export function ManageRecordsTab({ onEdit }: Props) {
       )}
 
       {/* ── Records table (desktop) ── */}
-      {!loading && records.length > 0 && (
+      {!loading && displayRecords.length > 0 && (
         <>
           <p className="mt-4 text-xs text-navy/40">
             {T.admin.manageRecords.showing
-              .replace("{count}", String(records.length))
+              .replace("{count}", String(displayRecords.length))
               .replace("{total}", String(totalCount))}
           </p>
 
@@ -317,11 +251,11 @@ export function ManageRecordsTab({ onEdit }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {records.map((record) => (
+                {displayRecords.map((record) => (
                   <tr
                     key={record.id}
                     className={`border-b border-navy/5 transition hover:bg-sun/10 last:border-0 ${
-                      vanishingId === record.id
+                      isVanishing(record.id)
                         ? "animate-record-out pointer-events-none [&>td]:border-transparent [&>td]:!py-0 [&>td]:transition-all [&>td]:duration-500"
                         : ""
                     }`}
@@ -395,7 +329,7 @@ export function ManageRecordsTab({ onEdit }: Props) {
                             setDeleteTarget(record);
                             setDeleteError(null);
                           }}
-                          disabled={vanishingId === record.id}
+                          disabled={isVanishing(record.id)}
                           title="Eliminar permanentemente"
                           aria-label="Eliminar permanentemente"
                           className="flex h-7 w-7 items-center justify-center rounded-full text-coral transition hover:bg-coral/10 hover:text-coral/80 disabled:opacity-50"
@@ -427,11 +361,11 @@ export function ManageRecordsTab({ onEdit }: Props) {
 
           {/* Mobile cards */}
           <div className="mt-3 space-y-2 md:hidden">
-            {records.map((record) => (
+            {displayRecords.map((record) => (
               <div
                 key={record.id}
                 className={`flex items-center gap-3 rounded-xl border border-navy/10 bg-white/60 p-3 backdrop-blur ${
-                  vanishingId === record.id
+                  isVanishing(record.id)
                     ? "animate-record-out pointer-events-none"
                     : ""
                 }`}
@@ -495,7 +429,7 @@ export function ManageRecordsTab({ onEdit }: Props) {
                         setDeleteTarget(record);
                         setDeleteError(null);
                       }}
-                      disabled={vanishingId === record.id}
+                      disabled={isVanishing(record.id)}
                       title="Eliminar permanentemente"
                       aria-label="Eliminar permanentemente"
                       className="ml-auto flex h-7 w-7 items-center justify-center rounded-full text-coral transition hover:bg-coral/10 hover:text-coral/80 disabled:opacity-50"

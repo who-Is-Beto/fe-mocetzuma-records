@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Credentials, RegisterInput } from '../domain/auth'
 import { createAuthService } from '../services/authService'
+import { clearCartCode } from '../lib/cartStorage'
 
 type StoredAuth = {
   token: string
@@ -175,9 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthState({ token: null, refreshToken: null, user: null, emailVerified: null })
     // Drop the stored cart code too, so a different user signing in on this
     // browser never inherits the previous user's cart.
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem('moctezuma-cart-code')
-    }
+    clearCartCode()
   }, [])
 
   const markEmailVerified = useCallback(() => {

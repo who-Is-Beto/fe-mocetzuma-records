@@ -1,53 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { Button } from "../../components/Button";
-import {
-  http,
-  extractErrorMessage
-} from "../../app/lib/httpClient";
-import { API_BASE_URL } from "../../app/config/api";
-
-/* ── Types (mirror of OrderSerializer) ── */
-
-type AdminOrderItem = {
-  id: number | string;
-  record?: {
-    id: number | string;
-    title: string;
-    artist?: { name?: string } | null;
-  } | null;
-  quantity: number;
-  price: string | number;
-};
-
-type AdminOrder = {
-  id: number | string;
-  stripe_checkout_session_id: string;
-  amount: string | number;
-  currency: string;
-  user_email: string;
-  shipped_to: string;
-  shipping_details?: Record<string, string> | null;
-  shipping_cost?: string | number | null;
-  shipping_courier: string;
-  shipping_service: string;
-  shipping_link: string;
-  status: OrderStatus;
-  created_at: string;
-  updated_at?: string;
-  order_items?: AdminOrderItem[];
-};
-
-/* Mirrors Order.status_choices in apiApp/models.py — keep in sync. */
-const ORDER_STATUSES = [
-  { value: "pending", label: "Pendiente" },
-  { value: "paid", label: "Pagado" },
-  { value: "shipped", label: "Enviado" },
-  { value: "delivered", label: "Entregado" },
-  { value: "canceled", label: "Cancelado" }
-] as const;
-
-type OrderStatus = (typeof ORDER_STATUSES)[number]["value"];
+import { extractErrorMessage } from "../../app/lib/httpClient";
+import { useAdminOrders } from "../../app/hooks/useAdminOrders";
+import type { Order, OrderStatus } from "../../app/domain/orders";
+import { ORDER_STATUSES, DELIVERY_LABELS } from "../../app/domain/orders";
+import { currency } from "../../app/lib/format";
 
 const STATUS_BADGE: Record<OrderStatus, string> = {
   pending: "bg-amber-100 text-amber-700",
@@ -57,31 +15,13 @@ const STATUS_BADGE: Record<OrderStatus, string> = {
   canceled: "bg-red-100 text-red-700"
 };
 
-const DELIVERY_LABELS: Record<string, string> = {
-  store: "Recoger en tienda",
-  home: "Envío a domicilio",
-  bazar: "Recoger en bazar"
-};
-
-const currency = (value?: number | string) =>
-  typeof value === "string" || typeof value === "number"
-    ? Number(value).toLocaleString("es-mx", {
-        style: "currency",
-        currency: "MXN"
-      })
-    : "—";
-
-const withBase = (path: string) =>
-  `${API_BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
-
 /* ── Component ── */
 
 export function ManageOrdersTab() {
   const { token } = useAuth();
+  const { orders, loading, error, load, updateOrder } = useAdminOrders({ token });
 
-  const [orders, setOrders] = useState<AdminOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -92,63 +32,24 @@ export function ManageOrdersTab() {
   const [linkDrafts, setLinkDrafts] = useState<Record<string, string>>({});
   const [statusDrafts, setStatusDrafts] = useState<Record<string, OrderStatus>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
 
   const showToast = useCallback((message: string) => {
     setSuccessMessage(message);
     setTimeout(() => setSuccessMessage(null), 3000);
   }, []);
 
-  /* ── Fetch orders ── */
-
-  const fetchOrders = useCallback(async () => {
-    if (!token) return;
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await http<AdminOrder[]>(withBase("/orders/all/"), {
-        token,
-        signal: controller.signal
-      });
-      if (!controller.signal.aborted) {
-        setOrders(Array.isArray(data) ? data : []);
-        setLinkDrafts({});
-        setStatusDrafts({});
-      }
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      if (!controller.signal.aborted) {
-        setError(extractErrorMessage(err, "Error al cargar los pedidos."));
-      }
-    } finally {
-      if (!controller.signal.aborted) setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    fetchOrders();
-    return () => abortRef.current?.abort();
-  }, [fetchOrders]);
-
   /* ── Updates ── */
 
   const patchOrder = useCallback(
-    async (order: AdminOrder, changes: Partial<Pick<AdminOrder, "status" | "shipping_link">>) => {
+    async (
+      order: Order,
+      changes: Partial<Pick<Order, "status" | "shipping_link">>
+    ) => {
       if (!token) return;
       setSavingId(String(order.id));
-      setError(null);
+      setActionError(null);
       try {
-        const updated = await http<AdminOrder>(
-          withBase(`/orders/${order.id}/update/`),
-          { method: "PATCH", body: changes, token }
-        );
-        setOrders((prev) =>
-          prev.map((o) => (String(o.id) === String(order.id) ? updated : o))
-        );
+        await updateOrder(order.id, changes);
         setLinkDrafts((prev) => {
           const next = { ...prev };
           delete next[String(order.id)];
@@ -161,13 +62,13 @@ export function ManageOrdersTab() {
         });
         showToast("Pedido actualizado.");
       } catch (err: unknown) {
-        setError(extractErrorMessage(err, "No se pudo actualizar el pedido."));
-        setTimeout(() => setError(null), 4000);
+        setActionError(extractErrorMessage(err, "No se pudo actualizar el pedido."));
+        setTimeout(() => setActionError(null), 4000);
       } finally {
         setSavingId(null);
       }
     },
-    [token, showToast]
+    [token, updateOrder, showToast]
   );
 
   /* ── Filtering ── */
@@ -188,20 +89,21 @@ export function ManageOrdersTab() {
     });
   }, [orders, search, statusFilter]);
 
-  const linkValueFor = (o: AdminOrder) =>
+  const bannerError = error || actionError;
+
+  const linkValueFor = (o: Order) =>
     linkDrafts[String(o.id)] ?? o.shipping_link ?? "";
 
-  const statusValueFor = (o: AdminOrder): OrderStatus =>
+  const statusValueFor = (o: Order): OrderStatus =>
     statusDrafts[String(o.id)] ?? o.status;
 
-  const linkDirty = (o: AdminOrder) =>
-    linkValueFor(o) !== (o.shipping_link ?? "");
+  const linkDirty = (o: Order) => linkValueFor(o) !== (o.shipping_link ?? "");
 
-  const statusDirty = (o: AdminOrder) => statusValueFor(o) !== o.status;
+  const statusDirty = (o: Order) => statusValueFor(o) !== o.status;
 
   // Typing a tracking link pre-selects "shipped" for pre-shipment states —
   // never downgrades delivered/canceled, and nothing saves until Guardar.
-  const handleLinkChange = (o: AdminOrder, value: string) => {
+  const handleLinkChange = (o: Order, value: string) => {
     setLinkDrafts((prev) => ({ ...prev, [String(o.id)]: value }));
     if (value.trim() && ["pending", "paid"].includes(statusValueFor(o))) {
       setStatusDrafts((prev) => ({ ...prev, [String(o.id)]: "shipped" }));
@@ -250,13 +152,13 @@ export function ManageOrdersTab() {
       )}
 
       {/* ── Error ── */}
-      {error && (
+      {bannerError && (
         <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+          {bannerError}
           <Button
             tone="outline"
             className="ml-3 px-3 py-1 text-xs"
-            onClick={fetchOrders}
+            onClick={() => void load()}
           >
             Reintentar
           </Button>
@@ -271,7 +173,7 @@ export function ManageOrdersTab() {
       )}
 
       {/* ── Empty state ── */}
-      {!loading && !error && filteredOrders.length === 0 && (
+      {!loading && !bannerError && filteredOrders.length === 0 && (
         <div className="mt-12 text-center">
           <p className="text-lg text-navy/40">📦</p>
           <p className="mt-2 text-sm text-navy/50">

@@ -7,26 +7,19 @@ import type { Record as RecordItem, RecordPage } from "../../app/domain/album";
 import { getEffectivePrice } from "../../app/domain/album";
 import { useServiceQuery } from "../../app/hooks";
 import { createRecordService } from "../../app/services/recordService";
+import { useAuth } from "../../app/providers/AuthProvider";
+import { useMaintenanceStatusValue } from "../../app/providers/MaintenanceStatusContext";
+import { T } from "../../app/i18n/strings";
 import { useSeo } from "../../app/hooks/useSeo";
+import { currency } from "../../app/lib/format";
 
 const INSTAGRAM_URL = "https://www.instagram.com/moctezuma_records/";
 
 /** Never rejects — useServiceQuery rethrows fetcher errors into unhandled
  *  rejections, so landing fetches degrade to an empty result instead. */
-const safePage = async (
-  fetch: () => Promise<RecordPage | RecordItem[]>
-): Promise<RecordPage> => {
+const safePage = async (fetch: () => Promise<RecordPage>): Promise<RecordPage> => {
   try {
-    const payload = await fetch();
-    if (Array.isArray(payload)) {
-      return { count: payload.length, next: null, previous: null, results: payload };
-    }
-    return {
-      count: payload.count ?? payload.results?.length ?? 0,
-      next: payload.next ?? null,
-      previous: payload.previous ?? null,
-      results: payload.results ?? []
-    };
+    return await fetch();
   } catch {
     return { count: 0, next: null, previous: null, results: [] };
   }
@@ -40,8 +33,20 @@ export const HomePage = () => {
       "Tienda de discos de vinilo en la Ciudad de México: LPs nuevos y coleccionables, rock nacional, importados y joyas usadas con gradación honesta. Envíos a todo México."
   });
   const navigate = useNavigate();
+  const { token, role } = useAuth();
 
-  const recordService = useMemo(() => createRecordService({}), []);
+  // While the maintenance window is open everyone (including logged-in
+  // customers) sees the home shell with a notice instead of the catalog.
+  // Admins keep full access.
+  const maintenance = useMaintenanceStatusValue();
+  const maintenanceBlocked = maintenance.config?.maintenance_mode === true && role !== "ADMIN";
+
+  // Public endpoint, but the token lets the maintenance middleware tell an
+  // admin (full access) from a customer (503 while the window is open).
+  const recordService = useMemo(
+    () => createRecordService({ getToken: () => token ?? null }),
+    [token]
+  );
 
   // Últimos ingresos — first catalog page is also the newest stock.
   const fetchLatest = useCallback(
@@ -50,7 +55,9 @@ export const HomePage = () => {
   );
   const { data: latest, isLoading: latestLoading } = useServiceQuery<RecordPage>(
     [recordService],
-    fetchLatest
+    fetchLatest,
+    // Skip the query while the window blocks the endpoint for non-admins.
+    { enabled: !maintenanceBlocked }
   );
 
   const latestRecords = (latest?.results ?? []).filter((r) => r.stock > 0).slice(0, 6);
@@ -60,35 +67,41 @@ export const HomePage = () => {
     <section className="space-y-10 md:space-y-14">
       <HomeHero totalAvailable={totalAvailable} />
 
-      {/* ── Últimos ingresos ── */}
-      <div className="space-y-5">
-        <SectionHeader
-          kicker="Novedades recién llegadas"
-          title="Lo último agregado al catálogo"
-          action={{ label: "Ver catálogo completo", to: "/catalogo" }}
-        />
+      {maintenanceBlocked ? (
+        <MaintenanceNotice message={maintenance.config?.maintenance_message} />
+      ) : (
+        <>
+          {/* ── Últimos ingresos ── */}
+          <div className="space-y-5">
+            <SectionHeader
+              kicker="Novedades recién llegadas"
+              title="Lo último agregado al catálogo"
+              action={{ label: "Ver catálogo completo", to: "/catalogo" }}
+            />
 
-        {latestLoading ? (
-          <div className="flex h-[220px] items-center justify-center rounded-[24px] border border-navy/10 bg-cream/60 shadow-card backdrop-blur">
-            <Loader />
+            {latestLoading ? (
+              <div className="flex h-[220px] items-center justify-center rounded-[24px] border border-navy/10 bg-cream/60 shadow-card backdrop-blur">
+                <Loader />
+              </div>
+            ) : latestRecords.length > 0 ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {latestRecords.map((record, index) => (
+                    <CompactRecordCard key={record.id} record={record} priority={index < 3} />
+                  ))}
+                </div>
+                <div className="flex justify-center pt-2">
+                  <Button tone="navy" className="px-8 py-3" onClick={() => navigate("/catalogo")}>
+                    Explorar todo el catálogo
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <EmptyShelf />
+            )}
           </div>
-        ) : latestRecords.length > 0 ? (
-          <>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {latestRecords.map((record, index) => (
-                <CompactRecordCard key={record.id} record={record} priority={index < 3} />
-              ))}
-            </div>
-            <div className="flex justify-center pt-2">
-              <Button tone="navy" className="px-8 py-3" onClick={() => navigate("/catalogo")}>
-                Explorar todo el catálogo
-              </Button>
-            </div>
-          </>
-        ) : (
-          <EmptyShelf />
-        )}
-      </div>
+        </>
+      )}
 
       {/* ── Sobre la tienda ── */}
       <div className="rounded-[28px] border border-navy/10 bg-cream/70 p-6 shadow-panel backdrop-blur-md sm:p-10">
@@ -305,11 +318,6 @@ function FinalCta({ hasStock }: { hasStock: boolean }) {
 
 /** Compact card for the "Lo último agregado" grid — horizontal, one-line title,
  *  cover thumb + price. Much shorter than the full catalog Card. */
-const currency = (value?: number | string) =>
-  typeof value === "string" || typeof value === "number"
-    ? Number(value).toLocaleString("es-mx", { style: "currency", currency: "MXN" })
-    : "—";
-
 const getArtistName = (artist?: string | { name?: string } | null) => {
   if (!artist) return "Artista desconocido";
   return typeof artist === "string" ? artist : artist.name ?? "Artista desconocido";
@@ -387,6 +395,25 @@ function PapelPicado() {
           }}
         />
       ))}
+    </div>
+  );
+}
+
+/** Home stays visible during maintenance, but the catalog section is replaced
+ *  with a notice (the middleware blocks non-admins with 503 anyway). The
+ *  status polls silently, so the catalog returns on its own once the window
+ *  closes — no reload button needed. */
+function MaintenanceNotice({ message }: { message?: string }) {
+  return (
+    <div className="relative isolate overflow-hidden rounded-[28px] border border-orange/25 bg-gradient-to-br from-sun/40 via-cream to-sand px-6 py-12 text-center shadow-panel sm:px-10 sm:py-16">
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-2 bg-stripes opacity-90" />
+      <div className="text-5xl">🛠️</div>
+      <h1 className="mt-4 font-display text-2xl text-denim sm:text-3xl">
+        {T.maintenance.homeTitle}
+      </h1>
+      <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-navy/70 sm:text-base">
+        {message?.trim() || T.maintenance.homeBody}
+      </p>
     </div>
   );
 }

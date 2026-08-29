@@ -337,9 +337,18 @@ export const T = {
     close: "Cerrar",
   },
 
-  /* -- Admin / Inventario ----------------------------------------------- */
+  /* -- Maintenance ------------------------------------------ */
+  maintenance: {
+    title: "Estamos en mantenimiento",
+    body: "Estamos trabajando para darte un mejor servicio.",
+    homeTitle: "El catálogo está en mantenimiento",
+    homeBody:
+      "Estamos actualizando el catálogo en este momento. La página de inicio sigue disponible, pero los discos volverán cuando terminemos.",
+  },
+
+  /* -- Admin ------------------------------------------------ */
   admin: {
-    pageTitle: "Inventario",
+    pageTitle: "Admin",
     pageSubtitle: "Administra el inventario, discos y usuarios del sistema.",
 
     tabs: {
@@ -350,8 +359,32 @@ export const T = {
       manageOrders: "Pedidos",
     },
 
+    maintenance: {
+      title: "Ventana de mantenimiento",
+      description:
+        "Bloquea toda la tienda (503) mientras trabajas. Como admin mantienes acceso para cerrarla cuando termines.",
+      active: "Ventana activa",
+      inactive: "Ventana inactiva",
+      label: "Mantenimiento",
+      save: "Guardar ventana",
+      busy: "Guardando...",
+      saved: "Ventana de mantenimiento guardada.",
+      error: "No se pudo guardar la ventana de mantenimiento. Intenta de nuevo.",
+      messagePlaceholder: "Mensaje que verán los visitantes (opcional)",
+      messageHelp: "Se muestra en la página de mantenimiento y en la respuesta 503.",
+      inactiveHelp: "Cuando está inactivo, la tienda funciona con normalidad.",
+      activeNote: "Recuerda cerrar la ventana cuando termines.",
+      quickCloseTitle: "Ventana de mantenimiento activa",
+      quickCloseBody:
+        "El catálogo y las compras están bloqueados para los clientes. Solo tú puedes cerrarla.",
+      quickClose: "Cerrar ventana",
+      quickCloseBusy: "Cerrando...",
+      quickCloseError: "No se pudo cerrar",
+      goToPanel: "Ir al panel",
+    },
+
     addRecord: {
-      title: "Agregar disco al inventario",
+      title: "Agregar disco al catálogo",
       subtitle: "Completa la información para agregar un nuevo disco al catálogo.",
       fields: {
         title: "Título",
@@ -368,13 +401,13 @@ export const T = {
         category: "Categoría",
         featured: "Destacado",
       },
-      submit: "Agregar al inventario",
+      submit: "Agregar al catálogo",
     },
 
     manageRecords: {
       title: "Gestionar discos",
-      subtitle: "Visualiza y administra los registros del inventario.",
-      empty: "No hay discos en el inventario.",
+      subtitle: "Visualiza y administra los registros del catálogo.",
+      empty: "No hay discos en el catálogo.",
       searchPlaceholder: "Buscar por título, artista...",
       showing: "Mostrando {count} de {total} discos",
       page: "Página {page}",
