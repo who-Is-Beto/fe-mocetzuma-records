@@ -154,9 +154,9 @@ export function Navbar(): ReactNode {
             <Button
               tone="outline"
               className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap"
-              onClick={() => navigate("/inventario")}
+              onClick={() => navigate("/admin")}
             >
-              📦 Inventario
+              🧰 Admin
             </Button>
           )}
           <Button
@@ -244,7 +244,7 @@ export function Navbar(): ReactNode {
             </button>
             {user?.role === "ADMIN" && (
               <NavLink
-                to="/inventario"
+                to="/admin"
                 onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
                 className={({ isActive }) =>
                   `flex h-12 flex-1 flex-col items-center justify-center rounded-xl border text-[10px] leading-tight font-semibold transition hover:-translate-y-0.5 hover:border-orange hover:bg-sun/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange ${
@@ -254,8 +254,8 @@ export function Navbar(): ReactNode {
                   }`
                 }
               >
-                <span className="text-lg">📦</span>
-                <span className="truncate">Inv.</span>
+                <span className="text-lg">🧰</span>
+                <span className="truncate">Admin</span>
               </NavLink>
             )}
           </div>

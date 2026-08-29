@@ -93,6 +93,20 @@ export async function http<T>(
 
 
 /**
+ * True when the backend rejected the request because the session's email is
+ * still unverified (403 + {"error": {"code": "email_not_verified"}}).
+ * Shared by every page that gates content behind email verification.
+ */
+export function isVerificationError(err: unknown): boolean {
+  return (
+    err instanceof HttpError &&
+    err.status === 403 &&
+    (err.data as { error?: { code?: string } } | undefined)?.error?.code ===
+      "email_not_verified"
+  );
+}
+
+/**
  * Extract a human-readable error message from any backend error response.
  *
  * Handles every format the API currently returns:

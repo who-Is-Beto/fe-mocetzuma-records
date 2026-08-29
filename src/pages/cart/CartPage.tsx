@@ -7,14 +7,11 @@ import { useAuth } from "../../app/providers/AuthProvider";
 import { useServiceQuery } from "../../app/hooks";
 import { useSeo } from "../../app/hooks/useSeo";
 import { useUpcomingBazares } from "../../app/hooks/useUpcomingBazares";
-import {
-  createCartService,
-  type CartResponse,
-  type ShippingDetails,
-  type ShippingLocation,
-  type ShippingQuoteResponse
-} from "../../app/services/cartService";
-import { HttpError, extractErrorMessage } from "../../app/lib/httpClient";
+import { useShippingQuote } from "../../app/hooks/useShippingQuote";
+import { createCartService, type CartResponse } from "../../app/services/cartService";
+import type { ShippingDetails, ShippingLocation } from "../../app/domain/shipping";
+import { getCartCode, persistCartCode } from "../../app/lib/cartStorage";
+import { isVerificationError, extractErrorMessage } from "../../app/lib/httpClient";
 import type { DeliveryOptionKey } from "./DeliveryOptions";
 import { DeliveryOptions } from "./DeliveryOptions";
 import { BazarPicker } from "./BazarPicker";
@@ -24,24 +21,6 @@ import {
   type ShippingAddressValues
 } from "./ShippingAddressFields";
 import { currency } from "../../app/lib/format";
-
-const CART_CODE_KEY = "moctezuma-cart-code";
-
-const getCartCode = () => {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(CART_CODE_KEY);
-};
-
-const persistCartCode = (code?: string | null) => {
-  if (typeof window === "undefined" || !code) return;
-  localStorage.setItem(CART_CODE_KEY, code);
-};
-
-const isVerificationError = (err: unknown) =>
-  err instanceof HttpError &&
-  err.status === 403 &&
-  (err.data as { error?: { code?: string } } | undefined)?.error?.code ===
-    "email_not_verified";
 
 const SHIPPING_REQUIRED_FIELDS: Array<keyof ShippingDetails> = [
   "fullName",
@@ -90,10 +69,6 @@ export function CartPage() {
     Record<string, string>
   >({});
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [shippingQuote, setShippingQuote] =
-    useState<ShippingQuoteResponse | null>(null);
-  const [isQuoting, setIsQuoting] = useState(false);
-  const [quoteError, setQuoteError] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | number | null>(null);
   const [isClearing, setIsClearing] = useState(false);
   // Sepomex colonias for the entered ZIP (one ZIP can cover several). Empty
@@ -204,51 +179,20 @@ export function CartPage() {
 
   // Live shipping quote: once a home-delivery ZIP is complete, ask the
   // backend (Envíos Perros) for the cost so the total stays up to date.
-  // The final charge is always re-quoted server-side at checkout.
-  useEffect(() => {
-    if (deliveryOption !== "home" || !cartCode) {
-      setShippingQuote(null);
-      setQuoteError(null);
-      return;
-    }
-    const zip = shippingAddress.zip.trim();
-    if (!/^\d{5}$/.test(zip)) {
-      setShippingQuote(null);
-      setQuoteError(null);
-      return;
-    }
-    let cancelled = false;
-    setIsQuoting(true);
-    const timer = setTimeout(() => {
-      cartService
-        .quoteShipping(cartCode, zip)
-        .then((quote) => {
-          if (cancelled) return;
-          setShippingQuote(quote);
-          setQuoteError(null);
-        })
-        .catch(() => {
-          if (cancelled) return;
-          setShippingQuote(null);
-          setQuoteError(
-            "No pudimos calcular el envío a ese código postal."
-          );
-        })
-        .finally(() => {
-          if (!cancelled) setIsQuoting(false);
-        });
-    }, 600);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [
-    deliveryOption,
+  // Debounced and keyed on the cart content signature (quantity changes
+  // alter package weight). The final charge is always re-quoted server-side
+  // at checkout.
+  const {
+    quote: shippingQuote,
+    isQuoting,
+    error: quoteError
+  } = useShippingQuote({
+    token,
     cartCode,
-    cartService,
-    shippingAddress.zip,
-    cartSignature
-  ]);
+    zip: shippingAddress.zip,
+    enabled: deliveryOption === "home",
+    version: cartSignature
+  });
 
   // Sepomex colonias for the ZIP: powers the colonia dropdown and pre-fills
   // city/state. Label generation later requires the exact Sepomex name, so we

@@ -1,29 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { T } from "../../app/i18n/strings";
 import { Button } from "../../components/Button";
-import { extractErrorMessage } from "../../app/lib/httpClient";
-import { API_BASE_URL } from "../../app/config/api";
+import { HttpError, extractErrorMessage } from "../../app/lib/httpClient";
+import { createRecordService } from "../../app/services/recordService";
+import { useDiscogsSearch } from "../../app/hooks/useDiscogsSearch";
+import type { DiscogsSearchResult } from "../../app/services/discogsService";
+import type { Artist, Category, Genere } from "../../app/domain/album";
 
 /* ── Types ── */
-
-type DiscogsResult = {
-  discogs_id: number;
-  title: string;
-  artist: string;
-  year: number | null;
-  cover_image: string;
-  genre: string;
-  style: string;
-  format: string;
-  formats: string[];
-  resource_url: string;
-  uri: string;
-};
-
-type Artist = { id: number; name: string; slug: string };
-type Genere = { id: number; name: string; slug: string };
-type Category = { id: number; name: string; slug: string };
 
 type RecordForm = {
   title: string;
@@ -149,13 +134,21 @@ type AddRecordPageProps = {
 
 export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps = {}) {
   const { token } = useAuth();
+  const recordService = useMemo(
+    () => createRecordService({ getToken: () => token }),
+    [token]
+  );
+  const {
+    searching,
+    search: searchDiscogsApi,
+    getReleaseDetail,
+  } = useDiscogsSearch({ token });
 
   const isEditing = Boolean(editingRecord);
 
   // Discogs search
   const [searchQuery, setSearchQuery] = useState("");
-  const [results, setResults] = useState<DiscogsResult[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<DiscogsSearchResult[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -237,21 +230,13 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
       // Ensure artist exists: create if text provided but no ID selected
       let artistId: string | null = form.artist_id || null;
       if (!artistId && form.artist_text.trim()) {
-        const artistRes = await fetch(`${API_BASE_URL}/artists/create/`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ name: form.artist_text.trim() }),
-        });
-        if (!artistRes.ok) {
-          const errData = await artistRes.json().catch(() => null);
-          setSubmitError(extractErrorMessage(errData, "Error al crear el artista."));
+        try {
+          const created = await recordService.createArtist(form.artist_text.trim());
+          artistId = String(created.id);
+        } catch (err) {
+          setSubmitError(extractErrorMessage((err as HttpError).data, "Error al crear el artista."));
           return;
         }
-        const created = await artistRes.json();
-        artistId = String(created.id);
       }
 
       // Build the payload
@@ -275,18 +260,10 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
       };
 
       if (isEditing && editingRecord) {
-        // PATCH to update
-        const res = await fetch(`${API_BASE_URL}/records/${editingRecord.id}/update/`, {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => null);
-          setSubmitError(extractErrorMessage(errData, "Error al actualizar el disco."));
+        try {
+          await recordService.update(editingRecord.id, payload);
+        } catch (err) {
+          setSubmitError(extractErrorMessage((err as HttpError).data, "Error al actualizar el disco."));
           return;
         }
         setSubmitSuccess(true);
@@ -300,23 +277,13 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
           setSearchQuery("");
         }, 1500);
       } else {
-        // POST to create
-        const res = await fetch(`${API_BASE_URL}/records/create/`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => null);
-          setSubmitError(extractErrorMessage(errData, "Error al guardar el disco."));
+        try {
+          await recordService.create(payload);
+        } catch (err) {
+          setSubmitError(extractErrorMessage((err as HttpError).data, "Error al guardar el disco."));
           return;
         }
 
-        await res.json();
         setSubmitSuccess(true);
 
         // Reset form after success
@@ -339,21 +306,14 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
   // Fetch DB options on mount
   useEffect(() => {
     if (!token) return;
-    const headers = { Authorization: `Bearer ${token}` };
-    const base = API_BASE_URL;
-
     Promise.all([
-      fetch(`${base}/generes/`, { headers }).then((r) =>
-        r.ok ? r.json() : []
-      ),
-      fetch(`${base}/categories/`, { headers }).then((r) =>
-        r.ok ? r.json() : []
-      ),
+      recordService.getGenres().catch(() => []),
+      recordService.getCategories().catch(() => []),
     ]).then(([genereData, catData]) => {
       setGeneres(genereData ?? []);
       setCategories(catData ?? []);
     });
-  }, [token]);
+  }, [recordService, token]);
 
   // Close artist dropdown on outside click
   useEffect(() => {
@@ -385,20 +345,14 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
         return;
       }
       try {
-        const url = new URL(`${API_BASE_URL}/artists/search/`);
-        url.searchParams.set("q", query);
-        const res = await fetch(url.toString(), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await recordService.searchArtists(query);
         setArtistSuggestions(data ?? []);
         setShowArtistDropdown(true);
       } catch {
         setArtistSuggestions([]);
       }
     },
-    [token]
+    [recordService, token]
   );
 
   const onArtistChange = (value: string) => {
@@ -419,16 +373,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
     async (name: string) => {
       if (!token || !name.trim()) return;
       try {
-        const res = await fetch(`${API_BASE_URL}/artists/create/`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ name: name.trim() }),
-        });
-        if (!res.ok) return;
-        const artist = await res.json();
+        const artist = await recordService.createArtist(name.trim());
         updateField("artist_id", String(artist.id));
         updateField("artist_text", artist.name);
         setShowArtistDropdown(false);
@@ -436,7 +381,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
         // Keep the text as-is
       }
     },
-    [token]
+    [recordService, token]
   );
 
   /* ── Discogs Search ── */
@@ -444,25 +389,11 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
   const searchDiscogs = useCallback(
     async (query: string) => {
       if (!query.trim() || !token) return;
-      setSearching(true);
       setHasSearched(true);
-      try {
-        const url = new URL(`${API_BASE_URL}/discogs/search/`);
-        url.searchParams.set("q", query.trim());
-        url.searchParams.set("per_page", "25");
-        const res = await fetch(url.toString(), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        setResults(data.results ?? []);
-      } catch {
-        setResults([]);
-      } finally {
-        setSearching(false);
-      }
+      const results = await searchDiscogsApi(query);
+      setResults(results);
     },
-    [token]
+    [searchDiscogsApi, token]
   );
 
   const onSearchChange = (value: string) => {
@@ -483,51 +414,43 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
   const fetchReleaseDetails = useCallback(
     async (discogsId: number) => {
       if (!token) return;
-      try {
-        const res = await fetch(
-          `${API_BASE_URL}/discogs/releases/${discogsId}/`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        const allImages: string[] = data.images ?? [];
+      const data = await getReleaseDetail(discogsId);
+      if (!data) return;
+      const allImages: string[] = data.images ?? [];
 
-        setForm((prev) => ({
-          ...prev,
-          description: data.description || prev.description,
-          images: allImages,
-          cover_image_url: allImages[0] || prev.cover_image_url,
-          // Try to match genre
-          genere_id:
-            prev.genere_id ||
-            matchGenreToSelect(data.genres, data.styles, generes),
-          // Try to match category from formats/genres
-          category_id:
-            prev.category_id ||
-            matchCategory(
-              data.formats ?? [],
-              data.genres ?? [],
-              data.styles ?? [],
-              categories
-            ),
-          // Prefill shipping weight from Discogs (format-based estimate or
-          // Discogs' own estimated_weight), unless the admin already set one.
-          weight_grams:
-            prev.weight_grams ||
-            (data.weight_grams_suggestion
-              ? String(data.weight_grams_suggestion)
-              : ""),
-        }));
-      } catch {
-        // Silently fail
-      }
+      setForm((prev) => ({
+        ...prev,
+        description: data.description || prev.description,
+        images: allImages,
+        cover_image_url: allImages[0] || prev.cover_image_url,
+        // Try to match genre
+        genere_id:
+          prev.genere_id ||
+          matchGenreToSelect(data.genres ?? [], data.styles ?? [], generes),
+        // Try to match category from formats/genres
+        category_id:
+          prev.category_id ||
+          matchCategory(
+            data.formats ?? [],
+            data.genres ?? [],
+            data.styles ?? [],
+            categories
+          ),
+        // Prefill shipping weight from Discogs (format-based estimate or
+        // Discogs' own estimated_weight), unless the admin already set one.
+        weight_grams:
+          prev.weight_grams ||
+          (data.weight_grams_suggestion
+            ? String(data.weight_grams_suggestion)
+            : ""),
+      }));
     },
-    [token, generes, categories]
+    [getReleaseDetail, generes, categories, token]
   );
 
   /* ── Select a Discogs result ── */
 
-  const selectResult = (item: DiscogsResult) => {
+  const selectResult = (item: DiscogsSearchResult) => {
     setSelectedId(item.discogs_id);
 
     updateField("artist_text", item.artist);

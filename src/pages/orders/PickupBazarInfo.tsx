@@ -1,8 +1,6 @@
 import { formatEventDate } from "../../app/lib/format";
+import { isHttpUrl } from "../../app/lib/url";
 import type { PickupBazar } from "../../app/domain/bazares";
-
-// Only real URLs become clickable; plain tracking codes stay static text.
-export const isHttpUrl = (value: string) => /^https?:\/\//i.test(value.trim());
 
 type PickupBazarInfoProps = {
   bazar: PickupBazar;

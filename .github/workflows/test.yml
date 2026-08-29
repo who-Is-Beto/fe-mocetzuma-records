@@ -1,0 +1,40 @@
+name: Frontend CI
+
+# Merge blocker: runs lint + typecheck/build on every PR and on pushes to
+# main/stage. Enable branch protection on `main` and require this check.
+#
+# Note: `npm run build` runs `tsc -b` first — that is the project's real
+# typecheck (CONTEXT.md: plain `tsc --noEmit` misses errors). There are no
+# unit tests yet (no vitest); this gate is lint + typecheck + production
+# build. Add a vitest job here when unit tests land.
+
+on:
+  pull_request:
+  push:
+    branches: [main, stage]
+  workflow_dispatch:
+
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint + typecheck + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck + build
+        run: npm run build

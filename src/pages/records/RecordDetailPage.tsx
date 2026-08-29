@@ -11,26 +11,8 @@ import { HttpError } from "../../app/lib/httpClient";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { createCartService } from "../../app/services/cartService";
 import { useSeo } from "../../app/hooks/useSeo";
-
-const CART_CODE_KEY = "moctezuma-cart-code";
-
-const getCartCode = () => {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(CART_CODE_KEY);
-};
-
-const persistCartCode = (code?: string | null) => {
-  if (typeof window === "undefined" || !code) return;
-  localStorage.setItem(CART_CODE_KEY, code);
-};
-
-const currency = (value?: number | string) =>
-  typeof value === "string" || typeof value === "number"
-    ? Number(value).toLocaleString("es-mx", {
-        style: "currency",
-        currency: "MXN"
-      })
-    : "—";
+import { currency } from "../../app/lib/format";
+import { getCartCode, persistCartCode } from "../../app/lib/cartStorage";
 
 type CarouselProps = { images: string[]; title: string };
 
@@ -138,7 +120,12 @@ export function RecordDetailPage() {
   const verifyHint =
     "Verifica tu correo para poder agregar al carrito. Puedes reenviar el enlace desde tu perfil.";
 
-  const recordService = useMemo(() => createRecordService(), []);
+  // Public endpoint, but the token lets the maintenance middleware tell an
+  // admin (full access) from a customer (503 while the window is open).
+  const recordService = useMemo(
+    () => createRecordService({ getToken: () => token ?? null }),
+    [token]
+  );
 
   const cacheKey = useMemo(
     () => (slug ? `record-detail:${slug}` : null),

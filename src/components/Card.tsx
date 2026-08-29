@@ -8,18 +8,8 @@ import { useState } from "react";
 import { createCartService } from "../app/services/cartService";
 import { HttpError } from "../app/lib/httpClient";
 import { Toast } from "./Toast";
-
-const CART_CODE_KEY = "moctezuma-cart-code";
-
-const getCartCode = () => {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(CART_CODE_KEY);
-};
-
-const persistCartCode = (code?: string | null) => {
-  if (typeof window === "undefined" || !code) return;
-  localStorage.setItem(CART_CODE_KEY, code);
-};
+import { currency } from "../app/lib/format";
+import { getCartCode, persistCartCode } from "../app/lib/cartStorage";
 
 type CardProps = {
   record: Record;
@@ -29,14 +19,6 @@ type CardProps = {
    */
   priority?: boolean;
 };
-
-const currency = (value?: number | string) =>
-  typeof value === "string" || typeof value === "number"
-    ? Number(value).toLocaleString("es-mx", {
-        style: "currency",
-        currency: "MXN"
-      })
-    : "—";
 
 const getArtistName = (artist?: string | { name?: string } | null) => {
   if (!artist) return "Unknown artist";

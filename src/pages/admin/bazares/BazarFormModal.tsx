@@ -60,6 +60,9 @@ export function BazarFormModal({
   // Re-seed the draft each time the modal opens for a different target.
   useEffect(() => {
     if (!open) return;
+    // Intentional form reset: the draft mirrors the `editing` prop the moment
+    // the modal opens (or switches target without closing).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm(
       editing
         ? {
@@ -71,8 +74,11 @@ export function BazarFormModal({
           }
         : EMPTY_FORM
     );
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setImageFile(null);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setImagePreview(editing?.image_url ?? null);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setValidationError(null);
   }, [open, editing]);
 

@@ -1,6 +1,18 @@
 import { API_BASE_URL } from "../config/api";
 import type { Record } from "../domain/album";
+import type {
+  ShippingDetails,
+  ShippingLocation,
+  ShippingQuoteResponse
+} from "../domain/shipping";
 import { http } from "../lib/httpClient";
+
+export type {
+  ShippingDetails,
+  ShippingLocation,
+  ShippingQuote,
+  ShippingQuoteResponse
+} from "../domain/shipping";
 
 export type CartItem = {
   id: number | string;
@@ -17,43 +29,6 @@ export type CartResponse = {
   updated_at: string;
   cart_items: CartItem[];
   total_price: number | string;
-};
-
-export type ShippingDetails = {
-  fullName: string;
-  phone: string;
-  street: string;
-  number: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-  zip: string;
-  reference: string;
-};
-
-export type ShippingQuote = {
-  title: string;
-  total: number | string;
-  currency: string;
-  courier: string;
-  serviceType: string;
-  deliveryCommitment?: string;
-};
-
-export type ShippingQuoteResponse = {
-  zip_code: string;
-  subtotal: number | string;
-  currency: string;
-  selected: ShippingQuote;
-  quotes: ShippingQuote[];
-};
-
-// Sepomex colonia data for a ZIP (one ZIP can cover several colonias).
-export type ShippingLocation = {
-  zipCode: string;
-  neighborhood: string;
-  city: string;
-  state: string;
 };
 
 export type CartRepository = {

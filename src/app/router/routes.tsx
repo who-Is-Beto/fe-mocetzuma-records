@@ -1,32 +1,79 @@
-import { createBrowserRouter, Outlet } from "react-router-dom";
+import { Suspense, lazy } from "react";
+import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { Layout } from "../../components/Layout";
+import { Loader } from "../../components/Loader";
 import { AuthGuard } from "./AuthGuard";
-import { HomePage } from "../../pages/home/HomePage";
-import { CatalogoPage } from "../../pages/catalog/CatalogoPage";
-import { LoginPage } from "../../pages/auth/LoginPage";
-import { RegisterPage } from "../../pages/auth/RegisterPage";
-import { VerifyEmailPage } from "../../pages/auth/VerifyEmailPage";
-import { ForgotPasswordPage } from "../../pages/auth/ForgotPasswordPage";
-import { ResetPasswordPage } from "../../pages/auth/ResetPasswordPage";
-import { ProfilePage } from "../../pages/dashboard/DashboardPage";
-import { RecordDetailPage } from "../../pages/records/RecordDetailPage";
-import { AlbumDetailPage } from "../../pages/albums/AlbumDetailPage";
-import { CartPage } from "../../pages/cart/CartPage";
-import { BazaresPage } from "../../pages/bazares/BazaresPage";
-import { OrdersPage } from "../../pages/orders/OrdersPage";
-import { DesignSystemPage } from "../../pages/design-system/DesignSystem";
-import { TerminosPage } from "../../pages/legal/TerminosPage";
-import { PrivacidadPage } from "../../pages/legal/PrivacidadPage";
-import { AyudaPage } from "../../pages/legal/AyudaPage";
-import { ContactoPage } from "../../pages/legal/ContactoPage";
-import { AdminPage } from "../../pages/admin/AdminPage";
-import { NotFoundPage } from "../../pages/NotFoundPage";
+
+// Route-level code splitting: every page is its own chunk. Layout, Navbar and
+// AuthGuard stay eager because every route depends on them.
+const HomePage = lazy(() =>
+  import("../../pages/home/HomePage").then((m) => ({ default: m.HomePage }))
+);
+const CatalogoPage = lazy(() =>
+  import("../../pages/catalog/CatalogoPage").then((m) => ({ default: m.CatalogoPage }))
+);
+const LoginPage = lazy(() =>
+  import("../../pages/auth/LoginPage").then((m) => ({ default: m.LoginPage }))
+);
+const RegisterPage = lazy(() =>
+  import("../../pages/auth/RegisterPage").then((m) => ({ default: m.RegisterPage }))
+);
+const VerifyEmailPage = lazy(() =>
+  import("../../pages/auth/VerifyEmailPage").then((m) => ({ default: m.VerifyEmailPage }))
+);
+const ForgotPasswordPage = lazy(() =>
+  import("../../pages/auth/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage }))
+);
+const ResetPasswordPage = lazy(() =>
+  import("../../pages/auth/ResetPasswordPage").then((m) => ({ default: m.ResetPasswordPage }))
+);
+const ProfilePage = lazy(() =>
+  import("../../pages/dashboard/DashboardPage").then((m) => ({ default: m.ProfilePage }))
+);
+const RecordDetailPage = lazy(() =>
+  import("../../pages/records/RecordDetailPage").then((m) => ({ default: m.RecordDetailPage }))
+);
+const AlbumDetailPage = lazy(() =>
+  import("../../pages/albums/AlbumDetailPage").then((m) => ({ default: m.AlbumDetailPage }))
+);
+const CartPage = lazy(() =>
+  import("../../pages/cart/CartPage").then((m) => ({ default: m.CartPage }))
+);
+const BazaresPage = lazy(() =>
+  import("../../pages/bazares/BazaresPage").then((m) => ({ default: m.BazaresPage }))
+);
+const OrdersPage = lazy(() =>
+  import("../../pages/orders/OrdersPage").then((m) => ({ default: m.OrdersPage }))
+);
+const DesignSystemPage = lazy(() =>
+  import("../../pages/design-system/DesignSystem").then((m) => ({ default: m.DesignSystemPage }))
+);
+const TerminosPage = lazy(() =>
+  import("../../pages/legal/TerminosPage").then((m) => ({ default: m.TerminosPage }))
+);
+const PrivacidadPage = lazy(() =>
+  import("../../pages/legal/PrivacidadPage").then((m) => ({ default: m.PrivacidadPage }))
+);
+const AyudaPage = lazy(() =>
+  import("../../pages/legal/AyudaPage").then((m) => ({ default: m.AyudaPage }))
+);
+const ContactoPage = lazy(() =>
+  import("../../pages/legal/ContactoPage").then((m) => ({ default: m.ContactoPage }))
+);
+const AdminPage = lazy(() =>
+  import("../../pages/admin/AdminPage").then((m) => ({ default: m.AdminPage }))
+);
+const NotFoundPage = lazy(() =>
+  import("../../pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage }))
+);
 
 export const router = createBrowserRouter([
   {
     element: (
       <Layout>
-        <Outlet />
+        <Suspense fallback={<Loader />}>
+          <Outlet />
+        </Suspense>
       </Layout>
     ),
     children: [
@@ -51,7 +98,9 @@ export const router = createBrowserRouter([
         element: <AuthGuard />,
         children: [
           { path: "perfil", element: <ProfilePage /> },
-          { path: "inventario", element: <AdminPage /> },
+          { path: "admin", element: <AdminPage /> },
+          // Legacy alias — the admin view used to live at /inventario.
+          { path: "inventario", element: <Navigate to="/admin" replace /> },
         ]
       },
       { path: "*", element: <NotFoundPage /> }

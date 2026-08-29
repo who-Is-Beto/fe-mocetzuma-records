@@ -1,66 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../../components/Button";
 import { Loader } from "../../components/Loader";
 import { Toast } from "../../components/Toast";
 import { useAuth } from "../../app/providers/AuthProvider";
-import { useServiceQuery } from "../../app/hooks";
-import { http, HttpError } from "../../app/lib/httpClient";
-import { API_BASE_URL } from "../../app/config/api";
+import { useOrders } from "../../app/hooks";
+import { isVerificationError } from "../../app/lib/httpClient";
 import { useSeo } from "../../app/hooks/useSeo";
 import { createCartService } from "../../app/services/cartService";
 import { currency } from "../../app/lib/format";
-import type { PickupBazar } from "../../app/domain/bazares";
-import { PickupBazarInfo, isHttpUrl } from "./PickupBazarInfo";
-
-export type OrderItemResponse = {
-  id: number | string;
-  record?: {
-    id: number | string;
-    title: string;
-    slug?: string;
-    cover_image_url?: string | null;
-    artist?: { name?: string } | null;
-    price: string | number;
-  } | null;
-  quantity: number;
-  price: string | number;
-};
-
-export type OrderResponse = {
-  id: number | string;
-  amount: string | number;
-  currency: string;
-  user_email: string;
-  shipped_to: string;
-  shipping_details?: Record<string, string> | null;
-  shipping_link: string;
-  pickup_bazar?: PickupBazar | null;
-  status: string;
-  created_at: string;
-  order_items?: OrderItemResponse[];
-};
-
-// Keys must match Order.status_choices on the backend ("canceled", one L).
-const statusLabel: Record<string, string> = {
-  pending: "Pendiente",
-  paid: "Pagada",
-  shipped: "Enviada",
-  delivered: "Entregada",
-  canceled: "Cancelada"
-};
-
-const DELIVERY_LABELS: Record<string, string> = {
-  store: "Recoger en tienda",
-  home: "Envío a domicilio",
-  bazar: "Recoger en bazar"
-};
-
-const isVerificationError = (err: unknown) =>
-  err instanceof HttpError &&
-  err.status === 403 &&
-  (err.data as { error?: { code?: string } } | undefined)?.error?.code ===
-    "email_not_verified";
+import { statusLabel, DELIVERY_LABELS } from "../../app/domain/orders";
+import { PickupBazarInfo } from "./PickupBazarInfo";
+import { isHttpUrl } from "../../app/lib/url";
 
 export function OrdersPage() {
   useSeo({ title: "Mis órdenes", noindex: true });
@@ -74,7 +25,6 @@ export function OrdersPage() {
   const [resendStatus, setResendStatus] = useState<
     "idle" | "sending" | "sent"
   >("idle");
-  const [blockedByApi, setBlockedByApi] = useState(false);
   const [openOrderId, setOpenOrderId] = useState<string | number | null>(null);
 
   const showToast = (message: string, tone: "error" | "success") => {
@@ -83,31 +33,21 @@ export function OrdersPage() {
 
   // `null` (legacy session before email_verified existed) counts as unverified.
   const requiresVerification = isAuthenticated && emailVerified !== true;
+  // Set by a real backend rejection (403 + email_not_verified), mirroring the
+  // old fetchOrders catch. Once blocked, queries stop and the section shows
+  // the verification screen again.
+  const [blockedByApi, setBlockedByApi] = useState(false);
   const canFetchOrders =
     isAuthenticated && !requiresVerification && !blockedByApi && Boolean(token);
 
-  const fetchOrders = useCallback(async () => {
-    if (!canFetchOrders) return [];
-    try {
-      const data = await http<OrderResponse[]>(
-        `${API_BASE_URL}/orders/`,
-        { token }
-      );
-      return data;
-    } catch (err) {
-      if (isVerificationError(err)) {
-        setBlockedByApi(true);
-        return [];
-      }
-      throw err;
-    }
-  }, [canFetchOrders, token]);
+  const { orders, isLoading, isError, rawError, refetch } = useOrders({
+    token,
+    enabled: canFetchOrders
+  });
 
-  const { data, isLoading, isError, refetch } = useServiceQuery<
-    OrderResponse[]
-  >([canFetchOrders, token], fetchOrders, { enabled: canFetchOrders });
-
-  const orders = data ?? [];
+  useEffect(() => {
+    if (isVerificationError(rawError)) setBlockedByApi(true);
+  }, [rawError]);
 
   // Returning from Stripe Checkout lands here with ?session_id=... The webhook
   // can't reach a locally-running backend, so ask the server to fulfill the

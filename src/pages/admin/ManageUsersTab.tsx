@@ -1,130 +1,72 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { T } from "../../app/i18n/strings";
 import { Button } from "../../components/Button";
-import { http, extractErrorMessage } from "../../app/lib/httpClient";
-import { API_BASE_URL } from "../../app/config/api";
-
-/* ── Types ── */
-
-type AdminUser = {
-  id: number;
-  username: string;
-  email: string;
-  role: "ADMIN" | "CUSTOMER";
-  is_active: boolean;
-  email_verified: boolean;
-  date_joined?: string;
-};
-
-const withBase = (path: string) =>
-  `${API_BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
+import { extractErrorMessage } from "../../app/lib/httpClient";
+import { useAdminUsers } from "../../app/hooks/useAdminUsers";
+import type { AdminUser } from "../../app/domain/users";
 
 /* ── Component ── */
 
 export function ManageUsersTab() {
   const { token, user: currentUser } = useAuth();
+  const {
+    users,
+    loading,
+    error,
+    load,
+    updateRole: updateRoleUser,
+    deleteUser: deleteUserById,
+  } = useAdminUsers({ token });
 
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-
-  /* ── Fetch users ── */
-
-  const fetchUsers = useCallback(async () => {
-    if (!token) return;
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await http<AdminUser[]>(withBase("/auth/users/"), {
-        token,
-        signal: controller.signal,
-      });
-
-      if (!controller.signal.aborted) {
-        setUsers(Array.isArray(data) ? data : []);
-      }
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      if (!controller.signal.aborted) {
-        setError(extractErrorMessage(err, "Error al cargar los usuarios."));
-      }
-    } finally {
-      if (!controller.signal.aborted) setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    fetchUsers();
-    return () => abortRef.current?.abort();
-  }, [fetchUsers]);
 
   /* ── Update role ── */
 
   const updateRole = useCallback(
     async (userId: number, newRole: "ADMIN" | "CUSTOMER") => {
-      if (!token) return;
       setUpdatingId(userId);
       setSuccessMessage(null);
+      setActionError(null);
       try {
-        await http<AdminUser>(withBase(`/auth/users/${userId}/`), {
-          method: "PATCH",
-          body: { role: newRole },
-          token,
-        });
-
-        setUsers((prev) =>
-          prev.map((u) =>
-            u.id === userId ? { ...u, role: newRole } : u
-          )
-        );
+        await updateRoleUser(userId, newRole);
         setSuccessMessage(T.admin.manageUsers.roleUpdated);
         setTimeout(() => setSuccessMessage(null), 3000);
       } catch (err: unknown) {
-        setError(extractErrorMessage(err, T.admin.manageUsers.roleError));
-        setTimeout(() => setError(null), 4000);
+        setActionError(extractErrorMessage(err, T.admin.manageUsers.roleError));
+        setTimeout(() => setActionError(null), 4000);
       } finally {
         setUpdatingId(null);
       }
     },
-    [token]
+    [updateRoleUser]
   );
 
   /* ── Delete user ── */
 
   const deleteUser = useCallback(
     async (userId: number) => {
-      if (!token) return;
       setDeletingId(userId);
       setConfirmDelete(null);
       setSuccessMessage(null);
+      setActionError(null);
       try {
-        await http<unknown>(withBase(`/auth/users/${userId}/delete/`), {
-          method: "DELETE",
-          token,
-        });
-
-        setUsers((prev) => prev.filter((u) => u.id !== userId));
+        await deleteUserById(userId);
         setSuccessMessage("Usuario eliminado correctamente.");
         setTimeout(() => setSuccessMessage(null), 3000);
       } catch (err: unknown) {
-        setError(extractErrorMessage(err, "No se pudo eliminar el usuario."));
-        setTimeout(() => setError(null), 4000);
+        setActionError(extractErrorMessage(err, "No se pudo eliminar el usuario."));
+        setTimeout(() => setActionError(null), 4000);
       } finally {
         setDeletingId(null);
       }
     },
-    [token]
+    [deleteUserById]
   );
 
   /* ── Filtered list ── */
@@ -141,6 +83,8 @@ export function ManageUsersTab() {
   /* ── Check if a user row belongs to the current user ── */
   const isCurrentUser = (u: AdminUser): boolean =>
     Boolean(currentUser?.email && u.email === currentUser.email);
+
+  const bannerError = error || actionError;
 
   /* ── Render ── */
 
@@ -172,13 +116,13 @@ export function ManageUsersTab() {
       )}
 
       {/* ── Error ── */}
-      {error && (
+      {bannerError && (
         <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+          {bannerError}
           <Button
             tone="outline"
             className="ml-3 px-3 py-1 text-xs"
-            onClick={fetchUsers}
+            onClick={() => void load()}
           >
             {T.shared.retry}
           </Button>
@@ -193,7 +137,7 @@ export function ManageUsersTab() {
       )}
 
       {/* ── Empty state ── */}
-      {!loading && !error && filteredUsers.length === 0 && (
+      {!loading && !bannerError && filteredUsers.length === 0 && (
         <div className="mt-12 text-center">
           <p className="text-lg text-navy/40">👥</p>
           <p className="mt-2 text-sm text-navy/50">

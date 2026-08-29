@@ -1,5 +1,13 @@
 import { API_BASE_URL } from "../config/api";
-import type { Category, Record, RecordPage, RecordRepository } from "../domain/album";
+import type {
+  Artist,
+  Category,
+  Genere,
+  Record,
+  RecordInput,
+  RecordPage,
+  RecordRepository
+} from "../domain/album";
 import { http } from "../lib/httpClient";
 
 type RecordServiceConfig = {
@@ -47,10 +55,48 @@ export function createRecordService(config: RecordServiceConfig = {}): RecordRep
         token: getToken?.() ?? undefined,
       });
     },
-    async getCategories() {
+async getCategories() {
       return http<Category[]>(withBase(baseUrl, "/categories"), {
-        token: getToken?.() ?? undefined,
+        token: getToken?.() ?? undefined
       });
+    },
+    async getGenres() {
+      return http<Genere[]>(withBase(baseUrl, "/generes"), {
+        token: getToken?.() ?? undefined
+      });
+    },
+    async searchArtists(query: string) {
+      return http<Artist[]>(withBase(baseUrl, "/artists/search"), {
+        token: getToken?.() ?? undefined,
+        query: { q: query }
+      });
+    },
+    async createArtist(name: string) {
+      return http<Artist>(withBase(baseUrl, "/artists/create"), {
+        method: "POST",
+        token: getToken?.() ?? undefined,
+        body: { name }
+      });
+    },
+    async create(input: RecordInput) {
+      return http<Record>(withBase(baseUrl, "/records/create"), {
+        method: "POST",
+        token: getToken?.() ?? undefined,
+        body: input
+      });
+    },
+    async update(id: string | number, patch: Partial<RecordInput>) {
+      return http<Record>(withBase(baseUrl, `/records/${id}/update`), {
+        method: "PATCH",
+        token: getToken?.() ?? undefined,
+        body: patch
+      });
+    },
+    async remove(id: string | number) {
+      return http<{ message?: string }>(
+        withBase(baseUrl, `/records/${id}/delete`),
+        { method: "DELETE", token: getToken?.() ?? undefined }
+      );
     },
   };
 }
