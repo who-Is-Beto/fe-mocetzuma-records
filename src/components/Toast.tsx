@@ -77,7 +77,7 @@ export function Toast({
 
   return createPortal(
     <div
-      className="pointer-events-none fixed inset-0 z-50 flex items-end justify-start px-4 pb-4 sm:items-end sm:justify-start sm:px-6 sm:pb-6 md:px-8 md:pb-8 lg:items-end lg:justify-start"
+      className="pointer-events-none fixed inset-0 z-50 flex items-start justify-end px-4 pt-4 sm:items-start sm:justify-end sm:px-6 sm:pt-6 md:items-end md:justify-start md:px-8 md:pb-8 md:pt-0 lg:items-end lg:justify-start"
       onClick={handleClose}
     >
       <div
