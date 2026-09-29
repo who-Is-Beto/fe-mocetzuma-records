@@ -55,3 +55,33 @@
       radial-gradient(circle at 70% 60%, rgba(21, 80, 122, 0.22), transparent 40%);
   }
 }
+
+/* ── Printable sale receipt (Ventas / Punto de venta → "Imprimir ticket") ──
+   Only .receipt-print-root prints. Sized for an 80 mm thermal roll: 72 mm is
+   its usual printable width. Other paper: change --receipt-width (and pick the
+   paper size in the print dialog / printer driver). */
+:root {
+  --receipt-width: 72mm;
+}
+
+.receipt-print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 0;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  body > *:not(.receipt-print-root) {
+    display: none !important;
+  }
+
+  .receipt-print-root {
+    display: block;
+  }
+}

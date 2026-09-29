@@ -83,3 +83,18 @@ export const isPastDate = (isoDate: string): boolean => {
     return false;
   }
 };
+
+/* The backend filters sales by day in store time (CDMX); show them the same way. */
+export const STORE_TIME_ZONE = "America/Mexico_City";
+
+/** YYYY-MM-DD of `date` in store time. */
+export const storeDay = (date: Date): string =>
+  date.toLocaleDateString("en-CA", { timeZone: STORE_TIME_ZONE });
+
+/** ISO datetime in store time, e.g. "10/09/26, 19:30". */
+export const formatStoreDateTime = (iso: string): string =>
+  new Date(iso).toLocaleString("es-MX", {
+    timeZone: STORE_TIME_ZONE,
+    dateStyle: "short",
+    timeStyle: "short"
+  });

@@ -40,13 +40,14 @@ export function Layout({ children }: LayoutProps) {
   // Maintenance gate. The status is polled for everyone (including admins) so
   // the storefront can react live when the window flips open/closed in the
   // admin console. Admins skip the gate and see a quick-close bar instead.
-  const { role } = useAuth();
-  const isAdmin = role === "ADMIN";
+  // ADMINs, or a custom role allowed to open/close the window (Roles tab).
+  const { hasPerm } = useAuth();
+  const canManageMaintenance = hasPerm("apiApp.change_siteconfig");
   const { pathname } = useLocation();
   const { config, isLoading, refetch } = useMaintenanceStatus({ enabled: true });
   const maintenanceActive = config?.maintenance_mode === true;
 
-  if (!isAdmin) {
+  if (!canManageMaintenance) {
     if (isLoading) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-sand">
@@ -76,7 +77,7 @@ export function Layout({ children }: LayoutProps) {
           <div className="pointer-events-none absolute inset-0 -z-20 retro-blob opacity-90" />
           <div className="pointer-events-none absolute -right-20 top-10 -z-10 h-72 w-[52rem] rotate-6 bg-stripes opacity-60 blur-[28px]" />
 
-          {isAdmin && maintenanceActive && pathname !== "/admin" ? (
+          {canManageMaintenance && maintenanceActive && pathname !== "/admin" ? (
             <AdminMaintenanceBar />
           ) : null}
 

@@ -2,6 +2,7 @@ export { useServiceQuery } from "./useServiceQuery";
 export { useServiceMutation } from "./useServiceMutation";
 export { useUpcomingBazares } from "./useUpcomingBazares";
 export { useSeo } from "./useSeo";
+export { useOnClickOutside } from "./useOnClickOutside";
 export { useOrders } from "./useOrders";
 export { useAdminOrders } from "./useAdminOrders";
 export { useAdminUsers } from "./useAdminUsers";

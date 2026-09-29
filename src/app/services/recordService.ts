@@ -3,6 +3,7 @@ import type {
   Artist,
   Category,
   Genere,
+  Owner,
   Record,
   RecordInput,
   RecordPage,
@@ -76,6 +77,23 @@ async getCategories() {
         method: "POST",
         token: getToken?.() ?? undefined,
         body: { name }
+      });
+    },
+    async getOwners() {
+      return http<Owner[]>(withBase(baseUrl, "/owners"), {
+        token: getToken?.() ?? undefined
+      });
+    },
+    async createOwner(input: { name: string; email: string }) {
+      return http<Owner>(withBase(baseUrl, "/owners/create"), {
+        method: "POST",
+        token: getToken?.() ?? undefined,
+        body: input
+      });
+    },
+    async getForEdit(id: string | number) {
+      return http<Record>(withBase(baseUrl, `/records/${id}/update`), {
+        token: getToken?.() ?? undefined
       });
     },
     async create(input: RecordInput) {

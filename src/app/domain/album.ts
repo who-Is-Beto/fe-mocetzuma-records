@@ -29,6 +29,9 @@ export type Record = {
   cost_price?: number | string;
   sell_price?: number | string;
   final_sale_price?: number | string | null;
+  weight_grams?: number | null;
+  /** Owner id (admin responses only); null for store stock / older records. */
+  owner?: number | null;
 };
 
 export type RecordPage = {
@@ -56,6 +59,13 @@ export type Artist = {
   slug: string;
 };
 
+/** Who a record belongs to; gets an email every time one of their records sells. */
+export type Owner = {
+  id: number;
+  name: string;
+  email: string;
+};
+
 /** Writable record payload for POST /records/create/ and PATCH update. */
 export type RecordInput = {
   title: string;
@@ -74,6 +84,7 @@ export type RecordInput = {
   items_inside: number;
   weight_grams: number | null;
   category: number | null;
+  owner: number | null;
 };
 
 /**
@@ -104,7 +115,11 @@ export interface RecordRepository {
   getGenres(): Promise<Genere[]>;
   searchArtists(query: string): Promise<Artist[]>;
   createArtist(name: string): Promise<Artist>;
+  getOwners(): Promise<Owner[]>;
+  createOwner(input: { name: string; email: string }): Promise<Owner>;
   /** Admin record CRUD. */
+  /** Full record for the edit form (private fields included; list rows are partial). */
+  getForEdit(id: string | number): Promise<Record>;
   create(input: RecordInput): Promise<Record>;
   update(id: string | number, patch: Partial<RecordInput>): Promise<Record>;
   remove(id: string | number): Promise<{ message?: string }>;

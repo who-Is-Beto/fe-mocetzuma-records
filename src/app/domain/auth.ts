@@ -4,6 +4,7 @@ export type User = {
   email?: string;
   emailVerified?: boolean;
   role?: 'ADMIN' | 'CUSTOMER';
+  permissions?: string[];
 };
 
 export type Credentials = {

@@ -6,7 +6,7 @@ import { HttpError, extractErrorMessage } from "../../app/lib/httpClient";
 import { createRecordService } from "../../app/services/recordService";
 import { useDiscogsSearch } from "../../app/hooks/useDiscogsSearch";
 import type { DiscogsSearchResult } from "../../app/services/discogsService";
-import type { Artist, Category, Genere } from "../../app/domain/album";
+import type { Artist, Category, Genere, Owner } from "../../app/domain/album";
 
 /* ── Types ── */
 
@@ -27,6 +27,7 @@ type RecordForm = {
   items_inside: string;
   weight_grams: string;
   category_id: string;
+  owner_id: string;
   featured: boolean;
 };
 
@@ -47,8 +48,12 @@ const INITIAL_FORM: RecordForm = {
   items_inside: "1",
   weight_grams: "",
   category_id: "",
+  owner_id: "",
   featured: true,
 };
+
+/* Owner <select> value that opens the inline "new owner" fields */
+const NEW_OWNER = "__new__";
 
 const CONDITIONS = [
   { value: "M", label: "Mint" },
@@ -125,6 +130,7 @@ type AddRecordPageProps = {
     artist?: { id: string; name: string } | null;
     genere?: { id: string; name: string } | { id?: string | number } | string | number | null;
     category?: { id: string; name: string } | null;
+    owner?: number | null;
     slug?: string;
   } | null;
   onEditDone?: () => void;
@@ -162,6 +168,12 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
   // DB options
   const [generes, setGeneres] = useState<Genere[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [owners, setOwners] = useState<Owner[]>([]);
+
+  // Inline "Agregar nuevo dueño" (null = hidden)
+  const [newOwner, setNewOwner] = useState<{ name: string; email: string } | null>(null);
+  const [ownerError, setOwnerError] = useState<string | null>(null);
+  const [savingOwner, setSavingOwner] = useState(false);
 
   // Form
   const [form, setForm] = useState<RecordForm>(INITIAL_FORM);
@@ -195,6 +207,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
           ? String(editingRecord.weight_grams)
           : "",
       category_id: editingRecord.category?.id ? String(editingRecord.category.id) : "",
+      owner_id: editingRecord.owner != null ? String(editingRecord.owner) : "",
       featured: editingRecord.featured ?? true,
     });
   }, [editingRecord]);
@@ -216,6 +229,11 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
     }
     if (!form.stock || Number(form.stock) < 0) {
       setSubmitError("El stock no puede ser negativo.");
+      return;
+    }
+
+    if (newOwner) {
+      setSubmitError("Guarda o cancela el nuevo dueño antes de guardar el disco.");
       return;
     }
 
@@ -257,6 +275,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
         items_inside: Number(form.items_inside) || 1,
         weight_grams: form.weight_grams ? Number(form.weight_grams) : null,
         category: form.category_id ? Number(form.category_id) : null,
+        owner: form.owner_id ? Number(form.owner_id) : null,
       };
 
       if (isEditing && editingRecord) {
@@ -309,9 +328,11 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
     Promise.all([
       recordService.getGenres().catch(() => []),
       recordService.getCategories().catch(() => []),
-    ]).then(([genereData, catData]) => {
+      recordService.getOwners().catch(() => []),
+    ]).then(([genereData, catData, ownerData]) => {
       setGeneres(genereData ?? []);
       setCategories(catData ?? []);
+      setOwners(ownerData ?? []);
     });
   }, [recordService, token]);
 
@@ -334,6 +355,31 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
     value: RecordForm[K]
   ) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  /* ── Inline owner creation (auto-selected once saved) ── */
+
+  const saveOwner = async () => {
+    if (!newOwner) return;
+    const name = newOwner.name.trim();
+    const email = newOwner.email.trim();
+    if (!name || !/^\S+@\S+\.\S+$/.test(email)) {
+      setOwnerError("Escribe el nombre y un correo válido.");
+      return;
+    }
+    setSavingOwner(true);
+    setOwnerError(null);
+    try {
+      const owner = await recordService.createOwner({ name, email });
+      setOwners((prev) => [...prev, owner].sort((a, b) => a.name.localeCompare(b.name)));
+      updateField("owner_id", String(owner.id));
+      setNewOwner(null);
+    } catch (err) {
+      // e.g. {"email": ["Ya existe un dueño con ese correo."]}
+      setOwnerError(extractErrorMessage(err, "No se pudo crear el dueño."));
+    } finally {
+      setSavingOwner(false);
+    }
   };
 
   /* ── Artist Autocomplete ── */
@@ -951,6 +997,84 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
           {form.category_id && (
             <p className="mt-1 text-[11px] text-navy/40">
               Auto-detectado de Discogs. Cambia si es necesario.
+            </p>
+          )}
+        </div>
+
+        {/* Owner — select, or create one inline without leaving the form */}
+        <div>
+          <label htmlFor="owner" className="block text-sm font-semibold text-navy">
+            {T.admin.addRecord.fields.owner}
+          </label>
+          <select
+            id="owner"
+            value={newOwner ? NEW_OWNER : form.owner_id}
+            onChange={(e) => {
+              if (e.target.value === NEW_OWNER) {
+                setNewOwner({ name: "", email: "" });
+                setOwnerError(null);
+              } else {
+                setNewOwner(null);
+                updateField("owner_id", e.target.value);
+              }
+            }}
+            className={inputClass}
+          >
+            <option value="">Sin dueño</option>
+            {owners.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name} ({o.email})
+              </option>
+            ))}
+            <option value={NEW_OWNER}>➕ Agregar nuevo dueño</option>
+          </select>
+          {newOwner ? (
+            <div className="mt-2 rounded-xl border border-navy/10 bg-cream/60 p-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <input
+                  type="text"
+                  value={newOwner.name}
+                  onChange={(e) => setNewOwner({ ...newOwner, name: e.target.value })}
+                  placeholder="Nombre"
+                  aria-label="Nombre del nuevo dueño"
+                  className={inputClass}
+                />
+                <input
+                  type="email"
+                  value={newOwner.email}
+                  onChange={(e) => setNewOwner({ ...newOwner, email: e.target.value })}
+                  placeholder="correo@ejemplo.com"
+                  aria-label="Correo del nuevo dueño"
+                  className={inputClass}
+                />
+              </div>
+              {ownerError && (
+                <p role="alert" className="mt-2 text-xs text-red-700">
+                  {ownerError}
+                </p>
+              )}
+              <div className="mt-3 flex justify-end gap-2">
+                <Button
+                  tone="outline"
+                  className="px-3 py-1.5 text-xs"
+                  disabled={savingOwner}
+                  onClick={() => setNewOwner(null)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  tone="navy"
+                  className="px-3 py-1.5 text-xs"
+                  disabled={savingOwner}
+                  onClick={saveOwner}
+                >
+                  {savingOwner ? "Guardando..." : "Guardar dueño"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-1 text-[11px] text-navy/40">
+              Recibe un correo cada vez que se vende este disco.
             </p>
           )}
         </div>

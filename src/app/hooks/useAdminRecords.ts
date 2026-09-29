@@ -1,16 +1,23 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { Record, RecordPage } from "../domain/album";
+import type { PaymentMethod, SaleResult } from "../domain/sales";
 import { createRecordService } from "../services/recordService";
+import { createSalesService } from "../services/salesService";
 import { extractErrorMessage } from "../lib/httpClient";
 
 type Options = {
   token: string | null;
 };
 
+/** One line of the "Vender" ticket. */
+export type SellLine = { record: Record; quantity: number; price?: string };
+
+/** How the ticket was paid; `commission_rate` (%) only applies to card. */
+export type SellPayment = { payment_method: PaymentMethod; commission_rate?: string };
+
 /**
  * Admin record manager: paginated list, tokenized search across every page,
- * the sell-modal stock patch and record deletion. Mirrors the previous
- * ManageRecordsTab logic exactly.
+ * registering a sale (the "Vender" ticket) and record deletion.
  */
 export function useAdminRecords({ token }: Options): {
   records: Record[];
@@ -20,14 +27,18 @@ export function useAdminRecords({ token }: Options): {
   error: string | null;
   /** Load a page or search results. Returns false when the request failed. */
   loadPage(query: string, pageNum: number): Promise<boolean>;
-  sell(
-    id: string | number,
-    patch: { stock: number; final_sale_price?: number | string }
-  ): Promise<Record>;
+  /** Register one sale with every ticket line; throws on failure (e.g. no stock). */
+  sell(lines: SellLine[], payment: SellPayment): Promise<SaleResult>;
+  /** Full record for the edit form: list rows lack description, weight, etc. */
+  loadForEdit(id: string | number): Promise<Record>;
   remove(id: string | number): Promise<{ message?: string }>;
 } {
   const recordService = useMemo(
     () => createRecordService({ getToken: () => token }),
+    [token]
+  );
+  const salesService = useMemo(
+    () => createSalesService({ getToken: () => token }),
     [token]
   );
   const [records, setRecords] = useState<Record[]>([]);
@@ -68,28 +79,21 @@ export function useAdminRecords({ token }: Options): {
   );
 
   const sell = useCallback(
-    async (
-      id: string | number,
-      patch: { stock: number; final_sale_price?: number | string }
-    ): Promise<Record> => {
-      const updated = await recordService.update(id, patch);
+    async (lines: SellLine[], payment: SellPayment): Promise<SaleResult> => {
+      const result = await salesService.register({
+        items: lines.map(({ record, quantity, price }) => ({ record: record.id, quantity, price })),
+        ...payment
+      });
+      // The server decremented stock atomically; mirror it in the list.
+      const sold = new Map(lines.map((l) => [l.record.id, l.quantity]));
       setRecords((prev) =>
         prev.map((r) =>
-          r.id === id
-            ? {
-                ...r,
-                stock: patch.stock,
-                final_sale_price:
-                  patch.final_sale_price != null && patch.final_sale_price !== ""
-                    ? patch.final_sale_price
-                    : r.final_sale_price
-              }
-            : r
+          sold.has(r.id) ? { ...r, stock: (r.stock ?? 0) - (sold.get(r.id) ?? 0) } : r
         )
       );
-      return updated;
+      return result;
     },
-    [recordService]
+    [salesService]
   );
 
   const remove = useCallback(
@@ -102,5 +106,10 @@ export function useAdminRecords({ token }: Options): {
     [recordService]
   );
 
-  return { records, totalCount, hasNext, loading, error, loadPage, sell, remove };
+  const loadForEdit = useCallback(
+    (id: string | number) => recordService.getForEdit(id),
+    [recordService]
+  );
+
+  return { records, totalCount, hasNext, loading, error, loadPage, sell, loadForEdit, remove };
 }

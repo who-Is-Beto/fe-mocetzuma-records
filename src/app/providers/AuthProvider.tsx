@@ -21,6 +21,8 @@ type AuthUser = {
   name: string
   email?: string
   role?: 'ADMIN' | 'CUSTOMER'
+  /** Custom-role permissions from /auth/me/, e.g. "apiApp.tab_manage_orders". */
+  permissions?: string[]
 }
 
 type AuthContextValue = {
@@ -30,12 +32,19 @@ type AuthContextValue = {
   user: AuthUser | null
   emailVerified: boolean | null
   role: 'ADMIN' | 'CUSTOMER' | null
+  /** ADMINs, plus users whose custom role grants Administración access. */
+  canAccessAdmin: boolean
+  /** ADMIN always true; otherwise checks the custom role, e.g. "apiApp.change_order". */
+  hasPerm: (perm: string) => boolean
   login: (credentials: Credentials) => Promise<void>
   register: (payload: RegisterInput) => Promise<void>
   logout: () => void
   markEmailVerified: () => void
   resendVerification: (email: string) => Promise<void>
 }
+
+/** Granted by a custom role; see the Roles tab / backend apiApp/admin_panel.py. */
+const ADMIN_ACCESS_PERM = 'apiApp.access_admin_panel'
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 const SESSION_KEY = 'moctezuma-session'
@@ -114,7 +123,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!prev.token) return prev
           return {
             ...prev,
-            user: { name: profile.name, email: profile.email, role: profile.role },
+            user: {
+              name: profile.name,
+              email: profile.email,
+              role: profile.role,
+              permissions: profile.permissions,
+            },
             // Never downgrade a just-verified `true` with a stale profile
             // response fetched before verification completed.
             emailVerified:
@@ -216,6 +230,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: authState.user,
       emailVerified: authState.emailVerified,
       role: authState.user?.role ?? null,
+      canAccessAdmin:
+        authState.user?.role === 'ADMIN' ||
+        Boolean(authState.user?.permissions?.includes(ADMIN_ACCESS_PERM)),
+      hasPerm: (perm: string) =>
+        authState.user?.role === 'ADMIN' || Boolean(authState.user?.permissions?.includes(perm)),
       login,
       register,
       logout,

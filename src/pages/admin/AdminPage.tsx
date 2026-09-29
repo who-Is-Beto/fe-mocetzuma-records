@@ -24,15 +24,25 @@ const ManageOrdersTab = lazy(() =>
 const ManageBazaresTab = lazy(() =>
   import("./ManageBazaresTab").then((m) => ({ default: m.ManageBazaresTab }))
 );
+const ManageRolesTab = lazy(() =>
+  import("./ManageRolesTab").then((m) => ({ default: m.ManageRolesTab }))
+);
+const ManageSalesTab = lazy(() =>
+  import("./ManageSalesTab").then((m) => ({ default: m.ManageSalesTab }))
+);
 
-/* ── Tabs ── */
+/* ── Tabs ──
+ * `perm`: a non-ADMIN sees the tab when their custom role grants it (Roles tab).
+ * No `perm` → ADMIN only. The backend enforces the same permissions. */
 
 const TABS = [
-  { id: "add-record" as const, label: T.admin.tabs.addRecord, icon: "➕" },
-  { id: "manage-records" as const, label: T.admin.tabs.manageRecords, icon: "💿" },
-  { id: "manage-bazares" as const, label: T.admin.tabs.manageBazares, icon: "🎪" },
-  { id: "manage-orders" as const, label: T.admin.tabs.manageOrders, icon: "📦" },
-  { id: "manage-users" as const, label: T.admin.tabs.manageUsers, icon: "👥" },
+  { id: "add-record" as const, label: T.admin.tabs.addRecord, icon: "➕", perm: "apiApp.tab_add_record" },
+  { id: "manage-records" as const, label: T.admin.tabs.manageRecords, icon: "🏪", perm: "apiApp.tab_manage_records" },
+  { id: "manage-bazares" as const, label: T.admin.tabs.manageBazares, icon: "🎪", perm: "apiApp.tab_manage_bazares" },
+  { id: "manage-orders" as const, label: T.admin.tabs.manageOrders, icon: "📦", perm: "apiApp.tab_manage_orders" },
+  { id: "sales" as const, label: T.admin.tabs.sales, icon: "🧾", perm: "apiApp.tab_sales" },
+  { id: "manage-users" as const, label: T.admin.tabs.manageUsers, icon: "👥", perm: "apiApp.tab_manage_users" },
+  { id: "manage-roles" as const, label: T.admin.tabs.manageRoles, icon: "🔐" },
 ];
 
 type TabId = (typeof TABS)[number]["id"];
@@ -41,7 +51,7 @@ type TabId = (typeof TABS)[number]["id"];
 
 export function AdminPage() {
   useSeo({ title: T.admin.pageTitle, noindex: true });
-  const { role } = useAuth();
+  const { role, canAccessAdmin, hasPerm } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabId>("add-record");
   const [editingRecord, setEditingRecord] = useState<AlbumRecord | null>(null);
@@ -55,8 +65,21 @@ export function AdminPage() {
     setEditingRecord(null);
   }, []);
 
-  /* ── Admin guard ── */
-  if (role !== "ADMIN") {
+  const isAdmin = role === "ADMIN";
+  const visibleTabs = TABS.filter(
+    (tab) =>
+      isAdmin ||
+      (tab.perm !== undefined && hasPerm(tab.perm)) ||
+      // "Editar" in Punto de venta opens the record form here, even for
+      // roles that can edit records but not create them.
+      (tab.id === "add-record" && editingRecord !== null)
+  );
+  const currentTab = visibleTabs.some((t) => t.id === activeTab)
+    ? activeTab
+    : visibleTabs[0]?.id;
+
+  /* ── Access guard (ADMIN or "Acceso a Administración") ── */
+  if (!canAccessAdmin) {
     return (
       <section className="mx-auto max-w-2xl py-20 text-center">
         <p className="text-lg font-semibold text-navy/60">
@@ -79,46 +102,50 @@ export function AdminPage() {
         {T.admin.pageSubtitle}
       </p>
 
-      {/* ── Maintenance window (site-wide, admin visible always) ── */}
-      <MaintenanceCard />
+      {/* ── Maintenance window (ADMIN, or a role with the maintenance section) ── */}
+      {hasPerm("apiApp.view_siteconfig") && <MaintenanceCard />}
 
-      {/* ── Tab bar (scrolls horizontally on mobile) ── */}
-      <div className="mt-6 sm:mt-8 flex gap-1 justify-between overflow-x-auto rounded-2xl border border-navy/10 bg-cream/60 p-1.5 backdrop-blur lg:mx-auto lg:w-[calc(70%+2rem)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => {
-              setActiveTab(tab.id);
-              if (tab.id !== "add-record") setEditingRecord(null);
-            }}
-            className={`flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold transition ${
-              activeTab === tab.id
-                ? "bg-orange text-charcoal shadow-sm"
-                : "text-navy/60 hover:text-navy hover:bg-white/60"
-            }`}
-          >
-            <span className="text-base leading-none">{tab.icon}</span>
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </div>
+      {/* ── Tab bar (scrolls horizontally on mobile; a role may grant only the maintenance card) ── */}
+      {visibleTabs.length > 0 && (
+        <div className="mt-6 sm:mt-8 flex gap-1 justify-between overflow-x-auto rounded-2xl border border-navy/10 bg-cream/60 p-1.5 backdrop-blur lg:mx-auto lg:w-[calc(70%+2rem)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {visibleTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setActiveTab(tab.id);
+                if (tab.id !== "add-record") setEditingRecord(null);
+              }}
+              className={`flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold transition ${
+                currentTab === tab.id
+                  ? "bg-orange text-charcoal shadow-sm"
+                  : "text-navy/60 hover:text-navy hover:bg-white/60"
+              }`}
+            >
+              <span className="text-base leading-none">{tab.icon}</span>
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Tab content ── */}
       <div className="mt-6">
         <Suspense fallback={<Loader />}>
-          {activeTab === "add-record" && (
+          {currentTab === "add-record" && (
             <AddRecordPage
               editingRecord={editingRecord}
               onEditDone={handleEditDone}
             />
           )}
-          {activeTab === "manage-records" && (
+          {currentTab === "manage-records" && (
             <ManageRecordsTab onEdit={handleEdit} />
           )}
-          {activeTab === "manage-bazares" && <ManageBazaresTab />}
-          {activeTab === "manage-orders" && <ManageOrdersTab />}
-          {activeTab === "manage-users" && <ManageUsersTab />}
+          {currentTab === "manage-bazares" && <ManageBazaresTab />}
+          {currentTab === "manage-orders" && <ManageOrdersTab />}
+          {currentTab === "sales" && <ManageSalesTab />}
+          {currentTab === "manage-users" && <ManageUsersTab />}
+          {currentTab === "manage-roles" && <ManageRolesTab />}
         </Suspense>
       </div>
     </section>

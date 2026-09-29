@@ -14,7 +14,7 @@ import { BazarFormModal, type BazarFormValues } from "./bazares/BazarFormModal";
  * UI concerns live in BazarFormModal / ConfirmDialog / BazarRow.
  */
 export function ManageBazaresTab() {
-  const { token } = useAuth();
+  const { token, hasPerm } = useAuth();
   const bazarService = useMemo(
     () => createBazarService({ getToken: () => token }),
     [token]
@@ -120,9 +120,11 @@ export function ManageBazaresTab() {
             ? "Cargando bazares..."
             : `${bazares.length} bazar${bazares.length === 1 ? "" : "es"} · ${upcomingCount} próximo${upcomingCount === 1 ? "" : "s"}`}
         </p>
-        <Button tone="orange" className="px-5 py-2.5 text-sm" onClick={openCreateModal}>
-          ➕ Agregar bazar
-        </Button>
+        {hasPerm("apiApp.add_bazar") && (
+          <Button tone="orange" className="px-5 py-2.5 text-sm" onClick={openCreateModal}>
+            ➕ Agregar bazar
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -145,11 +147,15 @@ export function ManageBazaresTab() {
           <BazarRow
             key={bazar.id}
             bazar={bazar}
-            onEdit={() => openEditModal(bazar)}
-            onAskDelete={() => {
-              setDeleteTarget(bazar);
-              setDeleteError(null);
-            }}
+            onEdit={hasPerm("apiApp.change_bazar") ? () => openEditModal(bazar) : undefined}
+            onAskDelete={
+              hasPerm("apiApp.delete_bazar")
+                ? () => {
+                    setDeleteTarget(bazar);
+                    setDeleteError(null);
+                  }
+                : undefined
+            }
           />
         ))}
       </ul>
@@ -188,8 +194,9 @@ export function ManageBazaresTab() {
 
 type BazarRowProps = {
   bazar: Bazar;
-  onEdit: () => void;
-  onAskDelete: () => void;
+  /** Omitted when the user's role can't edit / delete bazares. */
+  onEdit?: () => void;
+  onAskDelete?: () => void;
 };
 
 function BazarRow({ bazar, onEdit, onAskDelete }: BazarRowProps) {
@@ -230,22 +237,26 @@ function BazarRow({ bazar, onEdit, onAskDelete }: BazarRowProps) {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={onEdit}
-          aria-label={`Editar ${bazar.name}`}
-          className="rounded-pill border border-navy/15 bg-white px-3 py-1.5 pt-2 text-xs font-semibold text-navy transition hover:border-orange hover:bg-orange hover:text-white"
-        >
-          ✏️ Editar
-        </button>
-        <button
-          type="button"
-          onClick={onAskDelete}
-          aria-label={`Eliminar ${bazar.name}`}
-          className="rounded-pill border border-red-200 bg-white px-3 py-1.5 pt-2 text-xs font-semibold text-red-600 transition hover:bg-red-600 hover:text-white"
-        >
-          🗑️ Eliminar
-        </button>
+        {onEdit && (
+          <button
+            type="button"
+            onClick={onEdit}
+            aria-label={`Editar ${bazar.name}`}
+            className="rounded-pill border border-navy/15 bg-white px-3 py-1.5 pt-2 text-xs font-semibold text-navy transition hover:border-orange hover:bg-orange hover:text-white"
+          >
+            ✏️ Editar
+          </button>
+        )}
+        {onAskDelete && (
+          <button
+            type="button"
+            onClick={onAskDelete}
+            aria-label={`Eliminar ${bazar.name}`}
+            className="rounded-pill border border-red-200 bg-white px-3 py-1.5 pt-2 text-xs font-semibold text-red-600 transition hover:bg-red-600 hover:text-white"
+          >
+            🗑️ Eliminar
+          </button>
+        )}
       </div>
     </li>
   );

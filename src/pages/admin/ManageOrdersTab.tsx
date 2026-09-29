@@ -18,8 +18,9 @@ const STATUS_BADGE: Record<OrderStatus, string> = {
 /* ── Component ── */
 
 export function ManageOrdersTab() {
-  const { token } = useAuth();
+  const { token, hasPerm } = useAuth();
   const { orders, loading, error, load, updateOrder } = useAdminOrders({ token });
+  const canUpdate = hasPerm("apiApp.change_order");
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -278,86 +279,88 @@ export function ManageOrdersTab() {
                   </div>
 
                   {/* Controls: status (+ tracking link for shippable orders) */}
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-                    <div className="sm:w-44">
-                      <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy/50">
-                        Estado
-                      </label>
-                      <select
-                        value={statusValueFor(o)}
-                        onChange={(e) => {
-                          setStatusDrafts((prev) => ({
-                            ...prev,
-                            [String(o.id)]: e.target.value as OrderStatus
-                          }));
-                        }}
-                        disabled={savingId === String(o.id)}
-                        className={`mt-1 w-full cursor-pointer rounded-lg border border-navy/15 bg-white px-2 py-2 text-xs font-semibold outline-none transition focus:border-orange focus:ring-2 focus:ring-orange/30 ${
-                          statusDirty(o)
-                            ? "border-orange/60 ring-1 ring-orange/40"
-                            : ""
-                        } ${
-                          savingId === String(o.id)
-                            ? "cursor-wait opacity-50"
-                            : ""
-                        }`}
-                      >
-                        {ORDER_STATUSES.map((s) => (
-                          <option key={s.value} value={s.value}>
-                            {s.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {isShippable ? (
-                      <div className="flex-1">
+                  {canUpdate && (
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <div className="sm:w-44">
                         <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy/50">
-                          Link de rastreo
+                          Estado
                         </label>
-                        <div className="mt-1 flex gap-2">
-                          <input
-                            type="text"
-                            value={draft}
-                            onChange={(e) => handleLinkChange(o, e.target.value)}
-                            placeholder="URL o código de rastreo (vacío = preparando)"
-                            maxLength={255}
-                            className="w-full rounded-lg border border-navy/15 bg-white px-3 py-2 text-xs text-navy outline-none transition focus:border-orange focus:ring-2 focus:ring-orange/30"
-                          />
-                          <Button
-                            tone="navy"
-                            className="shrink-0 px-4 py-2 text-xs"
-                            disabled={
-                              (!linkDirty(o) && !statusDirty(o)) ||
-                              savingId === String(o.id)
-                            }
-                            onClick={() =>
-                              void patchOrder(o, {
-                                status: statusValueFor(o),
-                                shipping_link: draft.trim()
-                              })
-                            }
-                          >
-                            {savingId === String(o.id) ? "…" : "Guardar"}
-                          </Button>
-                        </div>
+                        <select
+                          value={statusValueFor(o)}
+                          onChange={(e) => {
+                            setStatusDrafts((prev) => ({
+                              ...prev,
+                              [String(o.id)]: e.target.value as OrderStatus
+                            }));
+                          }}
+                          disabled={savingId === String(o.id)}
+                          className={`mt-1 w-full cursor-pointer rounded-lg border border-navy/15 bg-white px-2 py-2 text-xs font-semibold outline-none transition focus:border-orange focus:ring-2 focus:ring-orange/30 ${
+                            statusDirty(o)
+                              ? "border-orange/60 ring-1 ring-orange/40"
+                              : ""
+                          } ${
+                            savingId === String(o.id)
+                              ? "cursor-wait opacity-50"
+                              : ""
+                          }`}
+                        >
+                          {ORDER_STATUSES.map((s) => (
+                            <option key={s.value} value={s.value}>
+                              {s.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                    ) : (
-                      // Pickup/bazar orders: no tracking link, but status
-                      // changes still need an explicit save.
-                      <Button
-                        tone="navy"
-                        className="shrink-0 px-4 py-2 text-xs"
-                        disabled={
-                          !statusDirty(o) || savingId === String(o.id)
-                        }
-                        onClick={() =>
-                          void patchOrder(o, { status: statusValueFor(o) })
-                        }
-                      >
-                        {savingId === String(o.id) ? "…" : "Guardar estado"}
-                      </Button>
-                    )}
-                  </div>
+                      {isShippable ? (
+                        <div className="flex-1">
+                          <label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-navy/50">
+                            Link de rastreo
+                          </label>
+                          <div className="mt-1 flex gap-2">
+                            <input
+                              type="text"
+                              value={draft}
+                              onChange={(e) => handleLinkChange(o, e.target.value)}
+                              placeholder="URL o código de rastreo (vacío = preparando)"
+                              maxLength={255}
+                              className="w-full rounded-lg border border-navy/15 bg-white px-3 py-2 text-xs text-navy outline-none transition focus:border-orange focus:ring-2 focus:ring-orange/30"
+                            />
+                            <Button
+                              tone="navy"
+                              className="shrink-0 px-4 py-2 text-xs"
+                              disabled={
+                                (!linkDirty(o) && !statusDirty(o)) ||
+                                savingId === String(o.id)
+                              }
+                              onClick={() =>
+                                void patchOrder(o, {
+                                  status: statusValueFor(o),
+                                  shipping_link: draft.trim()
+                                })
+                              }
+                            >
+                              {savingId === String(o.id) ? "…" : "Guardar"}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        // Pickup/bazar orders: no tracking link, but status
+                        // changes still need an explicit save.
+                        <Button
+                          tone="navy"
+                          className="shrink-0 px-4 py-2 text-xs"
+                          disabled={
+                            !statusDirty(o) || savingId === String(o.id)
+                          }
+                          onClick={() =>
+                            void patchOrder(o, { status: statusValueFor(o) })
+                          }
+                        >
+                          {savingId === String(o.id) ? "…" : "Guardar estado"}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

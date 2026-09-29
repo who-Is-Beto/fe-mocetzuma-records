@@ -348,21 +348,23 @@ export const T = {
 
   /* -- Admin ------------------------------------------------ */
   admin: {
-    pageTitle: "Admin",
+    pageTitle: "Administración",
     pageSubtitle: "Administra el inventario, discos y usuarios del sistema.",
 
     tabs: {
       addRecord: "Agregar disco",
-      manageRecords: "Gestionar discos",
+      manageRecords: "Punto de venta",
       manageBazares: "Manejo de bazares",
       manageUsers: "Gestionar usuarios",
       manageOrders: "Pedidos",
+      sales: "Ventas",
+      manageRoles: "Roles y permisos",
     },
 
     maintenance: {
       title: "Ventana de mantenimiento",
       description:
-        "Bloquea toda la tienda (503) mientras trabajas. Como admin mantienes acceso para cerrarla cuando termines.",
+        "Bloquea toda la tienda (503) mientras trabajas. Tú y quienes puedan gestionarla mantienen acceso para cerrarla cuando termines.",
       active: "Ventana activa",
       inactive: "Ventana inactiva",
       label: "Mantenimiento",
@@ -376,7 +378,7 @@ export const T = {
       activeNote: "Recuerda cerrar la ventana cuando termines.",
       quickCloseTitle: "Ventana de mantenimiento activa",
       quickCloseBody:
-        "El catálogo y las compras están bloqueados para los clientes. Solo tú puedes cerrarla.",
+        "El catálogo y las compras están bloqueados para los clientes. Ciérrala cuando termines.",
       quickClose: "Cerrar ventana",
       quickCloseBusy: "Cerrando...",
       quickCloseError: "No se pudo cerrar",
@@ -399,13 +401,14 @@ export const T = {
         releaseYear: "Año de lanzamiento",
         itemsInside: "Discos incluidos",
         category: "Categoría",
+        owner: "Dueño",
         featured: "Destacado",
       },
       submit: "Agregar al catálogo",
     },
 
     manageRecords: {
-      title: "Gestionar discos",
+      title: "Punto de venta",
       subtitle: "Visualiza y administra los registros del catálogo.",
       empty: "No hay discos en el catálogo.",
       searchPlaceholder: "Buscar por título, artista...",
@@ -434,7 +437,7 @@ export const T = {
       table: {
         username: "Usuario",
         email: "Correo",
-        role: "Rol",
+        role: "Roles",
         emailVerified: "Correo verificado",
         status: "Estado",
       },
@@ -446,6 +449,39 @@ export const T = {
         admin: "Administrador",
         customer: "Cliente",
       },
+      noCustomRoles: "Aún no hay roles personalizados. Créalos en Roles y permisos.",
+      ownAdmin: "No puedes quitarte tu propio rol de administrador.",
+    },
+
+    manageRoles: {
+      title: "Roles y permisos",
+      subtitle:
+        "Define qué puede hacer cada rol dentro de Administración y asígnalo en Gestionar usuarios. Crear y asignar roles es solo para administradores.",
+      newRole: "Nuevo rol",
+      namePlaceholder: "Nombre del rol (ej. Envíos)",
+      step1: "1 · Acceso",
+      accessHelp: "Los usuarios con este rol verán la página Administración.",
+      step2: "2 · Pestañas y secciones visibles",
+      needsAccess: "Activa primero el acceso a Administración.",
+      step3: "3 · Permisos por pestaña",
+      needsTabs: "Selecciona al menos una pestaña para configurar sus permisos.",
+      viewIncluded: "Ver la pestaña y consultar su información siempre está incluido.",
+      viewOnly: "solo ver",
+      withAccess: "Con acceso",
+      withoutAccess: "Sin acceso",
+      save: "Guardar rol",
+      create: "Crear rol",
+      saving: "Guardando...",
+      cancel: "Cancelar",
+      edit: "Editar",
+      delete: "Eliminar",
+      confirmDelete: "¿Eliminar el rol \"{name}\"? Los usuarios que lo tengan perderán su acceso.",
+      created: "Rol creado correctamente.",
+      updated: "Rol actualizado correctamente.",
+      deleted: "Rol eliminado correctamente.",
+      error: "No se pudo guardar el rol. Intenta de nuevo.",
+      empty: "Aún no hay roles personalizados.",
+      users: "{count} usuarios",
     },
   },
 } as const;

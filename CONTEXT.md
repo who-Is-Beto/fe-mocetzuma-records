@@ -4,7 +4,7 @@
 > project so a fresh agent session can pick up where the last one left off.
 > Conventions live in `AGENTS.md` — this file is the *what we just did* snapshot.
 
-Last updated: 2026-08-29
+Last updated: 2026-09-25
 
 ---
 
@@ -163,3 +163,60 @@ from git history at `24f091a^` (`cartService.ts`, `Toast.tsx`, old `CartPage.tsx
 - Multi-cart UX still out of scope; CartPage fetches `carts[0]`.
 - Future/out-of-scope (user-mentioned): "admin role can handle the database
   from an admin page".
+
+## 8. Record owners + Ventas tab (2026-09-25)
+
+Built on the uncommitted roles work (branch `roles`); backend details in the
+backend CONTEXT.md §16.
+
+- **Record form** (`AddRecordPage.tsx`): "Dueño" select (`GET /owners/`) with
+  "➕ Agregar nuevo dueño" → inline name + email → `POST /owners/create/` →
+  auto-selected; payload sends `owner`. Saving the record is blocked while the
+  inline panel is open.
+- **Gestionar Discos** (`ManageRecordsTab.tsx`): "Vender" adds the record to a sale
+  ticket (qty + unit price per line, total). "+ Agregar otro disco" closes the modal
+  but keeps the ticket; a "Venta en curso" bar reopens it. Confirm →
+  `useAdminRecords.sell(lines)` → `POST /sales/create/`. Backend `warnings` (no owner /
+  email failed) show as a warning `Toast`; the sale is still saved. Vender is disabled
+  at stock 0. Errors now pass `err.data` to `extractErrorMessage` (the old modal passed
+  the HttpError itself, so it always showed the fallback).
+- **Ventas tab** (`ManageSalesTab.tsx`, perm `apiApp.tab_sales`): date range (default:
+  current month) + owner filter → `GET /sales/`, total computed server-side. Dates are
+  shown in America/Mexico_City because the backend filters days in CDMX.
+- Types in `domain/sales.ts`, repository `services/salesService.ts`; `Owner` type and
+  `getOwners` / `createOwner` in `domain/album.ts` / `recordService.ts`.
+- **Editar loads the full record** (`useAdminRecords.loadForEdit` →
+  `GET /records/<id>/update/`) before opening the form. List rows lack description /
+  weight / release year / featured / items_inside, and saving a form prefilled from
+  them used to wipe those fields. On failure: error toast, form not opened.
+- **`extractErrorMessage`** now takes the `HttpError` itself or its `.data` (most
+  callers passed `err` and always got the fallback) and reads DRF field errors
+  (`{"email": ["msg"]}`, nested `{"items": [...]}`). 401, 5xx and HTML error pages keep
+  the caller's Spanish fallback. Verified with an assert script
+  (`node --experimental-strip-types`); there's still no frontend test runner.
+- Public record JSON no longer has `cost_price` / `final_sale_price` / `owner`; only
+  admin responses (the edit load, create/update) carry them.
+
+## 9. Roles dropdown, POS payment/commission, receipts, Ventas metrics (2026-09-29)
+
+Backend details: backend CONTEXT.md §17.
+- `src/app/hooks/useOnClickOutside.ts` (adapted from who-Is-Beto/nextjs-postgres-task-crud)
+  + `src/components/Dropdown.tsx` (`Dropdown`, `DropdownCheckboxItem`): click-outside,
+  Escape/Tab close, Arrow/Home/End navigation, stays open for multi-select. Used by the
+  roles picker in `ManageUsersTab` (desktop table lost `overflow-hidden` so the popover
+  isn't clipped; corner cells are rounded instead).
+- Gestionar Discos ticket: required payment method (radio chips), editable card %
+  (default 4.06), subtotal/commission/total preview in integer cents
+  (`toCents`/`commissionCents` in `domain/sales.ts`, match backend ROUND_HALF_UP).
+  After confirming, the modal stays open with "Imprimir ticket" / "Cerrar" (no auto-close).
+- Receipt: `pages/admin/sales/SaleReceipt.tsx` (`SaleReceipt` + `ReceiptPrinter` portal →
+  `window.print()`); print CSS at the end of `index.css`, width `--receipt-width` (72 mm
+  printable on an 80 mm roll).
+- Ventas tab = filters + "Registro" (`sales/SalesHistory.tsx`, ticket cards) /
+  "Métricas" (`sales/SalesMetricsView.tsx`, tiles + CSS bars, no chart dependency).
+  Store-time helpers moved to `lib/format.ts` (`STORE_TIME_ZONE`, `storeDay`, `formatStoreDateTime`).
+- **Dropdown fix:** the panel is portaled to `<body>` with fixed positioning (flip above,
+  viewport clamp, follows scroll/resize) — backdrop-blur user cards are stacking contexts
+  that painted over it, and Layout's `overflow-x-hidden` clipped it. `useOnClickOutside`
+  accepts an array of refs (trigger root + portal panel).
+- Tab "Gestionar discos" renamed **🏪 Punto de venta** (strings.ts + AdminPage icon).
