@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from "react";
 import type { MaintenanceConfig } from "../domain/site";
 import { useAuth } from "../providers/AuthProvider";
 import { createConfigService } from "../services/configService";
@@ -15,19 +16,19 @@ export function useMaintenanceConfig(): {
   refetch(): Promise<MaintenanceConfig | null>;
 } {
   const { token } = useAuth();
-  const configService = createConfigService();
+  const configService = useMemo(() => createConfigService(), []);
 
-  const query = useServiceQuery(
-    ["maintenance-config"],
-    async () => {
-      try {
-        return await configService.getMaintenanceConfig(token);
-      } catch {
-        return null;
-      }
-    },
-    { enabled: true }
-  );
+  // Stable fetcher: useServiceQuery refetches whenever the fetcher identity
+  // changes, so an inline closure here re-fired the request on every render.
+  const fetchConfig = useCallback(async () => {
+    try {
+      return await configService.getMaintenanceConfig(token);
+    } catch {
+      return null;
+    }
+  }, [configService, token]);
+
+  const query = useServiceQuery([configService], fetchConfig, { enabled: true });
 
   const save = async (
     mode: boolean,

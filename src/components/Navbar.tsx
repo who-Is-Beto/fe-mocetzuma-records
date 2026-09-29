@@ -8,7 +8,7 @@ import { useAuth } from "../app/providers/AuthProvider";
 
 export function Navbar(): ReactNode {
   const navigate = useNavigate();
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user, logout, canAccessAdmin } = useAuth();
   const [params] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(params.get("search") ?? "");
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -150,13 +150,13 @@ export function Navbar(): ReactNode {
               </Button>
             </div>
           )}
-          {user?.role === "ADMIN" && (
+          {canAccessAdmin && (
             <Button
               tone="outline"
               className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap"
               onClick={() => navigate("/admin")}
             >
-              🧰 Admin
+              🧰 Administración
             </Button>
           )}
           <Button
@@ -242,7 +242,7 @@ export function Navbar(): ReactNode {
               <span className="text-xl">🔎</span>
               <span>Buscar</span>
             </button>
-            {user?.role === "ADMIN" && (
+            {canAccessAdmin && (
               <NavLink
                 to="/admin"
                 onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}

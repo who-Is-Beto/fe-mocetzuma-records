@@ -79,6 +79,7 @@ export function createAuthService(config: AuthServiceConfig = {}): AuthRepositor
         email?: string;
         email_verified?: boolean;
         role?: 'ADMIN' | 'CUSTOMER';
+        permissions?: string[];
       }>(withBase(baseUrl, "/auth/me/"), {
         token
       });
@@ -87,7 +88,8 @@ export function createAuthService(config: AuthServiceConfig = {}): AuthRepositor
         name: response.username,
         email: response.email,
         emailVerified: response.email_verified,
-        role: response.role
+        role: response.role,
+        permissions: response.permissions
       };
     },
     async verifyEmail({ uid, token }: VerifyEmailInput) {

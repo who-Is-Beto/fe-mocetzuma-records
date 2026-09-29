@@ -2,22 +2,27 @@ import { useCallback, useState } from "react";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { T } from "../../app/i18n/strings";
 import { Button } from "../../components/Button";
+import { Dropdown, DropdownCheckboxItem } from "../../components/Dropdown";
 import { extractErrorMessage } from "../../app/lib/httpClient";
 import { useAdminUsers } from "../../app/hooks/useAdminUsers";
-import type { AdminUser } from "../../app/domain/users";
+import { useAdminRoles } from "../../app/hooks/useAdminRoles";
+import type { AdminUser, AdminUserUpdate } from "../../app/domain/users";
 
 /* ── Component ── */
 
 export function ManageUsersTab() {
-  const { token, user: currentUser } = useAuth();
+  const { token, user: currentUser, role: myRole, hasPerm } = useAuth();
+  const isAdmin = myRole === "ADMIN";
   const {
     users,
     loading,
     error,
     load,
-    updateRole: updateRoleUser,
+    updateUser,
     deleteUser: deleteUserById,
   } = useAdminUsers({ token });
+  // Roles/assignment are ADMIN-only; skip the request for delegated users.
+  const { roles } = useAdminRoles({ token: isAdmin ? token : null });
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -26,15 +31,15 @@ export function ManageUsersTab() {
   const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  /* ── Update role ── */
+  /* ── Update roles ── */
 
-  const updateRole = useCallback(
-    async (userId: number, newRole: "ADMIN" | "CUSTOMER") => {
+  const update = useCallback(
+    async (userId: number, patch: AdminUserUpdate) => {
       setUpdatingId(userId);
       setSuccessMessage(null);
       setActionError(null);
       try {
-        await updateRoleUser(userId, newRole);
+        await updateUser(userId, patch);
         setSuccessMessage(T.admin.manageUsers.roleUpdated);
         setTimeout(() => setSuccessMessage(null), 3000);
       } catch (err: unknown) {
@@ -44,7 +49,7 @@ export function ManageUsersTab() {
         setUpdatingId(null);
       }
     },
-    [updateRoleUser]
+    [updateUser]
   );
 
   /* ── Delete user ── */
@@ -85,6 +90,76 @@ export function ManageUsersTab() {
     Boolean(currentUser?.email && u.email === currentUser.email);
 
   const bannerError = error || actionError;
+
+  /* ── Roles: Administrador + any number of custom roles (desktop + mobile) ── */
+
+  const canDeleteUser = (u: AdminUser): boolean =>
+    !isCurrentUser(u) && (isAdmin || (hasPerm("apiApp.delete_user") && u.role !== "ADMIN"));
+
+  const rolesPicker = (u: AdminUser) => {
+    const assigned = [
+      ...(u.role === "ADMIN" ? [T.admin.manageUsers.roles.admin] : []),
+      ...u.group_names,
+    ];
+    const chips = (
+      <span className="flex flex-wrap gap-1">
+        {assigned.length ? (
+          assigned.map((name) => (
+            <span
+              key={name}
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                name === T.admin.manageUsers.roles.admin && u.role === "ADMIN"
+                  ? "bg-orange/15 text-orange"
+                  : "bg-sun/50 text-navy"
+              }`}
+            >
+              {name}
+            </span>
+          ))
+        ) : (
+          <span className="text-xs text-navy/50">{T.admin.manageUsers.roles.customer}</span>
+        )}
+      </span>
+    );
+    // Assigning roles is ADMIN-only (backend enforces it too).
+    if (!isAdmin) return chips;
+
+    const busy = updatingId === u.id;
+    return (
+      <Dropdown label={chips} ariaLabel={`${T.admin.manageUsers.table.role}: ${u.username}`}>
+        <DropdownCheckboxItem
+          checked={u.role === "ADMIN"}
+          disabled={busy || isCurrentUser(u)}
+          title={isCurrentUser(u) ? T.admin.manageUsers.ownAdmin : undefined}
+          onToggle={() => update(u.id, { role: u.role === "ADMIN" ? "CUSTOMER" : "ADMIN" })}
+        >
+          {T.admin.manageUsers.roles.admin}
+        </DropdownCheckboxItem>
+        {roles.map((r) => {
+          const assignedRole = u.groups.includes(r.id);
+          return (
+            <DropdownCheckboxItem
+              key={r.id}
+              checked={assignedRole}
+              disabled={busy}
+              onToggle={() =>
+                update(u.id, {
+                  groups: assignedRole
+                    ? u.groups.filter((id) => id !== r.id)
+                    : [...u.groups, r.id],
+                })
+              }
+            >
+              {r.name}
+            </DropdownCheckboxItem>
+          );
+        })}
+        {roles.length === 0 && (
+          <p className="px-3 py-2 text-[11px] text-navy/40">{T.admin.manageUsers.noCustomRoles}</p>
+        )}
+      </Dropdown>
+    );
+  };
 
   /* ── Render ── */
 
@@ -196,36 +271,7 @@ export function ManageUsersTab() {
                     <td className="max-w-[200px] truncate px-4 py-3 text-navy/70">
                       {u.email || "—"}
                     </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={u.role}
-                        onChange={(e) =>
-                          updateRole(
-                            u.id,
-                            e.target.value as "ADMIN" | "CUSTOMER"
-                          )
-                        }
-                        disabled={
-                          updatingId === u.id || isCurrentUser(u)
-                        }
-                        className={`rounded-lg border border-navy/15 bg-white px-2 py-1.5 text-xs font-semibold outline-none transition focus:border-orange focus:ring-2 focus:ring-orange/30 ${
-                          u.role === "ADMIN"
-                            ? "text-orange"
-                            : "text-navy/70"
-                        } ${
-                          updatingId === u.id || isCurrentUser(u)
-                            ? "cursor-not-allowed opacity-50"
-                            : "cursor-pointer"
-                        }`}
-                      >
-                        <option value="ADMIN">
-                          {T.admin.manageUsers.roles.admin}
-                        </option>
-                        <option value="CUSTOMER">
-                          {T.admin.manageUsers.roles.customer}
-                        </option>
-                      </select>
-                    </td>
+                    <td className="px-4 py-3">{rolesPicker(u)}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${
@@ -253,9 +299,9 @@ export function ManageUsersTab() {
                     <td className="px-4 py-3">
                       <button
                         onClick={() => setConfirmDelete(u)}
-                        disabled={isCurrentUser(u) || deletingId === u.id}
+                        disabled={!canDeleteUser(u) || deletingId === u.id}
                         className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition ${
-                          isCurrentUser(u) || deletingId === u.id
+                          !canDeleteUser(u) || deletingId === u.id
                             ? "cursor-not-allowed border-navy/10 text-navy/30"
                             : "border-red-200 text-red-600 hover:bg-red-50"
                         }`}
@@ -303,27 +349,6 @@ export function ManageUsersTab() {
                   </div>
                 </div>
                 <div className="mt-2 flex items-center justify-between">
-                  <select
-                    value={u.role}
-                    onChange={(e) =>
-                      updateRole(u.id, e.target.value as "ADMIN" | "CUSTOMER")
-                    }
-                    disabled={updatingId === u.id || isCurrentUser(u)}
-                    className={`rounded-lg border border-navy/15 bg-white px-2 py-1.5 text-xs font-semibold outline-none transition focus:border-orange ${
-                      u.role === "ADMIN" ? "text-orange" : "text-navy/70"
-                    } ${
-                      updatingId === u.id || isCurrentUser(u)
-                        ? "cursor-not-allowed opacity-50"
-                        : "cursor-pointer"
-                    }`}
-                  >
-                    <option value="ADMIN">
-                      {T.admin.manageUsers.roles.admin}
-                    </option>
-                    <option value="CUSTOMER">
-                      {T.admin.manageUsers.roles.customer}
-                    </option>
-                  </select>
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                       u.is_active
@@ -335,9 +360,9 @@ export function ManageUsersTab() {
                   </span>
                   <button
                     onClick={() => setConfirmDelete(u)}
-                    disabled={isCurrentUser(u) || deletingId === u.id}
+                    disabled={!canDeleteUser(u) || deletingId === u.id}
                     className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold transition ${
-                      isCurrentUser(u) || deletingId === u.id
+                      !canDeleteUser(u) || deletingId === u.id
                         ? "cursor-not-allowed border-navy/10 text-navy/30"
                         : "border-red-200 text-red-600 hover:bg-red-50"
                     }`}
@@ -345,6 +370,7 @@ export function ManageUsersTab() {
                     {deletingId === u.id ? "..." : "Eliminar"}
                   </button>
                 </div>
+                <div className="mt-2">{rolesPicker(u)}</div>
               </div>
             ))}
           </div>

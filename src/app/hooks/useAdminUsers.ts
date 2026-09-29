@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AdminUser } from "../domain/users";
+import type { AdminUser, AdminUserUpdate } from "../domain/users";
 import { createUsersService } from "../services/usersService";
 import { extractErrorMessage } from "../lib/httpClient";
 
@@ -8,7 +8,7 @@ type Options = {
 };
 
 /**
- * Admin user manager (GET/PATCH/DELETE /auth/users/:id). `updateRole` and
+ * Admin user manager (GET/PATCH/DELETE /auth/users/:id). `updateUser` and
  * `deleteUser` apply the change optimistically-ish (in-place list update after
  * the server responds) and throw on failure so the page can surface toasts.
  */
@@ -17,7 +17,7 @@ export function useAdminUsers({ token }: Options): {
   loading: boolean;
   error: string | null;
   load: () => Promise<void>;
-  updateRole(userId: number, role: AdminUser["role"]): Promise<AdminUser>;
+  updateUser(userId: number, patch: AdminUserUpdate): Promise<AdminUser>;
   deleteUser(userId: number): Promise<{ message?: string }>;
 } {
   const usersService = useMemo(
@@ -46,11 +46,11 @@ export function useAdminUsers({ token }: Options): {
     void load();
   }, [load]);
 
-  const updateRole = useCallback(
-    async (userId: number, role: AdminUser["role"]): Promise<AdminUser> => {
-      const updated = await usersService.update(userId, { role });
+  const updateUser = useCallback(
+    async (userId: number, patch: AdminUserUpdate): Promise<AdminUser> => {
+      const updated = await usersService.update(userId, patch);
       setUsers((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, role } : u))
+        prev.map((u) => (u.id === userId ? { ...u, ...updated } : u))
       );
       return updated;
     },
@@ -66,5 +66,5 @@ export function useAdminUsers({ token }: Options): {
     [usersService]
   );
 
-  return { users, loading, error, load, updateRole, deleteUser };
+  return { users, loading, error, load, updateUser, deleteUser };
 }

@@ -33,13 +33,14 @@ export const HomePage = () => {
       "Tienda de discos de vinilo en la Ciudad de México: LPs nuevos y coleccionables, rock nacional, importados y joyas usadas con gradación honesta. Envíos a todo México."
   });
   const navigate = useNavigate();
-  const { token, role } = useAuth();
+  const { token, hasPerm } = useAuth();
 
   // While the maintenance window is open everyone (including logged-in
   // customers) sees the home shell with a notice instead of the catalog.
   // Admins keep full access.
   const maintenance = useMaintenanceStatusValue();
-  const maintenanceBlocked = maintenance.config?.maintenance_mode === true && role !== "ADMIN";
+  const maintenanceBlocked =
+    maintenance.config?.maintenance_mode === true && !hasPerm("apiApp.change_siteconfig");
 
   // Public endpoint, but the token lets the maintenance middleware tell an
   // admin (full access) from a customer (503 while the window is open).

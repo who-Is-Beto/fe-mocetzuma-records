@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { T } from "../../app/i18n/strings";
+import { useAuth } from "../../app/providers/AuthProvider";
 import { useMaintenanceConfig } from "../../app/hooks/useMaintenanceConfig";
 import { Button } from "../../components/Button";
 import { Loader } from "../../components/Loader";
 
 /**
  * Opens/closes the site-wide maintenance window. While it is active the
- * backend answers 503 to everyone except admins, so this is the only way in
- * (and back out).
+ * backend answers 503 to everyone except admins and roles allowed to
+ * manage the window, so this is the only way in (and back out).
  */
 export function MaintenanceCard() {
   const { config, isLoading, save } = useMaintenanceConfig();
+  // Roles with only "Ventana de mantenimiento" (no action) see the state read-only.
+  const canChange = useAuth().hasPerm("apiApp.change_siteconfig");
   const [mode, setMode] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -82,7 +85,8 @@ export function MaintenanceCard() {
             aria-checked={mode}
             aria-label={T.admin.maintenance.label}
             onClick={() => setMode((v) => !v)}
-            className={`relative h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors ${
+            disabled={!canChange}
+            className={`relative h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               mode ? "bg-orange" : "bg-navy/25"
             }`}
           >
@@ -107,6 +111,7 @@ export function MaintenanceCard() {
             id="maintenance-message"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
+            readOnly={!canChange}
             rows={2}
             maxLength={255}
             placeholder={T.admin.maintenance.messagePlaceholder}
@@ -126,14 +131,16 @@ export function MaintenanceCard() {
             {feedback.text}
           </p>
         )}
-        <Button
-          tone="navy"
-          onClick={handleSave}
-          disabled={saving || !dirty}
-          className="px-4 py-2 text-xs sm:text-sm"
-        >
-          {saving ? T.admin.maintenance.busy : T.admin.maintenance.save}
-        </Button>
+        {canChange && (
+          <Button
+            tone="navy"
+            onClick={handleSave}
+            disabled={saving || !dirty}
+            className="px-4 py-2 text-xs sm:text-sm"
+          >
+            {saving ? T.admin.maintenance.busy : T.admin.maintenance.save}
+          </Button>
+        )}
       </div>
     </section>
   );
