@@ -13,6 +13,8 @@ type ConfirmDialogProps = {
   /** Danger styling for destructive confirmations (default). */
   tone?: "danger" | "primary";
   busy?: boolean;
+  /** Confirm stays disabled (cancel still works), e.g. until a required choice is made. */
+  confirmDisabled?: boolean;
   error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
@@ -31,6 +33,7 @@ export function ConfirmDialog({
   cancelLabel = "Cancelar",
   tone = "danger",
   busy = false,
+  confirmDisabled = false,
   error,
   onConfirm,
   onCancel
@@ -65,7 +68,7 @@ export function ConfirmDialog({
         >
           {cancelLabel}
         </button>
-        <button type="button" onClick={onConfirm} disabled={busy} className={confirmClasses}>
+        <button type="button" onClick={onConfirm} disabled={busy || confirmDisabled} className={confirmClasses}>
           {busy ? busyLabel : confirmLabel}
         </button>
       </div>

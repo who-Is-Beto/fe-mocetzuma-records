@@ -12,6 +12,7 @@ import { currency } from "../../app/lib/format";
 import { statusLabel, DELIVERY_LABELS } from "../../app/domain/orders";
 import { PickupBazarInfo } from "./PickupBazarInfo";
 import { isHttpUrl } from "../../app/lib/url";
+import { Img } from "../../components/Img";
 
 export function OrdersPage() {
   useSeo({ title: "Mis órdenes", noindex: true });
@@ -328,11 +329,11 @@ export function OrdersPage() {
                         className="flex items-center gap-3 rounded-xl border border-navy/10 bg-white/80 p-2.5 shadow-inner"
                       >
                         {item.record?.cover_image_url ? (
-                          <img
+                          <Img
                             src={item.record.cover_image_url}
                             alt={item.record.title ?? "Disco"}
+                            width={56}
                             className="h-14 w-14 shrink-0 rounded-lg border border-navy/10 object-cover"
-                            loading="lazy"
                           />
                         ) : (
                           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-navy/10 bg-gradient-to-br from-denim/10 via-cream to-sand/80 text-xl">

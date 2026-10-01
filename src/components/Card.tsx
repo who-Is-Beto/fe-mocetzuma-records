@@ -10,6 +10,7 @@ import { HttpError } from "../app/lib/httpClient";
 import { Toast } from "./Toast";
 import { currency } from "../app/lib/format";
 import { getCartCode, persistCartCode } from "../app/lib/cartStorage";
+import { Img } from "./Img";
 
 type CardProps = {
   record: Record;
@@ -90,13 +91,13 @@ export function Card({ record, priority = false }: CardProps): JSX.Element {
       <article className="flex flex-col gap-3">
         <div className="relative aspect-square overflow-hidden rounded-[18px] border border-navy/10 bg-gradient-to-br from-denim/10 via-cream to-sand/80 shadow-inner">
           {record.cover_image_url ? (
-            <img
+            <Img
               src={record.cover_image_url}
               alt={record.title}
+              width={384}
+              sizes="(min-width: 1280px) 300px, (min-width: 640px) 45vw, 100vw"
+              priority={priority}
               className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-              loading={priority ? "eager" : "lazy"}
-              fetchPriority={priority ? "high" : "auto"}
-              decoding="async"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-2xl">

@@ -11,10 +11,14 @@ import { HttpError } from "../../app/lib/httpClient";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { createCartService } from "../../app/services/cartService";
 import { useSeo } from "../../app/hooks/useSeo";
+import { Img } from "../../components/Img";
 import { currency } from "../../app/lib/format";
 import { getCartCode, persistCartCode } from "../../app/lib/cartStorage";
 
 type CarouselProps = { images: string[]; title: string };
+
+/* Mobile: full width; desktop: the ~600px left column of the detail grid. */
+const DETAIL_IMAGE_SIZES = "(min-width: 1024px) 600px, 100vw";
 
 function RecordImageCarousel({ images, title }: CarouselProps) {
   const [current, setCurrent] = useState(0);
@@ -25,38 +29,48 @@ function RecordImageCarousel({ images, title }: CarouselProps) {
   const next = () =>
     setCurrent((i) => (i === images.length - 1 ? 0 : i + 1));
 
+  // The cover is the page's LCP element: load it eagerly, at high priority.
   if (images.length === 1) {
     return (
-      <img
+      <Img
         src={images[0]}
         alt={title}
+        width={640}
+        sizes={DETAIL_IMAGE_SIZES}
+        priority
         className="h-full w-full object-contain"
-        loading="lazy"
       />
     );
   }
 
+  const neighbour = images[(current + 1) % images.length];
+
   return (
     <div className="relative h-full w-full bg-navy/5">
-      {/* Preload next/prev for smooth navigation */}
-      {images.map((src, idx) =>
-        idx === current ? null : (
-          <link
-            key={`preload-${idx}`}
-            rel="prefetch"
-            as="image"
-            href={src}
-          />
-        )
-      )}
-      <img
+      <Img
+        key={images[current]}
         src={images[current]}
         alt={`${title} — imagen ${current + 1}`}
+        width={640}
+        sizes={DETAIL_IMAGE_SIZES}
+        priority={current === 0}
+        placeholder={false}
         className={`h-full w-full object-contain transition-opacity duration-200 ${
           loaded[current] ? "opacity-100" : "opacity-0"
         }`}
-        loading="eager"
         onLoad={() => setLoaded((prev) => ({ ...prev, [current]: true }))}
+      />
+      {/* Warm only the next image (same srcset, so the browser reuses it),
+          instead of prefetching every full-size original up front. */}
+      <Img
+        key={`next-${neighbour}`}
+        src={neighbour}
+        alt=""
+        aria-hidden="true"
+        width={640}
+        sizes={DETAIL_IMAGE_SIZES}
+        placeholder={false}
+        className="pointer-events-none absolute h-px w-px opacity-0"
       />
       {!loaded[current] && (
         <div className="absolute inset-0 flex items-center justify-center">
@@ -441,7 +455,21 @@ export function RecordDetailPage() {
             {data.title}
           </h1>
           <p className="mt-1 text-sm text-navy/70">
-            {typeof data.artist === "string" ? data.artist : data.artist?.name}
+            {typeof data.artist === "object" && data.artist?.slug ? (
+              // Artist page = the catalog filtered by artist (same endpoint,
+              // server-side filter + pagination); sold-out records included.
+              <Link
+                to={`/catalogo?artist=${encodeURIComponent(data.artist.slug)}&available=false`}
+                className="inline-flex min-h-[44px] items-center font-semibold text-denim underline decoration-orange/50 underline-offset-4 hover:text-orange"
+              >
+                {data.artist.name}
+                <span className="sr-only"> — ver todos sus discos</span>
+              </Link>
+            ) : typeof data.artist === "string" ? (
+              data.artist
+            ) : (
+              data.artist?.name
+            )}
           </p>
 
           <div className="mt-4 space-y-3">

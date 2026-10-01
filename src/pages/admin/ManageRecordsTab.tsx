@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { T } from "../../app/i18n/strings";
 import { Button } from "../../components/Button";
 import { Toast } from "../../components/Toast";
+import { Img } from "../../components/Img";
 import { extractErrorMessage } from "../../app/lib/httpClient";
 import type { Record as AlbumRecord } from "../../app/domain/album";
 import { getEffectivePrice } from "../../app/domain/album";
@@ -17,6 +19,7 @@ import {
   type Sale,
 } from "../../app/domain/sales";
 import { ReceiptPrinter } from "./sales/SaleReceipt";
+import type { EditReturn } from "./AdminPage";
 
 /* Pills show the grading code (NM, VG+…); the full name is the tooltip. */
 const CONDITION_LABELS: { [key: string]: string } = {
@@ -32,6 +35,9 @@ const CONDITION_LABELS: { [key: string]: string } = {
 
 type Props = {
   onEdit?: (record: AlbumRecord) => void;
+  /** Set right after the record editor closes: refresh, restore scroll, highlight. */
+  editReturn?: EditReturn | null;
+  onReturnHandled?: () => void;
 };
 
 /** A line of the sale ticket; `price` is the raw input value (unit, MXN). */
@@ -49,16 +55,47 @@ const isValidRate = (rate: string) =>
 
 /* ── Component ── */
 
-export function ManageRecordsTab({ onEdit }: Props) {
+export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props) {
   const { token, hasPerm } = useAuth();
   const canEdit = hasPerm("apiApp.change_record");
   const canDelete = hasPerm("apiApp.delete_record");
   const { records, totalCount, hasNext, loading, error, loadPage, sell, loadForEdit, remove } =
     useAdminRecords({ token });
 
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  // ?q= and ?page= live in the URL (AdminPage owns ?tab/?edit), so a reload,
+  // Back, or closing the editor lands on the same search and page.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlQuery = searchParams.get("q") ?? "";
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const [search, setSearch] = useState(urlQuery);
+  // Back/Forward changed ?q=: mirror it in the box (render-time sync, no effect).
+  const [syncedQuery, setSyncedQuery] = useState(urlQuery);
+  if (urlQuery !== syncedQuery) {
+    setSyncedQuery(urlQuery);
+    if (urlQuery !== search.trim()) setSearch(urlQuery);
+  }
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [highlightId, setHighlightId] = useState<AlbumRecord["id"] | null>(null);
+
+  const setListParams = useCallback(
+    (q: string, pageNum: number) =>
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (q.trim()) next.set("q", q.trim());
+          else next.delete("q");
+          if (pageNum > 1) next.set("page", String(pageNum));
+          else next.delete("page");
+          return next;
+        },
+        { replace: true }
+      ),
+    [setSearchParams]
+  );
+  const setPage = (update: (p: number) => number) => {
+    setListParams(urlQuery, update(page));
+    window.scrollTo({ top: 0 });
+  };
 
   /* ── Sale ticket: "Vender" adds a record; several records → one sale ── */
   const [ticket, setTicket] = useState<TicketLine[]>([]);
@@ -178,19 +215,48 @@ export function ManageRecordsTab({ onEdit }: Props) {
     }
   };
 
-  /* ── Load on mount & on page change ── */
+  /* ── Load whenever the URL's search/page change (mount, paging, Back) ── */
   useEffect(() => {
-    void loadPage(search, page);
-  }, [loadPage, page]); // eslint-disable-line react-hooks/exhaustive-deps
+    void loadPage(urlQuery, page);
+  }, [loadPage, urlQuery, page]);
 
-  /* ── Debounced search ── */
+  /* ── Back from the editor: refetch (edits may change the row), then put the
+   *    admin where they were and flash the edited record ── */
+  useEffect(() => {
+    if (!editReturn) return;
+    let cancelled = false;
+    void loadPage(urlQuery, page).then(() => {
+      if (cancelled) return;
+      onReturnHandled?.();
+      setHighlightId(editReturn.recordId);
+      // Wait for the refreshed rows to paint before measuring.
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: editReturn.scrollY });
+        const row = Array.from(
+          document.querySelectorAll<HTMLElement>(`[data-record-id="${editReturn.recordId}"]`)
+        ).find((el) => el.offsetParent !== null); // the visible one (table or card)
+        const rect = row?.getBoundingClientRect();
+        if (row && rect && (rect.top < 0 || rect.bottom > window.innerHeight)) {
+          row.scrollIntoView({ block: "center" });
+        }
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [editReturn]); // eslint-disable-line react-hooks/exhaustive-deps -- runs once per return
+
+  useEffect(() => {
+    if (highlightId === null) return;
+    const t = setTimeout(() => setHighlightId(null), 2500);
+    return () => clearTimeout(t);
+  }, [highlightId]);
+
+  /* ── Debounced search (URL update triggers the load) ── */
   const onSearchChange = (value: string) => {
     setSearch(value);
-    setPage(1);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      void loadPage(value, 1);
-    }, 350);
+    searchDebounceRef.current = setTimeout(() => setListParams(value, 1), 350);
   };
 
   useEffect(() => {
@@ -289,7 +355,7 @@ export function ManageRecordsTab({ onEdit }: Props) {
           <Button
             tone="outline"
             className="ml-3 px-3 py-1 text-xs"
-            onClick={() => void loadPage(search, page)}
+            onClick={() => void loadPage(urlQuery, page)}
           >
             {T.shared.retry}
           </Button>
@@ -354,7 +420,10 @@ export function ManageRecordsTab({ onEdit }: Props) {
                 {displayRecords.map((record) => (
                   <tr
                     key={record.id}
+                    data-record-id={record.id}
                     className={`border-b border-navy/5 transition hover:bg-sun/10 last:border-0 ${
+                      highlightId === record.id ? "bg-sun/30" : ""
+                    } ${
                       isVanishing(record.id)
                         ? "animate-record-out pointer-events-none [&>td]:border-transparent [&>td]:!py-0 [&>td]:transition-all [&>td]:duration-500"
                         : ""
@@ -362,11 +431,11 @@ export function ManageRecordsTab({ onEdit }: Props) {
                   >
                     <td className="px-3 py-3 lg:px-4">
                       {record.cover_image_url ? (
-                        <img
+                        <Img
                           src={record.cover_image_url}
                           alt={record.title}
+                          width={40}
                           className="h-10 w-10 rounded-lg object-cover"
-                          loading="lazy"
                         />
                       ) : (
                         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-navy/5 text-sm">
@@ -476,18 +545,21 @@ export function ManageRecordsTab({ onEdit }: Props) {
             {displayRecords.map((record) => (
               <div
                 key={record.id}
-                className={`flex items-center gap-3 rounded-xl border border-navy/10 bg-white/60 p-3 backdrop-blur ${
+                data-record-id={record.id}
+                className={`flex items-center gap-3 rounded-xl border p-3 backdrop-blur transition-colors ${
+                  highlightId === record.id ? "border-orange bg-sun/30" : "border-navy/10 bg-white/60"
+                } ${
                   isVanishing(record.id)
                     ? "animate-record-out pointer-events-none"
                     : ""
                 }`}
               >
                 {record.cover_image_url ? (
-                  <img
+                  <Img
                     src={record.cover_image_url}
                     alt={record.title}
+                    width={48}
                     className="h-12 w-12 shrink-0 rounded-lg object-cover"
-                    loading="lazy"
                   />
                 ) : (
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-navy/5 text-sm">

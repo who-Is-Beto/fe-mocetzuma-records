@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "../../../components/Modal";
 import type { Bazar } from "../../../app/domain/bazares";
+import { Img } from "../../../components/Img";
 
 type FormState = {
   name: string;
@@ -180,9 +181,12 @@ export function BazarFormModal({
           label={`Imagen ${editing ? "(déjala vacía para conservar la actual)" : ""}`}
         >
           {imagePreview && (
-            <img
+            <Img
               src={imagePreview}
               alt="Vista previa del flyer"
+              width={448}
+              height={128}
+              priority
               className="mb-2 h-32 w-full rounded-xl object-cover"
             />
           )}

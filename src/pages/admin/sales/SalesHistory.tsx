@@ -6,6 +6,7 @@ import type { createSalesService } from "../../../app/services/salesService";
 import { PAYMENT_METHOD_LABELS, type Sale } from "../../../app/domain/sales";
 import { currency, formatStoreDateTime } from "../../../app/lib/format";
 import { ReceiptPrinter } from "./SaleReceipt";
+import { Img } from "../../../components/Img";
 
 type Props = {
   salesService: ReturnType<typeof createSalesService>;
@@ -136,10 +137,10 @@ export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props)
                         className={`flex items-center gap-3 px-3 py-2.5 ${otherOwner ? "opacity-40" : ""}`}
                       >
                         {item.cover_image_url ? (
-                          <img
+                          <Img
                             src={item.cover_image_url}
                             alt=""
-                            loading="lazy"
+                            width={48}
                             className="h-12 w-12 shrink-0 rounded-lg object-cover"
                           />
                         ) : (

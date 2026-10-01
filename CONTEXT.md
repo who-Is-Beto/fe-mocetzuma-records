@@ -220,3 +220,55 @@ Backend details: backend CONTEXT.md §17.
   that painted over it, and Layout's `overflow-x-hidden` clipped it. `useOnClickOutside`
   accepts an array of refs (trigger root + portal panel).
 - Tab "Gestionar discos" renamed **🏪 Punto de venta** (strings.ts + AdminPage icon).
+
+## 10. Filters, artist page, images, share previews, POS return, suggestions (2026-09-30)
+
+Backend details: backend CONTEXT.md §18.
+- **Admin URL state** (`AdminPage.tsx`): `?tab=&q=&page=&edit=<id>`. Editar pushes `edit`;
+  save/cancel goes Back to the same tab/search/page; Punto de venta stays mounted (hidden)
+  while editing, so the sale ticket survives; on return it refetches, restores scroll and
+  flashes the edited row (`data-record-id`). `?edit=` on reload loads via `getForEdit`.
+- **Images:** `components/Img.tsx` + `lib/image.ts` — every `<img>` goes through it
+  (width/height, lazy/priority, gradient placeholder, onError falls back to the original).
+  Production builds use **Vercel Image Optimization** (`/_vercel/image`, config in
+  `vercel.json` → `images`); hosts allowlisted: `i.discogs.com` + the R2 public domain — keep
+  `lib/image.ts`, `api/record-meta.ts` and `vercel.json` in sync. Dev serves originals.
+- **Catalog** (`pages/catalog/`): all filters in the URL (`catalogParams.ts`), sidebar on `lg`,
+  bottom sheet on mobile (`Modal variant="sheet"`), removable chips + Limpiar todo + count,
+  sort select. Artist page = `/catalogo?artist=<slug>&available=false` (linked from the
+  record detail artist name).
+- **Share previews:** `api/record-meta.ts` (Vercel Function) — `vercel.json` rewrites
+  `/records/:slug` there **only for crawler user agents** and injects per-record OG/Twitter/
+  canonical tags into `dist/index.html`. API base: `API_URL` → `VITE_API_URL` → prod.
+  Self-check: an assert script (`node --experimental-strip-types`) over `injectMeta`/`buildMetaTags`.
+- **Search suggestions:** `SearchBar` `onPickSuggestion` + `hooks/useRecordSuggestions.ts`
+  (2 chars, 250 ms, abort, `page_size=5`), combobox keyboard nav, `useOnClickOutside`.
+- **Artist delete** in Agregar disco: trash button next to the artist field →
+  `DeleteArtistDialog.tsx` (built on `ConfirmDialog`, new `confirmDisabled` prop).
+- **Ventas → Métricas** mobile: tables → cards below `md`, bars are labelled `role="meter"`,
+  contrast bumped (navy/50 → /70), 44 px sub-tab targets.
+- `tsconfig.node.json` now also typechecks `api/`. Lint: 0 errors (7 pre-existing warnings).
+
+### Round 2 (same day, after user review)
+- **Métricas overflow root cause:** grid items default to `min-width:auto`, so a long
+  `truncate`d title widened its column past the screen and Layout's `overflow-x-hidden`
+  clipped the amounts. Fix: `[&>*]:min-w-0` on the grids, top-records table `table-fixed`
+  (title wraps; Unid./Bruto always visible), owner/channel details as label···value rows.
+- **Catalog:** "Solo disponibles" switch + styled sort pill (`AvailabilitySwitch`,
+  `SortSelect`) live in the toolbar, outside Filtros. "Discos por página" 12/24/48 in the
+  panel (`?page_size=`, default 24, last choice in localStorage
+  `moctezuma-catalog-page-size`); pagination = ceil(count / page_size).
+- **Bottom sheet** (`Modal variant="sheet"`): JS-driven slide in/out (no keyframes — a
+  `forwards` animation would override the drag transform), grab strip drag-to-close
+  (>120 px or a flick), snap back otherwise; every close path animates out.
+- **Artist delete** moved into each row of the Agregar disco artist suggestions.
+- **Search suggestions/searches follow `?available=false`** (sold-out only when the
+  viewer turned "Solo disponibles" off).
+- **Navbar:** desktop layout from `lg` (was `md`, which hid the search on tablets);
+  tablets use the mobile bottom bar. Administración/Carrito are icon-only from lg to xl.
+- Verified with headless-Chrome screenshots of a temporary fetch-stubbed harness (iframe
+  wrapper: headless Chrome's window can't go under 500 px). Harness removed afterwards.
+- **Home "Últimos ingresos"** now asks the server for `page_size=6&available=true` (was 20
+  records filtered/sliced in the browser); the hero's count is now truly the available count.
+- Artist list delete verified on screen (trash per suggestion row → dialog with count,
+  preselected most-similar artist, confirm enabled).

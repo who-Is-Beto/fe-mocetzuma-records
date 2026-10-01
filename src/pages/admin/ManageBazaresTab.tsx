@@ -7,6 +7,7 @@ import { createBazarService } from "../../app/services/bazarService";
 import { formatAdminDate, isPastDate } from "../../app/lib/format";
 import type { Bazar } from "../../app/domain/bazares";
 import { BazarFormModal, type BazarFormValues } from "./bazares/BazarFormModal";
+import { Img } from "../../components/Img";
 
 /**
  * Admin tab "Manejo de bazares": list every event (past included), create,
@@ -209,11 +210,11 @@ function BazarRow({ bazar, onEdit, onAskDelete }: BazarRowProps) {
     >
       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-navy/10 bg-sand sm:h-20 sm:w-20">
         {bazar.image_url ? (
-          <img
+          <Img
             src={bazar.image_url}
             alt={`Flyer del bazar ${bazar.name}`}
+            width={80}
             className="h-full w-full object-cover"
-            loading="lazy"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xl">🎪</div>

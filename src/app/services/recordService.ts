@@ -1,11 +1,15 @@
 import { API_BASE_URL } from "../config/api";
 import type {
   Artist,
+  ArtistDeleteResult,
+  ArtistReassign,
+  ArtistUsage,
   Category,
   Genere,
   Owner,
   Record,
   RecordInput,
+  RecordFilters,
   RecordPage,
   RecordRepository
 } from "../domain/album";
@@ -19,29 +23,35 @@ type RecordServiceConfig = {
 const withBase = (baseUrl: string, path: string) =>
   `${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}/`;
 
+/** RecordFilters -> query params; empty values are left out. */
+const filterQuery = ({ condition, ...params }: RecordFilters = {}) => {
+  const query: { [key: string]: string | number | boolean } = {};
+  Object.entries(params).forEach(([key, value]) => {
+    if (key === "signal" || value === undefined || value === "" || value === null) return;
+    query[key] = value as string | number | boolean;
+  });
+  if (condition?.length) query.condition = condition.join(",");
+  return query;
+};
+
 export function createRecordService(config: RecordServiceConfig = {}): RecordRepository {
   const baseUrl = config.baseUrl ?? API_BASE_URL;
   const getToken = config.getToken;
 
   return {
-    async list(params?: { page?: number; available?: boolean; category?: string }) {
-      const query: { [key: string]: string | number | boolean } = {};
-      if (params?.page) query.page = params.page;
-      if (params?.available !== undefined) query.available = params.available;
-      if (params?.category) query.category = params.category;
+    async list(params?: RecordFilters) {
+      const query = filterQuery(params);
       return http<RecordPage>(withBase(baseUrl, "/records"), {
         token: getToken?.() ?? undefined,
         query: Object.keys(query).length > 0 ? query : undefined,
+        signal: params?.signal,
       });
     },
-    async search(params: { query: string; page?: number; available?: boolean; category?: string }) {
-      const query: { [key: string]: string | number | boolean } = { query: params.query };
-      if (params.page) query.page = params.page;
-      if (params.available !== undefined) query.available = params.available;
-      if (params.category) query.category = params.category;
+    async search({ query: q, ...params }: RecordFilters & { query: string }) {
       return http<RecordPage>(withBase(baseUrl, "/search"), {
         token: getToken?.() ?? undefined,
-        query,
+        query: { query: q, ...filterQuery(params) },
+        signal: params.signal,
       });
     },
     async getRecordById(id: string) {
@@ -108,6 +118,18 @@ async getCategories() {
         method: "PATCH",
         token: getToken?.() ?? undefined,
         body: patch
+      });
+    },
+    async getArtistUsage(id: Artist["id"]) {
+      return http<ArtistUsage>(withBase(baseUrl, `/artists/${id}/usage`), {
+        token: getToken?.() ?? undefined
+      });
+    },
+    async deleteArtist(id: Artist["id"], reassign: ArtistReassign) {
+      return http<ArtistDeleteResult>(withBase(baseUrl, `/artists/${id}/delete`), {
+        method: "DELETE",
+        token: getToken?.() ?? undefined,
+        body: reassign
       });
     },
     async remove(id: string | number) {

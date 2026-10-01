@@ -5,6 +5,8 @@ import { Button } from "./Button";
 import { SearchBar } from "./SearchBar";
 import logo from "../assets/logo.png";
 import { useAuth } from "../app/providers/AuthProvider";
+import { Img } from "./Img";
+import type { Record as AlbumRecord } from "../app/domain/album";
 
 export function Navbar(): ReactNode {
   const navigate = useNavigate();
@@ -32,13 +34,23 @@ export function Navbar(): ReactNode {
     }
   ];
 
+  // The catalog's "Solo disponibles" switch (?available=false = show sold out).
+  // Suggestions and searches follow it, so sold-out records only appear when
+  // the viewer turned it off.
+  const includeUnavailable = params.get("available") === "false";
+
   const submitSearch = (term: string) => {
     const query = term.trim();
-    if (!query) {
-      navigate("/catalogo");
-      return;
-    }
-    navigate(`/catalogo/?search=${encodeURIComponent(query)}&page=1`);
+    const next = new URLSearchParams();
+    if (query) next.set("search", query);
+    if (includeUnavailable) next.set("available", "false");
+    const qs = next.toString();
+    navigate(qs ? `/catalogo?${qs}` : "/catalogo");
+  };
+
+  const openRecord = (record: AlbumRecord) => {
+    setSearchTerm("");
+    navigate(`/records/${record.slug ?? record.id}`);
   };
 
   useEffect(() => {
@@ -73,10 +85,10 @@ export function Navbar(): ReactNode {
 
   return (
     <>
-      <nav className="relative mx-auto hidden w-full max-w-6xl items-center gap-4 px-6 py-6 md:grid md:grid-cols-[auto,1fr,auto] md:px-10">
+      <nav className="relative mx-auto hidden w-full max-w-6xl items-center gap-4 px-6 py-6 lg:grid lg:grid-cols-[auto,1fr,auto] lg:px-10">
         <NavLink to="/" aria-label="Inicio" className="shrink-0">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="Moctezuma Records" className="h-12 w-auto" />
+            <Img src={logo} alt="Moctezuma Records" width={66} height={48} priority placeholder={false} className="h-12 w-auto" />
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-orange">
                 Moctezuma
@@ -103,11 +115,13 @@ export function Navbar(): ReactNode {
                 </NavLink>
               ))}
             </div>
-            <div className="hidden min-w-[220px] max-w-md flex-1 lg:block">
+            <div className="min-w-[180px] max-w-md flex-1">
               <SearchBar
                 value={searchTerm}
                 onChange={setSearchTerm}
                 onSubmit={submitSearch}
+                onPickSuggestion={openRecord}
+                includeUnavailable={includeUnavailable}
                 placeholder="Buscar en catálogo..."
               />
             </div>
@@ -155,16 +169,21 @@ export function Navbar(): ReactNode {
               tone="outline"
               className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap"
               onClick={() => navigate("/admin")}
+              aria-label="Administración"
+              title="Administración"
             >
-              🧰 Administración
+              {/* Icon-only between lg and xl so the search box keeps its room */}
+              🧰<span className="hidden xl:inline"> Administración</span>
             </Button>
           )}
           <Button
             tone="navy"
             className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap"
             onClick={() => navigate("/carrito")}
+            aria-label="Carrito"
+            title="Carrito"
           >
-            🛒 Carrito
+            🛒<span className="hidden xl:inline"> Carrito</span>
           </Button>
         </div>
       </nav>
@@ -174,7 +193,7 @@ export function Navbar(): ReactNode {
         Only visible on mobile when the searchbar is open.
       */}
       <div
-        className={`fixed inset-0 z-29 bg-navy/20 backdrop-blur-sm transition-opacity duration-300 ease-out md:hidden ${
+        className={`fixed inset-0 z-29 bg-navy/20 backdrop-blur-sm transition-opacity duration-300 ease-out lg:hidden ${
           showMobileSearch
             ? "opacity-100 pointer-events-auto"
             : "opacity-0 pointer-events-none"
@@ -184,7 +203,7 @@ export function Navbar(): ReactNode {
       />
 
       <div
-        className={`fixed inset-x-0 top-4 z-30 px-4 transition-all duration-300 ease-out md:hidden ${
+        className={`fixed inset-x-0 top-4 z-30 px-4 transition-all duration-300 ease-out lg:hidden ${
           showMobileSearch
             ? "translate-y-0 opacity-100 scale-100 pointer-events-auto"
             : "-translate-y-2 opacity-0 scale-95 pointer-events-none"
@@ -198,13 +217,18 @@ export function Navbar(): ReactNode {
               submitSearch(term);
               setShowMobileSearch(false);
             }}
+            onPickSuggestion={(record) => {
+              openRecord(record);
+              setShowMobileSearch(false);
+            }}
+            includeUnavailable={includeUnavailable}
             placeholder="Buscar en catálogo..."
           />
         </div>
       </div>
 
       <nav
-        className={`fixed inset-x-0 bottom-4 z-20 mx-auto w-[min(480px,calc(100%-28px))] transition-all duration-300 ease-out md:hidden ${
+        className={`fixed inset-x-0 bottom-4 z-20 mx-auto w-[min(480px,calc(100%-28px))] transition-all duration-300 ease-out lg:hidden ${
           hideMobileNav ? "translate-y-[120%] opacity-0 scale-95" : "translate-y-0 opacity-100 scale-100"
         }`}
       >

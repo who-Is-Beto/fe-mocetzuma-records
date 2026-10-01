@@ -1,11 +1,12 @@
-import { Suspense, lazy, useCallback, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useSeo } from "../../app/hooks/useSeo";
 import { T } from "../../app/i18n/strings";
 import { Button } from "../../components/Button";
 import { Loader } from "../../components/Loader";
 import { MaintenanceCard } from "./MaintenanceCard";
+import { createRecordService } from "../../app/services/recordService";
 import type { Record as AlbumRecord } from "../../app/domain/album";
 
 /* ── Tab-level code splitting: only the active tab is loaded ── */
@@ -47,23 +48,90 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+const isTabId = (value: string | null): value is TabId =>
+  TABS.some((t) => t.id === value);
+
+/** Where Punto de venta should land after the editor closes. */
+export type EditReturn = { recordId: AlbumRecord["id"]; scrollY: number };
+
 /* ── Component ── */
 
 export function AdminPage() {
   useSeo({ title: T.admin.pageTitle, noindex: true });
-  const { role, canAccessAdmin, hasPerm } = useAuth();
+  const { role, canAccessAdmin, hasPerm, token } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabId>("add-record");
+  /* URL is the source of truth (survives reloads and Back):
+   *   ?tab=<TabId>            active tab
+   *   &q=…&page=…             Punto de venta search/page (owned by that tab)
+   *   &edit=<record id>       record editor open, over the tab it came from */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const activeTab: TabId = isTabId(tabParam) ? tabParam : "add-record";
+  const editId = searchParams.get("edit");
   const [editingRecord, setEditingRecord] = useState<AlbumRecord | null>(null);
+  // Which ?edit= id failed to load (derived per id, so no reset-in-effect).
+  const [failedEditId, setFailedEditId] = useState<string | null>(null);
+  const editLoadError = editId !== null && failedEditId === editId;
+  // Set when the editor closes; Punto de venta restores scroll + highlights the row.
+  const [editReturn, setEditReturn] = useState<EditReturn | null>(null);
+  const openScrollRef = useRef(0);
+  // True when this session pushed the ?edit= entry (so closing can go Back).
+  const pushedEditRef = useRef(false);
+  const recordService = useMemo(
+    () => createRecordService({ getToken: () => token }),
+    [token]
+  );
 
-  const handleEdit = useCallback((record: AlbumRecord) => {
-    setEditingRecord(record);
-    setActiveTab("add-record");
-  }, []);
+  // Reload / shared link with ?edit=: fetch the full record ourselves.
+  useEffect(() => {
+    if (!editId || String(editingRecord?.id) === editId) return;
+    let cancelled = false;
+    recordService
+      .getForEdit(editId)
+      .then((record) => !cancelled && setEditingRecord(record))
+      .catch(() => !cancelled && setFailedEditId(editId));
+    return () => {
+      cancelled = true;
+    };
+  }, [editId, editingRecord?.id, recordService]);
+
+  const handleEdit = useCallback(
+    (record: AlbumRecord) => {
+      openScrollRef.current = window.scrollY;
+      pushedEditRef.current = true;
+      setEditReturn(null);
+      setEditingRecord(record);
+      const next = new URLSearchParams(searchParams);
+      next.set("edit", String(record.id));
+      setSearchParams(next); // push: Back also closes the editor
+      window.scrollTo({ top: 0 });
+    },
+    [searchParams, setSearchParams]
+  );
 
   const handleEditDone = useCallback(() => {
+    if (editingRecord) {
+      setEditReturn({ recordId: editingRecord.id, scrollY: openScrollRef.current });
+    }
+    // editingRecord is kept: the editor's visibility follows ?edit=, and clearing
+    // it before the URL pops would make the load effect refetch the record.
+    if (pushedEditRef.current) {
+      pushedEditRef.current = false;
+      navigate(-1); // back to the exact list entry (same tab/q/page)
+    } else {
+      const next = new URLSearchParams(searchParams);
+      next.delete("edit");
+      setSearchParams(next, { replace: true });
+    }
+  }, [editingRecord, navigate, searchParams, setSearchParams]);
+
+  const selectTab = (tab: TabId) => {
+    pushedEditRef.current = false;
     setEditingRecord(null);
-  }, []);
+    setEditReturn(null);
+    // q/page belong to Punto de venta; a new tab starts clean.
+    setSearchParams(new URLSearchParams({ tab }));
+  };
 
   const isAdmin = role === "ADMIN";
   const visibleTabs = TABS.filter(
@@ -72,11 +140,14 @@ export function AdminPage() {
       (tab.perm !== undefined && hasPerm(tab.perm)) ||
       // "Editar" in Punto de venta opens the record form here, even for
       // roles that can edit records but not create them.
-      (tab.id === "add-record" && editingRecord !== null)
+      (tab.id === "add-record" && editId !== null)
   );
   const currentTab = visibleTabs.some((t) => t.id === activeTab)
     ? activeTab
     : visibleTabs[0]?.id;
+  const editing = editId !== null;
+  // While editing, the tab bar shows the form's tab; the origin stays in ?tab=.
+  const highlightedTab = editing ? "add-record" : currentTab;
 
   /* ── Access guard (ADMIN or "Acceso a Administración") ── */
   if (!canAccessAdmin) {
@@ -112,12 +183,10 @@ export function AdminPage() {
             <button
               key={tab.id}
               type="button"
-              onClick={() => {
-                setActiveTab(tab.id);
-                if (tab.id !== "add-record") setEditingRecord(null);
-              }}
-              className={`flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold transition ${
-                currentTab === tab.id
+              onClick={() => selectTab(tab.id)}
+              aria-current={highlightedTab === tab.id ? "page" : undefined}
+              className={`flex min-h-[44px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold transition ${
+                highlightedTab === tab.id
                   ? "bg-orange text-charcoal shadow-sm"
                   : "text-navy/60 hover:text-navy hover:bg-white/60"
               }`}
@@ -132,20 +201,39 @@ export function AdminPage() {
       {/* ── Tab content ── */}
       <div className="mt-6">
         <Suspense fallback={<Loader />}>
-          {currentTab === "add-record" && (
+          {editing && editLoadError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              No se pudo abrir el disco para editar.
+              <Button tone="outline" className="ml-3 px-3 py-1 text-xs" onClick={handleEditDone}>
+                Volver
+              </Button>
+            </div>
+          )}
+          {editing && !editLoadError && !editingRecord && <Loader />}
+          {editing && editingRecord && (
             <AddRecordPage
+              key={editingRecord.id}
               editingRecord={editingRecord}
               onEditDone={handleEditDone}
             />
           )}
+          {!editing && currentTab === "add-record" && <AddRecordPage />}
           {currentTab === "manage-records" && (
-            <ManageRecordsTab onEdit={handleEdit} />
+            // Stays mounted (hidden) while editing so the sale ticket, the
+            // search box and the loaded page survive the round trip.
+            <div hidden={editing}>
+              <ManageRecordsTab
+                onEdit={handleEdit}
+                editReturn={editing ? null : editReturn}
+                onReturnHandled={() => setEditReturn(null)}
+              />
+            </div>
           )}
-          {currentTab === "manage-bazares" && <ManageBazaresTab />}
-          {currentTab === "manage-orders" && <ManageOrdersTab />}
-          {currentTab === "sales" && <ManageSalesTab />}
-          {currentTab === "manage-users" && <ManageUsersTab />}
-          {currentTab === "manage-roles" && <ManageRolesTab />}
+          {!editing && currentTab === "manage-bazares" && <ManageBazaresTab />}
+          {!editing && currentTab === "manage-orders" && <ManageOrdersTab />}
+          {!editing && currentTab === "sales" && <ManageSalesTab />}
+          {!editing && currentTab === "manage-users" && <ManageUsersTab />}
+          {!editing && currentTab === "manage-roles" && <ManageRolesTab />}
         </Suspense>
       </div>
     </section>
