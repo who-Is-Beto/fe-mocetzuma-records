@@ -10,7 +10,7 @@ type Options = {
 };
 
 /** One line of the "Vender" ticket. */
-export type SellLine = { record: Record; quantity: number; price?: string };
+export type SellLine = { record: Record; quantity: number; price?: string; owner?: number };
 
 /** How the ticket was paid; `commission_rate` (%) only applies to card. */
 export type SellPayment = { payment_method: PaymentMethod; commission_rate?: string };
@@ -81,11 +81,13 @@ export function useAdminRecords({ token }: Options): {
   const sell = useCallback(
     async (lines: SellLine[], payment: SellPayment): Promise<SaleResult> => {
       const result = await salesService.register({
-        items: lines.map(({ record, quantity, price }) => ({ record: record.id, quantity, price })),
+        items: lines.map(({ record, quantity, price, owner }) => ({ record: record.id, quantity, price, owner })),
         ...payment
       });
       // The server decremented stock atomically; mirror it in the list.
-      const sold = new Map(lines.map((l) => [l.record.id, l.quantity]));
+      // One record can come in several lines (one per owner): add them up.
+      const sold = new Map<Record["id"], number>();
+      lines.forEach((l) => sold.set(l.record.id, (sold.get(l.record.id) ?? 0) + l.quantity));
       setRecords((prev) =>
         prev.map((r) =>
           sold.has(r.id) ? { ...r, stock: (r.stock ?? 0) - (sold.get(r.id) ?? 0) } : r

@@ -6,7 +6,7 @@ import { HttpError, extractErrorMessage } from "../../app/lib/httpClient";
 import { createRecordService } from "../../app/services/recordService";
 import { useDiscogsSearch } from "../../app/hooks/useDiscogsSearch";
 import type { DiscogsSearchResult } from "../../app/services/discogsService";
-import type { Artist, Category, Genere, Owner } from "../../app/domain/album";
+import type { Artist, Category, Genere, Owner, Record as AlbumRecord, RecordOwnerStock } from "../../app/domain/album";
 import { Img } from "../../components/Img";
 import { DeleteArtistDialog } from "./DeleteArtistDialog";
 
@@ -29,9 +29,12 @@ type RecordForm = {
   items_inside: string;
   weight_grams: string;
   category_id: string;
-  owner_id: string;
+  /** Whose units the stock is; quantities only matter with several owners. */
+  owners: OwnerRow[];
   featured: boolean;
 };
+
+type OwnerRow = { owner_id: string; quantity: string };
 
 const INITIAL_FORM: RecordForm = {
   title: "",
@@ -50,7 +53,7 @@ const INITIAL_FORM: RecordForm = {
   items_inside: "1",
   weight_grams: "",
   category_id: "",
-  owner_id: "",
+  owners: [],
   featured: true,
 };
 
@@ -132,7 +135,7 @@ type AddRecordPageProps = {
     artist?: { id: string; name: string } | null;
     genere?: { id: string; name: string } | { id?: string | number } | string | number | null;
     category?: { id: string; name: string } | null;
-    owner?: number | null;
+    owners?: RecordOwnerStock[];
     slug?: string;
   } | null;
   onEditDone?: () => void;
@@ -154,7 +157,12 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
     getReleaseDetail,
   } = useDiscogsSearch({ token });
 
-  const isEditing = Boolean(editingRecord);
+  // An existing record picked from the "ya existe" suggestions: the add form
+  // turns into its editor, so stock/owners are added there instead of a duplicate.
+  const [adopted, setAdopted] = useState<AlbumRecord | null>(null);
+  const [matches, setMatches] = useState<AlbumRecord[]>([]);
+  const current: AddRecordPageProps["editingRecord"] = editingRecord ?? adopted;
+  const isEditing = Boolean(current);
 
   // Discogs search
   const [searchQuery, setSearchQuery] = useState("");
@@ -174,8 +182,8 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
   const [categories, setCategories] = useState<Category[]>([]);
   const [owners, setOwners] = useState<Owner[]>([]);
 
-  // Inline "Agregar nuevo dueño" (null = hidden)
-  const [newOwner, setNewOwner] = useState<{ name: string; email: string } | null>(null);
+  // Inline "Agregar nuevo dueño" for owner row `row` (null = hidden)
+  const [newOwner, setNewOwner] = useState<{ name: string; email: string; row: number } | null>(null);
   const [ownerError, setOwnerError] = useState<string | null>(null);
   const [savingOwner, setSavingOwner] = useState(false);
 
@@ -188,6 +196,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
   /* ── Pre-fill form when editing ── */
 
   useEffect(() => {
+    const editingRecord = current;
     if (!editingRecord) return;
     setForm({
       title: editingRecord.title || "",
@@ -211,10 +220,13 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
           ? String(editingRecord.weight_grams)
           : "",
       category_id: editingRecord.category?.id ? String(editingRecord.category.id) : "",
-      owner_id: editingRecord.owner != null ? String(editingRecord.owner) : "",
+      owners: (editingRecord.owners ?? []).map((o) => ({
+        owner_id: String(o.owner),
+        quantity: String(o.quantity),
+      })),
       featured: editingRecord.featured ?? true,
     });
-  }, [editingRecord]);
+  }, [current]);
 
   /* ── Submit ── */
 
@@ -238,6 +250,14 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
 
     if (newOwner) {
       setSubmitError("Guarda o cancela el nuevo dueño antes de guardar el disco.");
+      return;
+    }
+    if (form.owners.some((row) => !row.owner_id)) {
+      setSubmitError("Elige el dueño de cada fila o quítala.");
+      return;
+    }
+    if (form.owners.length > 1 && ownersTotal !== Number(form.stock)) {
+      setSubmitError(`Las cantidades por dueño suman ${ownersTotal}, pero el stock es ${form.stock}.`);
       return;
     }
 
@@ -279,19 +299,25 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
         items_inside: Number(form.items_inside) || 1,
         weight_grams: form.weight_grams ? Number(form.weight_grams) : null,
         category: form.category_id ? Number(form.category_id) : null,
-        owner: form.owner_id ? Number(form.owner_id) : null,
+        // One owner gets the whole stock server-side; several send their split.
+        owners: form.owners.map((row) =>
+          form.owners.length > 1
+            ? { owner: Number(row.owner_id), quantity: Number(row.quantity) || 0 }
+            : { owner: Number(row.owner_id) }
+        ),
       };
 
-      if (isEditing && editingRecord) {
+      if (current) {
         try {
-          await recordService.update(editingRecord.id, payload);
+          await recordService.update(current.id, payload);
         } catch (err) {
           setSubmitError(extractErrorMessage((err as HttpError).data, "Error al actualizar el disco."));
           return;
         }
         setSubmitSuccess(true);
         setTimeout(() => {
-          onEditDone?.();
+          if (adopted) setAdopted(null);
+          else onEditDone?.();
           setForm(INITIAL_FORM);
           setSubmitSuccess(false);
           setResults([]);
@@ -361,6 +387,104 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  /* ── Owner rows ── */
+
+  const ownersTotal = form.owners.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+  const stockCount = Number(form.stock) || 0;
+  // Shown when the admin tries to assign more copies (or owners) than the stock has.
+  const [ownerLimit, setOwnerLimit] = useState<string | null>(null);
+
+  /** An owner's quantity, capped so all owners together never exceed the stock. */
+  const setOwnerQuantity = (index: number, value: string) => {
+    const others = form.owners.reduce(
+      (sum, row, i) => (i === index ? sum : sum + (Number(row.quantity) || 0)),
+      0
+    );
+    const max = Math.max(0, stockCount - others);
+    if (value !== "" && Number(value) > max) {
+      setOwnerLimit(
+        `El stock es ${stockCount} y los demás dueños ya tienen ${others}: a este le caben como máximo ${max}.`
+      );
+      updateOwnerRow(index, { quantity: String(max) });
+      return;
+    }
+    setOwnerLimit(null);
+    updateOwnerRow(index, { quantity: value });
+  };
+
+  const updateOwnerRow = (index: number, changes: Partial<OwnerRow>) =>
+    setForm((prev) => ({
+      ...prev,
+      owners: prev.owners.map((row, i) => (i === index ? { ...row, ...changes } : row)),
+    }));
+
+  // Every owner needs at least one copy, so there can't be more owners than
+  // stock (one owner is fine with stock 0: a sold-out record keeps its owner).
+  const addOwnerRow = () => {
+    if (form.owners.length >= Math.max(stockCount, 1)) {
+      setOwnerLimit(
+        `Con stock ${stockCount} no caben más dueños: cada uno necesita al menos una copia. Sube el stock primero.`
+      );
+      return;
+    }
+    setOwnerLimit(null);
+    setForm((prev) => {
+      // Going from one owner to two: the first keeps all but one copy, the new one gets it.
+      const owners = prev.owners.map((row) =>
+        prev.owners.length === 1 ? { ...row, quantity: String(stockCount - 1) } : row
+      );
+      const assigned = owners.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+      return {
+        ...prev,
+        owners: [...owners, { owner_id: "", quantity: String(Math.max(0, stockCount - assigned)) }],
+      };
+    });
+  };
+
+  const removeOwnerRow = (index: number) => {
+    setOwnerLimit(null);
+    setForm((prev) => ({ ...prev, owners: prev.owners.filter((_, i) => i !== index) }));
+  };
+
+  /* ── "Ya existe": same title (+ artist) as a record in the catalog ── */
+
+  useEffect(() => {
+    if (isEditing || !token) return;
+    const title = form.title.trim();
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!title) {
+        setMatches([]);
+        return;
+      }
+      recordService
+        .findMatches(title, form.artist_text.trim())
+        .then((found) => !cancelled && setMatches(found))
+        .catch(() => !cancelled && setMatches([]));
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [form.title, form.artist_text, isEditing, recordService, token]);
+
+  const adoptMatch = async (id: string | number) => {
+    setSubmitError(null);
+    try {
+      setAdopted(await recordService.getForEdit(id));
+      setMatches([]);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      setSubmitError(extractErrorMessage(err, "No se pudo abrir el disco para editar."));
+    }
+  };
+
+  const cancelAdopted = () => {
+    setAdopted(null);
+    setNewOwner(null);
+    setForm(INITIAL_FORM);
+  };
+
   /* ── Inline owner creation (auto-selected once saved) ── */
 
   const saveOwner = async () => {
@@ -376,7 +500,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
     try {
       const owner = await recordService.createOwner({ name, email });
       setOwners((prev) => [...prev, owner].sort((a, b) => a.name.localeCompare(b.name)));
-      updateField("owner_id", String(owner.id));
+      updateOwnerRow(newOwner.row, { owner_id: String(owner.id) });
       setNewOwner(null);
     } catch (err) {
       // e.g. {"email": ["Ya existe un dueño con ese correo."]}
@@ -775,6 +899,61 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
             )}
         </div>
 
+        {/* "Ya existe": offer editing the existing record instead of a duplicate */}
+        {!isEditing && matches.length > 0 && (
+          <div role="status" className="rounded-xl border border-orange/40 bg-sun/30 p-4">
+            <p className="text-sm font-semibold text-navy">
+              {matches.length === 1 ? "¿Ya existe este disco?" : "¿Ya existe este disco? Encontramos estos"}
+            </p>
+            <p className="mt-0.5 text-xs text-navy/60">
+              Edítalo para sumar stock o dueños en lugar de crear un duplicado.
+            </p>
+            <ul className="mt-3 space-y-2">
+              {matches.map((m) => (
+                <li key={m.id} className="flex items-center gap-3 rounded-xl bg-white/80 p-2.5">
+                  {m.cover_image_url ? (
+                    <Img
+                      src={m.cover_image_url}
+                      alt={m.title}
+                      width={48}
+                      className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-navy/5">
+                      🎵
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-navy">
+                      {m.title}
+                      {m.artist?.name && ` — ${m.artist.name}`}
+                    </p>
+                    <p className="truncate text-[11px] text-navy/60">
+                      {[
+                        m.category?.name,
+                        m.condition,
+                        `stock ${m.stock}`,
+                        m.owners?.length
+                          ? m.owners.map((o) => `${o.owner_name} ${o.quantity}`).join(", ")
+                          : "tienda",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                  <Button
+                    tone="navy"
+                    className="shrink-0 px-3 py-1.5 text-xs"
+                    onClick={() => adoptMatch(m.id)}
+                  >
+                    Editar este
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Description */}
         <div>
           <label className="block text-sm font-semibold text-navy">
@@ -1038,34 +1217,78 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
           )}
         </div>
 
-        {/* Owner — select, or create one inline without leaving the form */}
+        {/* Owners — whose units the stock is; several owners split it */}
         <div>
-          <label htmlFor="owner" className="block text-sm font-semibold text-navy">
+          <span className="block text-sm font-semibold text-navy">
             {T.admin.addRecord.fields.owner}
-          </label>
-          <select
-            id="owner"
-            value={newOwner ? NEW_OWNER : form.owner_id}
-            onChange={(e) => {
-              if (e.target.value === NEW_OWNER) {
-                setNewOwner({ name: "", email: "" });
-                setOwnerError(null);
-              } else {
-                setNewOwner(null);
-                updateField("owner_id", e.target.value);
-              }
-            }}
-            className={inputClass}
-          >
-            <option value="">Sin dueño</option>
-            {owners.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name} ({o.email})
-              </option>
+          </span>
+          {form.owners.length === 0 && (
+            <p className="mt-1 text-[11px] text-navy/40">
+              Sin dueño: el stock es de la tienda.
+            </p>
+          )}
+          <ul className="mt-1 space-y-2">
+            {form.owners.map((row, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <select
+                    aria-label={`Dueño ${i + 1}`}
+                    value={newOwner?.row === i ? NEW_OWNER : row.owner_id}
+                    disabled={newOwner !== null && newOwner.row !== i}
+                    onChange={(e) => {
+                      if (e.target.value === NEW_OWNER) {
+                        setNewOwner({ name: "", email: "", row: i });
+                        setOwnerError(null);
+                      } else {
+                        setNewOwner(null);
+                        updateOwnerRow(i, { owner_id: e.target.value });
+                      }
+                    }}
+                    className={inputClass}
+                  >
+                    <option value="">Seleccionar dueño...</option>
+                    {/* An owner can only be in one row */}
+                    {owners
+                      .filter(
+                        (o) =>
+                          String(o.id) === row.owner_id ||
+                          !form.owners.some((r) => r.owner_id === String(o.id))
+                      )
+                      .map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.name} ({o.email})
+                        </option>
+                      ))}
+                    <option value={NEW_OWNER}>➕ Agregar nuevo dueño</option>
+                  </select>
+                </div>
+                {form.owners.length > 1 && (
+                  <div className="w-24 shrink-0">
+                    <input
+                      type="number"
+                      min="0"
+                      max={stockCount}
+                      aria-label={`Cantidad del dueño ${i + 1}`}
+                      value={row.quantity}
+                      onChange={(e) => setOwnerQuantity(i, e.target.value)}
+                      className={inputClass}
+                      placeholder="Cant."
+                    />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeOwnerRow(i)}
+                  disabled={newOwner !== null}
+                  aria-label={`Quitar dueño ${i + 1}`}
+                  className="mt-1 flex h-[46px] w-10 shrink-0 items-center justify-center rounded-xl text-coral transition hover:bg-coral/10 disabled:opacity-40"
+                >
+                  ✕
+                </button>
+              </li>
             ))}
-            <option value={NEW_OWNER}>➕ Agregar nuevo dueño</option>
-          </select>
-          {newOwner ? (
+          </ul>
+          {newOwner && (
             <div className="mt-2 rounded-xl border border-navy/10 bg-cream/60 p-3">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <input
@@ -1109,9 +1332,38 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
                 </Button>
               </div>
             </div>
-          ) : (
+          )}
+          {ownerLimit && (
+            <p role="alert" className="mt-2 text-xs font-semibold text-coral">
+              {ownerLimit}
+            </p>
+          )}
+          {!newOwner && (
+            <button
+              type="button"
+              onClick={addOwnerRow}
+              className="mt-2 text-sm font-semibold text-orange hover:underline"
+            >
+              + Agregar dueño
+            </button>
+          )}
+          {form.owners.length === 1 && (
             <p className="mt-1 text-[11px] text-navy/40">
-              Recibe un correo cada vez que se vende este disco.
+              Todo el stock ({stockCount}) es de este dueño. Recibe un correo cada vez que se vende.
+            </p>
+          )}
+          {form.owners.length > 1 && (
+            <p
+              className={`mt-1 text-[11px] ${
+                ownersTotal === Number(form.stock) ? "text-navy/40" : "font-semibold text-coral"
+              }`}
+            >
+              {ownersTotal === stockCount
+                ? `Suman ${ownersTotal} de ${stockCount} en stock.`
+                : ownersTotal > stockCount
+                  ? `Suman ${ownersTotal} pero el stock es ${stockCount}: baja las cantidades o sube el stock.`
+                  : `Suman ${ownersTotal} de ${stockCount}: faltan ${stockCount - ownersTotal} por asignar.`}{" "}
+              Cada dueño recibe un correo cuando se vende uno suyo.
             </p>
           )}
         </div>
@@ -1157,7 +1409,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
           <Button
             tone="outline"
             className="mt-2 w-full py-3 text-base"
-            onClick={onEditDone}
+            onClick={adopted ? cancelAdopted : onEditDone}
           >
             Cancelar
           </Button>

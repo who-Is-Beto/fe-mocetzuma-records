@@ -6,7 +6,7 @@ import { Button } from "../../components/Button";
 import { Toast } from "../../components/Toast";
 import { Img } from "../../components/Img";
 import { extractErrorMessage } from "../../app/lib/httpClient";
-import type { Record as AlbumRecord } from "../../app/domain/album";
+import type { Record as AlbumRecord, RecordOwnerStock } from "../../app/domain/album";
 import { getEffectivePrice } from "../../app/domain/album";
 import { currency } from "../../app/lib/format";
 import { useAdminRecords } from "../../app/hooks/useAdminRecords";
@@ -40,8 +40,18 @@ type Props = {
   onReturnHandled?: () => void;
 };
 
-/** A line of the sale ticket; `price` is the raw input value (unit, MXN). */
-type TicketLine = { record: AlbumRecord; quantity: number; price: string };
+/** A line of the sale ticket; `price` is the raw input value (unit, MXN).
+ * `owners` are the ones with stock (null while loading). With several owners
+ * `split` says how many units of each are sold and `quantity` is their sum. */
+type TicketLine = {
+  record: AlbumRecord;
+  quantity: number;
+  price: string;
+  owners: RecordOwnerStock[] | null;
+  split: { [ownerId: string]: number };
+};
+
+const isSplit = (line: TicketLine) => (line.owners?.length ?? 0) > 1;
 
 const PAYMENT_OPTIONS: { method: PaymentMethod; icon: string }[] = [
   { method: "cash", icon: "💵" },
@@ -142,13 +152,24 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
   };
 
   const addToTicket = (record: AlbumRecord) => {
-    setTicket((prev) =>
-      prev.some((l) => l.record.id === record.id)
-        ? prev
-        : [...prev, { record, quantity: 1, price: String(record.sell_price || record.price || "") }]
-    );
+    if (ticket.some((l) => l.record.id === record.id)) {
+      setTicketOpen(true);
+      return;
+    }
+    setTicket((prev) => [
+      ...prev,
+      { record, quantity: 1, price: String(record.sell_price || record.price || ""), owners: null, split: {} },
+    ]);
     setSellError(null);
     setTicketOpen(true);
+    // List rows don't carry owners (admin-only field): load whose units it has.
+    loadForEdit(record.id)
+      .then((full) => {
+        const owners = (full.owners ?? []).filter((o) => o.quantity > 0);
+        // Several owners: nothing picked yet, the admin says how many of whose.
+        updateLine(record.id, owners.length > 1 ? { owners, quantity: 0 } : { owners });
+      })
+      .catch(() => updateLine(record.id, { owners: [] }));
   };
 
   const updateLine = (id: AlbumRecord["id"], changes: Partial<TicketLine>) =>
@@ -162,7 +183,10 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
   const rateValid = isValidRate(commissionRate);
   const feeCents =
     paymentMethod === "card" && rateValid ? commissionCents(subtotalCents, commissionRate) : 0;
-  const canConfirm = paymentMethod !== null && (paymentMethod !== "card" || rateValid);
+  const canConfirm =
+    paymentMethod !== null &&
+    (paymentMethod !== "card" || rateValid) &&
+    ticket.every((l) => l.owners !== null && l.quantity > 0);
 
   /** Clears the ticket for the next sale (after it was registered or discarded). */
   const resetTicket = () => {
@@ -185,7 +209,14 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
     setSellError(null);
     try {
       const { sale, warnings } = await sell(
-        ticket.map((l) => ({ ...l, price: l.price.trim() || undefined })),
+        // A split line goes out as one sale line per owner.
+        ticket.flatMap((l) => {
+          const price = l.price.trim() || undefined;
+          if (!isSplit(l)) return [{ record: l.record, quantity: l.quantity, price }];
+          return Object.entries(l.split)
+            .filter(([, quantity]) => quantity > 0)
+            .map(([owner, quantity]) => ({ record: l.record, quantity, price, owner: Number(owner) }));
+        }),
         {
           payment_method: paymentMethod,
           commission_rate: paymentMethod === "card" ? commissionRate.trim() : undefined,
@@ -741,24 +772,33 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
                         </button>
                       </div>
                       <div className="mt-2 grid grid-cols-2 gap-3">
-                        <label className="block text-[11px] font-semibold text-navy/60">
-                          Cantidad (stock: {line.record.stock ?? 0})
-                          <input
-                            type="number"
-                            min={1}
-                            max={line.record.stock ?? 0}
-                            value={line.quantity}
-                            onChange={(e) =>
-                              updateLine(line.record.id, {
-                                quantity: Math.max(
-                                  1,
-                                  Math.min(Number(e.target.value) || 1, line.record.stock ?? 0)
-                                ),
-                              })
-                            }
-                            className="mt-1 w-full rounded-xl border border-navy/15 bg-white px-3 py-2 text-sm text-navy outline-none transition focus:border-orange focus:ring-2 focus:ring-orange/30"
-                          />
-                        </label>
+                        {isSplit(line) ? (
+                          <p className="text-[11px] font-semibold text-navy/60">
+                            Cantidad
+                            <span className="mt-1 block px-1 py-2 text-sm text-navy">
+                              {line.quantity} (stock: {line.record.stock ?? 0})
+                            </span>
+                          </p>
+                        ) : (
+                          <label className="block text-[11px] font-semibold text-navy/60">
+                            Cantidad (stock: {line.record.stock ?? 0})
+                            <input
+                              type="number"
+                              min={1}
+                              max={line.record.stock ?? 0}
+                              value={line.quantity}
+                              onChange={(e) =>
+                                updateLine(line.record.id, {
+                                  quantity: Math.max(
+                                    1,
+                                    Math.min(Number(e.target.value) || 1, line.record.stock ?? 0)
+                                  ),
+                                })
+                              }
+                              className="mt-1 w-full rounded-xl border border-navy/15 bg-white px-3 py-2 text-sm text-navy outline-none transition focus:border-orange focus:ring-2 focus:ring-orange/30"
+                            />
+                          </label>
+                        )}
                         <label className="block text-[11px] font-semibold text-navy/60">
                           Precio unitario (MXN)
                           <input
@@ -771,6 +811,52 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
                           />
                         </label>
                       </div>
+                      {line.owners === null && (
+                        <p className="mt-2 text-[11px] text-navy/50 animate-pulse">Cargando dueños…</p>
+                      )}
+                      {/* Several owners have it: how many of whose, like the record form */}
+                      {line.owners && isSplit(line) && (
+                        <fieldset className="mt-2">
+                          <legend className="text-[11px] font-semibold text-navy/60">
+                            ¿De quién son los que vendes? <span className="text-coral">*</span>
+                          </legend>
+                          <ul className="mt-1 space-y-1.5">
+                            {line.owners.map((o) => (
+                              <li key={o.owner} className="flex items-center gap-2">
+                                <span className="min-w-0 flex-1 truncate text-sm text-navy">
+                                  {o.owner_name}{" "}
+                                  <span className="text-[11px] text-navy/50">({o.quantity} en stock)</span>
+                                </span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={o.quantity}
+                                  value={line.split[o.owner] ?? 0}
+                                  aria-label={`Cantidad de ${o.owner_name}`}
+                                  disabled={selling}
+                                  onChange={(e) => {
+                                    const split: TicketLine["split"] = {
+                                      ...line.split,
+                                      [o.owner]: Math.max(0, Math.min(Number(e.target.value) || 0, o.quantity)),
+                                    };
+                                    const quantity = Object.values(split).reduce((sum, n) => sum + n, 0);
+                                    updateLine(line.record.id, { split, quantity });
+                                  }}
+                                  className="w-20 rounded-xl border border-navy/15 bg-white px-3 py-1.5 text-sm text-navy outline-none transition focus:border-orange focus:ring-2 focus:ring-orange/30"
+                                />
+                              </li>
+                            ))}
+                          </ul>
+                          {line.quantity === 0 && (
+                            <p className="mt-1 text-[11px] font-semibold text-coral">
+                              Indica cuántos vendes de cada dueño.
+                            </p>
+                          )}
+                        </fieldset>
+                      )}
+                      {line.owners?.length === 1 && (
+                        <p className="mt-2 text-[11px] text-navy/50">Dueño: {line.owners[0].owner_name}</p>
+                      )}
                     </li>
                   ))}
                 </ul>
