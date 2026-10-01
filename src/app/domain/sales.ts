@@ -57,6 +57,8 @@ export type SaleLineInput = {
   record: number | string;
   quantity: number;
   price?: string;
+  /** Whose copy is sold; required when several owners have the record in stock. */
+  owner?: number;
 };
 
 /** POST /sales/create/ body. `commission_rate` only matters for card. */

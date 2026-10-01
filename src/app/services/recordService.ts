@@ -101,6 +101,12 @@ async getCategories() {
         body: input
       });
     },
+    async findMatches(title: string, artist: string) {
+      return http<Record[]>(withBase(baseUrl, "/records/matches"), {
+        token: getToken?.() ?? undefined,
+        query: { title, artist }
+      });
+    },
     async getForEdit(id: string | number) {
       return http<Record>(withBase(baseUrl, `/records/${id}/update`), {
         token: getToken?.() ?? undefined

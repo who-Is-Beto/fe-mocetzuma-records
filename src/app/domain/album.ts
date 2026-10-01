@@ -30,8 +30,15 @@ export type Record = {
   sell_price?: number | string;
   final_sale_price?: number | string | null;
   weight_grams?: number | null;
-  /** Owner id (admin responses only); null for store stock / older records. */
-  owner?: number | null;
+  /** Admin responses only: whose units the stock is; empty = store stock. */
+  owners?: RecordOwnerStock[];
+};
+
+/** How many of a record's stock belong to one owner (they add up to `stock`). */
+export type RecordOwnerStock = {
+  owner: number;
+  owner_name: string;
+  quantity: number;
 };
 
 export type RecordPage = {
@@ -84,7 +91,8 @@ export type RecordInput = {
   items_inside: number;
   weight_grams: number | null;
   category: number | null;
-  owner: number | null;
+  /** [] = store stock; one owner gets the whole stock; several must add up to `stock`. */
+  owners: { owner: number; quantity?: number }[];
 };
 
 /**
@@ -162,6 +170,8 @@ export interface RecordRepository {
   deleteArtist(id: Artist["id"], reassign: ArtistReassign): Promise<ArtistDeleteResult>;
   getOwners(): Promise<Owner[]>;
   createOwner(input: { name: string; email: string }): Promise<Owner>;
+  /** Existing records with the same title (+ artist), ignoring case/accents. */
+  findMatches(title: string, artist: string): Promise<Record[]>;
   /** Admin record CRUD. */
   /** Full record for the edit form (private fields included; list rows are partial). */
   getForEdit(id: string | number): Promise<Record>;
