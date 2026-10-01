@@ -40,7 +40,7 @@ export function ManageSalesTab() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-display text-xl sm:text-2xl text-denim">Ventas</h2>
-          <p className="mt-1 text-xs sm:text-sm text-navy/60">
+          <p className="mt-1 text-xs sm:text-sm text-navy/70">
             {view === "history"
               ? "Ventas registradas en el Punto de venta, por fecha y dueño."
               : "Punto de venta y compras en línea del periodo."}
@@ -48,17 +48,17 @@ export function ManageSalesTab() {
         </div>
 
         {/* ── Registro / Métricas ── */}
-        <div className="flex gap-1 rounded-2xl border border-navy/10 bg-cream/60 p-1 backdrop-blur">
+        <div className="flex w-full gap-1 rounded-2xl border border-navy/10 bg-cream/60 p-1 backdrop-blur sm:w-auto">
           {VIEWS.map((v) => (
             <button
               key={v.id}
               type="button"
               aria-pressed={view === v.id}
               onClick={() => setView(v.id)}
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange/40 ${
+              className={`flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition sm:flex-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange/40 ${
                 view === v.id
                   ? "bg-orange text-charcoal shadow-sm"
-                  : "text-navy/60 hover:bg-white/60 hover:text-navy"
+                  : "text-navy/80 hover:bg-white/60 hover:text-navy"
               }`}
             >
               <span aria-hidden="true" className="text-base leading-none">{v.icon}</span>

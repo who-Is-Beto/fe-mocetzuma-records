@@ -12,6 +12,7 @@ import { useMaintenanceStatusValue } from "../../app/providers/MaintenanceStatus
 import { T } from "../../app/i18n/strings";
 import { useSeo } from "../../app/hooks/useSeo";
 import { currency } from "../../app/lib/format";
+import { Img } from "../../components/Img";
 
 const INSTAGRAM_URL = "https://www.instagram.com/moctezuma_records/";
 
@@ -49,9 +50,11 @@ export const HomePage = () => {
     [token]
   );
 
-  // Últimos ingresos — first catalog page is also the newest stock.
+  // Últimos ingresos: the 6 newest in-stock records, filtered and limited by
+  // the server (was: download 20, drop sold-out ones, keep 6 in the browser).
+  // `count` is then the number of available records the hero shows.
   const fetchLatest = useCallback(
-    () => safePage(() => recordService.list({ page: 1 })),
+    () => safePage(() => recordService.list({ page: 1, page_size: 6, available: true })),
     [recordService]
   );
   const { data: latest, isLoading: latestLoading } = useServiceQuery<RecordPage>(
@@ -61,7 +64,7 @@ export const HomePage = () => {
     { enabled: !maintenanceBlocked }
   );
 
-  const latestRecords = (latest?.results ?? []).filter((r) => r.stock > 0).slice(0, 6);
+  const latestRecords = latest?.results ?? [];
   const totalAvailable = Number(latest?.count ?? 0);
 
   return (
@@ -339,13 +342,12 @@ function CompactRecordCard({
     >
       <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-navy/10 bg-sand sm:h-20 sm:w-20">
         {record.cover_image_url ? (
-          <img
+          <Img
             src={record.cover_image_url}
             alt={record.title}
+            width={80}
+            priority={priority}
             className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-            loading={priority ? "eager" : "lazy"}
-            fetchPriority={priority ? "high" : "auto"}
-            decoding="async"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xl">🎵</div>

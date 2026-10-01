@@ -1,3 +1,52 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "images": {
+    "sizes": [
+      64,
+      128,
+      256,
+      384,
+      640,
+      828,
+      1080,
+      1200
+    ],
+    "formats": [
+      "image/avif",
+      "image/webp"
+    ],
+    "minimumCacheTTL": 86400,
+    "remotePatterns": [
+      {
+        "protocol": "https",
+        "hostname": "i.discogs.com"
+      },
+      {
+        "protocol": "https",
+        "hostname": "pub-68b3bb8285924e24851b40086d6cc375.r2.dev"
+      }
+    ]
+  },
+  "rewrites": [
+    {
+      "source": "/records/:slug",
+      "destination": "/api/record-meta?slug=:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(bot|Bot|BOT|facebookexternalhit|Facebot|WhatsApp|Slack|Discord|Telegram|Pinterest|Embedly|Iframely|SkypeUriPreview|vkShare|Quora).*"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "functions": {
+    "api/record-meta.ts": {
+      "includeFiles": "dist/index.html",
+      "maxDuration": 10
+    }
+  }
 }

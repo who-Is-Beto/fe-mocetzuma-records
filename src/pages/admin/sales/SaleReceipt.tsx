@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { PAYMENT_METHOD_LABELS, type Sale } from "../../../app/domain/sales";
 import { currency, formatStoreDateTime } from "../../../app/lib/format";
+import { Img } from "../../../components/Img";
 
 /**
  * Thermal-ticket receipt, built only from the stored sale (snapshotted
@@ -25,9 +26,12 @@ export function SaleReceipt({ sale }: { sale: Sale }) {
         {sale.items.map((item) => (
           <li key={item.id} className="flex gap-2 py-1.5 [break-inside:avoid]">
             {item.cover_image_url ? (
-              <img
+              <Img
                 src={item.cover_image_url}
                 alt=""
+                width={48}
+                priority // must be loaded before window.print()
+                placeholder={false}
                 className="h-[12mm] w-[12mm] shrink-0 object-cover grayscale"
               />
             ) : (

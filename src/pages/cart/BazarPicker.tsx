@@ -1,5 +1,6 @@
 import { formatShortDate } from "../../app/lib/format";
 import type { Bazar } from "../../app/domain/bazares";
+import { Img } from "../../components/Img";
 
 type BazarPickerProps = {
   bazares: Bazar[];
@@ -46,10 +47,10 @@ export function BazarPicker({ bazares, selectedId, onSelect }: BazarPickerProps)
                 )}
               </span>
               {bazar.image_url ? (
-                <img
+                <Img
                   src={bazar.image_url}
                   alt=""
-                  loading="lazy"
+                  width={48}
                   className="h-12 w-12 shrink-0 rounded-lg border border-navy/10 object-cover object-top"
                 />
               ) : (

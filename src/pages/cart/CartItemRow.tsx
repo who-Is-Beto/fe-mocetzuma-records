@@ -3,6 +3,7 @@ import { Button } from "../../components/Button";
 import { currency } from "../../app/lib/format";
 import { getEffectivePrice } from "../../app/domain/album";
 import type { CartItem } from "../../app/services/cartService";
+import { Img } from "../../components/Img";
 
 type CartItemRowProps = {
   item: CartItem;
@@ -26,11 +27,11 @@ export function CartItemRow({ item, isUpdating = false, onUpdateQuantity, onRemo
         className="block h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-navy/10 bg-gradient-to-br from-denim/10 via-cream to-sand/80 shadow-inner sm:h-20 sm:w-20"
       >
         {item.record.cover_image_url ? (
-          <img
+          <Img
             src={item.record.cover_image_url}
             alt={item.record.title}
+            width={80}
             className="h-full w-full object-cover"
-            loading="lazy"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xl">

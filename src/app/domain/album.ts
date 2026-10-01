@@ -105,9 +105,51 @@ export function getEffectivePrice(record: Record): {
   return { original, effective, discount, hasDiscount: discount > 0 };
 }
 
+/** Backend CONDITIONS codes (vinyl grading), best first. */
+export const RECORD_CONDITIONS = [
+  { code: "M", label: "Mint" },
+  { code: "NM", label: "Near Mint" },
+  { code: "NM-", label: "Near Mint -" },
+  { code: "VG+", label: "Very Good +" },
+  { code: "VG", label: "Very Good" },
+  { code: "G", label: "Good" },
+  { code: "F", label: "Fair" },
+  { code: "P", label: "Poor" },
+] as const;
+
+export type RecordOrdering = "newest" | "price_asc" | "price_desc";
+
+/** Query params shared by /records/ and /search/ (see apply_record_filters). */
+export type RecordFilters = {
+  page?: number;
+  /** Server-side LIMIT (e.g. 5 for search suggestions). */
+  page_size?: number;
+  available?: boolean;
+  category?: string;
+  genere?: string;
+  artist?: string;
+  condition?: string[];
+  price_min?: string;
+  price_max?: string;
+  ordering?: RecordOrdering;
+  signal?: AbortSignal;
+};
+
+/** GET /artists/<id>/usage/: records pointing at the artist + closest other name. */
+export type ArtistUsage = { records_count: number; suggestion: Artist | null };
+
+/** Where the artist's records go when it is deleted (required when in use). */
+export type ArtistReassign = { reassign_to: Artist["id"] } | { new_artist_name: string } | { [key: string]: never };
+
+export type ArtistDeleteResult = {
+  deleted: Artist["id"];
+  reassigned: number;
+  reassigned_to: Artist | null;
+};
+
 export interface RecordRepository {
-  list(params?: { page?: number; available?: boolean; category?: string }): Promise<RecordPage>;
-  search(params: { query: string; page?: number; available?: boolean; category?: string }): Promise<RecordPage>;
+  list(params?: RecordFilters): Promise<RecordPage>;
+  search(params: RecordFilters & { query: string }): Promise<RecordPage>;
   getRecordById(id: string): Promise<Record>;
   getRecordBySlug(slug: string): Promise<Record>;
   getCategories(): Promise<Category[]>;
@@ -115,6 +157,9 @@ export interface RecordRepository {
   getGenres(): Promise<Genere[]>;
   searchArtists(query: string): Promise<Artist[]>;
   createArtist(name: string): Promise<Artist>;
+  getArtistUsage(id: Artist["id"]): Promise<ArtistUsage>;
+  /** Reassignment + delete run in one DB transaction (409 artist_in_use without a target). */
+  deleteArtist(id: Artist["id"], reassign: ArtistReassign): Promise<ArtistDeleteResult>;
   getOwners(): Promise<Owner[]>;
   createOwner(input: { name: string; email: string }): Promise<Owner>;
   /** Admin record CRUD. */

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Bazar } from "../../app/domain/bazares";
 import { getDateParts, formatEventDate } from "../../app/lib/format";
+import { Img } from "../../components/Img";
 
 const canNativeShare =
   typeof navigator !== "undefined" && typeof navigator.share === "function";
@@ -55,11 +56,12 @@ export function BazarCard({ bazar }: BazarCardProps) {
       <div className="p-3 pb-0 pt-4 sm:p-4 sm:pb-0">
         <div className="relative aspect-[4/5] overflow-hidden rounded-2xl border border-navy/10 bg-sand shadow-card">
           {bazar.image_url ? (
-            <img
+            <Img
               src={bazar.image_url}
               alt={`Flyer del bazar ${bazar.name}`}
-              loading="lazy"
-              decoding="async"
+              width={384}
+              height={480}
+              sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
               className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.02]"
             />
           ) : (

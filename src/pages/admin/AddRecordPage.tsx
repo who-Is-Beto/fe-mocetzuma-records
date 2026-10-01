@@ -7,6 +7,8 @@ import { createRecordService } from "../../app/services/recordService";
 import { useDiscogsSearch } from "../../app/hooks/useDiscogsSearch";
 import type { DiscogsSearchResult } from "../../app/services/discogsService";
 import type { Artist, Category, Genere, Owner } from "../../app/domain/album";
+import { Img } from "../../components/Img";
+import { DeleteArtistDialog } from "./DeleteArtistDialog";
 
 /* ── Types ── */
 
@@ -139,7 +141,9 @@ type AddRecordPageProps = {
 /* ── Component ── */
 
 export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps = {}) {
-  const { token } = useAuth();
+  const { token, hasPerm } = useAuth();
+  const canDeleteArtist = hasPerm("apiApp.delete_artist");
+  const [artistToDelete, setArtistToDelete] = useState<Pick<Artist, "id" | "name"> | null>(null);
   const recordService = useMemo(
     () => createRecordService({ getToken: () => token }),
     [token]
@@ -603,11 +607,11 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
                     }`}
                   >
                     {item.cover_image ? (
-                      <img
+                      <Img
                         src={item.cover_image}
                         alt={item.title}
+                        width={56}
                         className="h-10 w-10 sm:h-14 sm:w-14 shrink-0 rounded-lg object-cover"
-                        loading="lazy"
                       />
                     ) : (
                       <div className="flex h-10 w-10 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-lg bg-navy/5 text-base sm:text-lg">
@@ -659,11 +663,11 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
                         : "border-transparent hover:border-navy/20"
                     }`}
                   >
-                    <img
+                    <Img
                       src={img}
                       alt={`Imagen ${idx + 1}`}
+                      width={96}
                       className="h-20 w-20 sm:h-24 sm:w-24 rounded-xl object-cover"
-                      loading="lazy"
                     />
                   </button>
                 ))}
@@ -708,17 +712,50 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
             placeholder="Escribe el nombre del artista..."
           />
 
+          <DeleteArtistDialog
+            artist={artistToDelete}
+            recordService={recordService}
+            onClose={() => setArtistToDelete(null)}
+            onDeleted={({ deleted, reassigned_to }) => {
+              setArtistSuggestions((list) => list.filter((a) => a.id !== deleted));
+              // If the form had the deleted artist selected, the server already
+              // moved its records (this one included) to the target: mirror it.
+              if (form.artist_id === String(deleted)) {
+                updateField("artist_id", reassigned_to ? String(reassigned_to.id) : "");
+                updateField("artist_text", reassigned_to ? reassigned_to.name : "");
+              }
+            }}
+          />
+
           {showArtistDropdown && artistSuggestions.length > 0 && (
-            <div className="absolute z-10 mt-1 w-full rounded-xl border border-navy/10 bg-white shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute z-10 mt-1 w-full rounded-xl border border-navy/10 bg-white shadow-lg max-h-64 overflow-y-auto">
               {artistSuggestions.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => selectArtist(a)}
-                  className="w-full px-4 py-2.5 text-left text-sm text-navy hover:bg-sun/30 transition first:rounded-t-xl last:rounded-b-xl"
-                >
-                  {a.name}
-                </button>
+                <div key={a.id} className="flex items-center hover:bg-sun/30 transition first:rounded-t-xl last:rounded-b-xl">
+                  <button
+                    type="button"
+                    onClick={() => selectArtist(a)}
+                    className="min-h-[44px] min-w-0 flex-1 truncate px-4 text-left text-sm text-navy"
+                  >
+                    {a.name}
+                  </button>
+                  {/* Delete from the list; records using it get reassigned first. */}
+                  {canDeleteArtist && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowArtistDropdown(false);
+                        setArtistToDelete({ id: a.id, name: a.name });
+                      }}
+                      className="mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-coral transition hover:bg-coral/10"
+                      aria-label={`Eliminar artista ${a.name}`}
+                      title="Eliminar artista"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-4 w-4">
+                        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -912,11 +949,11 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
             placeholder="https://..."
           />
           {form.cover_image_url && (
-            <img
+            <Img
               src={form.cover_image_url}
               alt="Preview"
+              width={96}
               className="mt-2 h-20 w-20 sm:h-24 sm:w-24 rounded-xl object-cover shadow-sm"
-              loading="lazy"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
               }}
