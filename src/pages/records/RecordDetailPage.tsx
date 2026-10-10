@@ -261,12 +261,7 @@ export function RecordDetailPage() {
   }
 
   const { original, effective: effectivePrice, discount: discountPct, hasDiscount } = getEffectivePrice(data);
-  const genereLabel =
-    typeof data.genere === "string"
-      ? data.genere
-      : typeof data.genere === "number"
-      ? String(data.genere)
-      : data.genere?.name ?? "—";
+  const genereLabel = data.generes?.length ? data.generes.map((g) => g.name).join(", ") : "—";
 
   const handleAddToCart = async () => {
     if (!isAuthenticated || !token) {
@@ -522,7 +517,7 @@ export function RecordDetailPage() {
               </div>
               <div className="rounded-xl border border-navy/10 bg-cream/60 p-4 shadow-inner">
                 <p className="text-xs uppercase tracking-[0.14em] text-orange">
-                  Género
+                  {(data.generes?.length ?? 0) > 1 ? "Géneros" : "Género"}
                 </p>
                 <p className="font-semibold text-denim">{genereLabel}</p>
               </div>

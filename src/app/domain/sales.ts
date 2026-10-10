@@ -34,6 +34,10 @@ export type SaleItem = {
   price: string;
   /** This line's share of the ticket's commission, decimal string. */
   commission_amount: string;
+  /** Unit cost saved when it sold; "0.00" = no cost was recorded. */
+  cost_price: string;
+  /** price × quantity − commission share − cost × quantity. */
+  profit: string;
   email_sent: boolean;
 };
 
@@ -49,6 +53,9 @@ export type Sale = {
   subtotal: string;
   /** Subtotal minus commission. */
   final_sale_price: string;
+  /** Admin only (never printed): cost of the records sold, and final − cost. */
+  cost: string;
+  profit: string;
   items: SaleItem[];
 };
 
@@ -86,7 +93,15 @@ export type SalesReport = {
   /** Tickets newest first, each with all its items. */
   results: Sale[];
   /** Over the filtered lines (only the owner's lines when filtering by owner). */
-  totals: { subtotal: string; commission: string; net: string };
+  totals: {
+    subtotal: string;
+    commission: string;
+    net: string;
+    cost: string;
+    profit: string;
+    /** Units sold without a cost recorded: their profit is their full net. */
+    units_without_cost: number;
+  };
 };
 
 /** Money breakdown shared by every metrics group. */
@@ -97,6 +112,12 @@ export type MetricsBucket = {
   commission: string;
   net: string;
   average_ticket: string;
+  /** Cost of the records sold, saved on each line when it sold. */
+  cost: string;
+  /** net - cost; negative when sold below cost. */
+  profit: string;
+  /** Units sold without a cost recorded (cost 0): their profit is their full net. */
+  units_without_cost: number;
 };
 
 /** "stripe" = online orders; "unknown" = point-of-sale sales without a method. */

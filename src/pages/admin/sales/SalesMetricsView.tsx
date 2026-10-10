@@ -106,10 +106,13 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
   const maxMethodGross = Math.max(...data.payment_methods.map((m) => Number(m.gross)));
   const maxOwnerGross = Math.max(...data.owners.map((o) => Number(o.gross)));
 
+  const loss = Number(summary.profit) < 0;
   const tiles = [
     { label: "Ingreso bruto", value: currency(summary.gross) },
     { label: "Ingreso neto", value: currency(summary.net), strong: true },
     { label: "Comisiones", value: currency(summary.commission) },
+    { label: "Costo", value: currency(summary.cost) },
+    { label: loss ? "Pérdida" : "Ganancia", value: currency(summary.profit), strong: true, negative: loss },
     { label: "Ventas", value: String(summary.count) },
     { label: "Ticket promedio", value: currency(summary.average_ticket) },
     { label: "Discos vendidos", value: String(summary.units) }
@@ -119,6 +122,8 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
     ["Bruto", currency(bucket.gross)],
     ["Comisiones", currency(bucket.commission)],
     ["Neto", currency(bucket.net)],
+    ["Costo", currency(bucket.cost)],
+    ["Ganancia", currency(bucket.profit)],
     ["Ventas", String(bucket.count)],
     ["Ticket promedio", currency(bucket.average_ticket)]
   ];
@@ -126,15 +131,19 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
   return (
     <div className="mt-4 space-y-4">
       {/* ── Headline numbers ── */}
-      {/* 1 column on the narrowest phones, 2 from ~360 px, 3 / 6 on larger screens */}
-      <dl className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 [&>*]:min-w-0">
+      {/* 1 column on the narrowest phones, 2 from ~360 px, 4 on larger screens (2 rows of 4) */}
+      <dl className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-4 [&>*]:min-w-0">
         {tiles.map((tile) => (
           <div
             key={tile.label}
             className="min-w-0 rounded-2xl border border-navy/10 bg-cream/80 px-4 py-3 shadow-card backdrop-blur"
           >
             <dt className="text-xs uppercase tracking-[0.12em] text-navy/70">{tile.label}</dt>
-            <dd className={`mt-1 break-words text-lg font-semibold tabular-nums ${tile.strong ? "text-denim" : "text-navy"}`}>
+            <dd
+              className={`mt-1 break-words text-lg font-semibold tabular-nums ${
+                tile.negative ? "text-coral" : tile.strong ? "text-denim" : "text-navy"
+              }`}
+            >
               {tile.value}
             </dd>
           </div>
@@ -143,8 +152,16 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
       <p className="text-xs text-navy/70">
         Bruto = lo que se cobró por los discos (sin envíos: {currency(summary.shipping)} cobrados
         aparte en línea). La comisión en línea es una <strong>estimación</strong> de la tarifa de
-        Stripe; Stripe no nos la reporta.
+        Stripe; Stripe no nos la reporta. Ganancia = neto − costo de los discos vendidos (el costo
+        guardado al momento de cada venta).
       </p>
+      {summary.units_without_cost > 0 && (
+        <p role="status" className="rounded-xl border border-orange/40 bg-sun/30 px-4 py-2.5 text-xs text-navy">
+          ⚠️ {summary.units_without_cost} de {summary.units} discos vendidos no tenían precio de costo
+          registrado: cuentan como ganancia completa, así que la ganancia real es menor. Registra el
+          costo en cada disco (Editar → Precio de costo) para que las próximas ventas lo guarden.
+        </p>
+      )}
 
       {/* ── By channel ── */}
       <section className={panelClass} aria-labelledby="metrics-channels">
@@ -305,6 +322,8 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
                     ["Unidades", String(row.units)],
                     ["Bruto", currency(row.gross)],
                     ["Comisión", currency(row.commission)],
+                    ["Costo", currency(row.cost)],
+                    ["Ganancia", currency(row.profit)],
                   ].map(([label, value]) => (
                     <div key={label} className="flex justify-between gap-3">
                       <dt className="text-navy/70">{label}</dt>
@@ -325,6 +344,8 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
                   <th scope="col" className={`${thClass} text-right`}>Bruto</th>
                   <th scope="col" className={`${thClass} text-right`}>Comisión</th>
                   <th scope="col" className={`${thClass} text-right`}>Neto</th>
+                  <th scope="col" className={`${thClass} text-right`}>Costo</th>
+                  <th scope="col" className={`${thClass} text-right`}>Ganancia</th>
                 </tr>
               </thead>
               <tbody>
@@ -345,15 +366,23 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
                     <td className="px-3 py-2 text-right tabular-nums text-navy">{row.units}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-navy">{currency(row.gross)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-navy/80">{currency(row.commission)}</td>
-                    <td className="px-3 py-2 text-right font-medium tabular-nums text-navy">{currency(row.net)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-navy">{currency(row.net)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-navy/80">{currency(row.cost)}</td>
+                    <td
+                      className={`px-3 py-2 text-right font-medium tabular-nums ${
+                        Number(row.profit) < 0 ? "text-coral" : "text-navy"
+                      }`}
+                    >
+                      {currency(row.profit)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <p className="mt-2 text-xs text-navy/70">
-            En línea se usa el dueño actual del disco; la comisión de tarjeta se reparte según lo que
-            aportó cada disco al ticket.
+            En línea se usa el dueño guardado en cada pedido; la comisión de tarjeta se reparte según lo
+            que aportó cada disco al ticket.
           </p>
         </section>
       </div>

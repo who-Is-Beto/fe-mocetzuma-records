@@ -9,6 +9,8 @@ import type { DiscogsSearchResult } from "../../app/services/discogsService";
 import type { Artist, Category, Genere, Owner, Record as AlbumRecord, RecordOwnerStock } from "../../app/domain/album";
 import { Img } from "../../components/Img";
 import { DeleteArtistDialog } from "./DeleteArtistDialog";
+import { CatalogPicker, DeleteCatalogTermDialog, type CatalogTerm } from "./CatalogPicker";
+import { normName } from "../../app/lib/text";
 
 /* ── Types ── */
 
@@ -18,7 +20,8 @@ type RecordForm = {
   artist_text: string;
   description: string;
   condition: string;
-  genere_id: string;
+  /** Genre ids; a record can be in several. */
+  generes: string[];
   price: string;
   cost_price: string;
   stock: string;
@@ -42,7 +45,7 @@ const INITIAL_FORM: RecordForm = {
   artist_text: "",
   description: "",
   condition: "",
-  genere_id: "",
+  generes: [],
   price: "",
   cost_price: "",
   stock: "",
@@ -133,7 +136,7 @@ type AddRecordPageProps = {
     items_inside?: number;
     weight_grams?: number | null;
     artist?: { id: string; name: string } | null;
-    genere?: { id: string; name: string } | { id?: string | number } | string | number | null;
+    generes?: { id: string | number; name: string }[];
     category?: { id: string; name: string } | null;
     owners?: RecordOwnerStock[];
     slug?: string;
@@ -180,6 +183,10 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
   // DB options
   const [generes, setGeneres] = useState<Genere[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  // Format/genre picked for deletion from a picker (null = no dialog).
+  const [termToDelete, setTermToDelete] = useState<{ kind: "format" | "genre"; term: CatalogTerm } | null>(null);
+  // Genres + styles of the picked Discogs release: the ones we lack become "+ Crear" suggestions.
+  const [discogsGenreNames, setDiscogsGenreNames] = useState<string[]>([]);
   const [owners, setOwners] = useState<Owner[]>([]);
 
   // Inline "Agregar nuevo dueño" for owner row `row` (null = hidden)
@@ -204,9 +211,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
       artist_text: editingRecord.artist?.name || "",
       description: editingRecord.description || "",
       condition: editingRecord.condition || "M",
-      genere_id: editingRecord.genere && typeof editingRecord.genere === "object" && "id" in editingRecord.genere
-        ? String(editingRecord.genere.id)
-        : "",
+      generes: (editingRecord.generes ?? []).map((g) => String(g.id)),
       price: String(editingRecord.price ?? ""),
       cost_price: String(editingRecord.cost_price ?? ""),
       stock: String(editingRecord.stock ?? ""),
@@ -287,7 +292,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
         artist: artistId ? Number(artistId) : null,
         description: form.description.trim() || null,
         condition: form.condition || "M",
-        genere: form.genere_id ? Number(form.genere_id) : null,
+        generes: form.generes.map(Number),
         cover_image_url: form.cover_image_url.trim() || null,
         price: Number(form.price) || 0,
         cost_price: Number(form.cost_price) || 0,
@@ -323,6 +328,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
           setResults([]);
           setHasSearched(false);
           setSelectedId(null);
+          setDiscogsGenreNames([]);
           setSearchQuery("");
         }, 1500);
       } else {
@@ -342,6 +348,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
           setResults([]);
           setHasSearched(false);
           setSelectedId(null);
+          setDiscogsGenreNames([]);
           setSearchQuery("");
         }, 2000);
       }
@@ -351,6 +358,13 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
       setSubmitting(false);
     }
   };
+
+  /** Formats and genres again: names and records_count change on create/rename/delete. */
+  const refreshCatalog = useCallback(async () => {
+    const [genereData, catData] = await Promise.all([recordService.getGenres(), recordService.getCategories()]);
+    setGeneres(genereData);
+    setCategories(catData);
+  }, [recordService]);
 
   // Fetch DB options on mount
   useEffect(() => {
@@ -481,6 +495,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
 
   const cancelAdopted = () => {
     setAdopted(null);
+    setDiscogsGenreNames([]);
     setNewOwner(null);
     setForm(INITIAL_FORM);
   };
@@ -591,6 +606,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
       const data = await getReleaseDetail(discogsId);
       if (!data) return;
       const allImages: string[] = data.images ?? [];
+      setDiscogsGenreNames([...(data.genres ?? []), ...(data.styles ?? [])]);
 
       setForm((prev) => ({
         ...prev,
@@ -598,9 +614,10 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
         images: allImages,
         cover_image_url: allImages[0] || prev.cover_image_url,
         // Try to match genre
-        genere_id:
-          prev.genere_id ||
-          matchGenreToSelect(data.genres ?? [], data.styles ?? [], generes),
+        // Discogs genres + styles → every matching genre, unless the admin already picked.
+        generes: prev.generes.length
+          ? prev.generes
+          : matchGenres(data.genres ?? [], data.styles ?? [], generes),
         // Try to match category from formats/genres
         category_id:
           prev.category_id ||
@@ -630,11 +647,11 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
     updateField("artist_text", item.artist);
     updateField("artist_id", "");
 
-    // Try to match genre from search result
-    const firstGenre = item.genre.split(",")[0]?.trim() ?? "";
-    const matchedGenere = generes.find(
-      (g) => g.name.toLowerCase() === firstGenre.toLowerCase()
-    );
+    const discogsNames = [...(item.genre || "").split(","), ...(item.style || "").split(",")]
+      .map((name) => name.trim())
+      .filter(Boolean);
+    setDiscogsGenreNames(discogsNames);
+    const matchedGeneres = matchGenres(discogsNames, [], generes);
 
     // Try to match category from formats
     const matchedCategory = matchCategory(
@@ -649,7 +666,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
       title: item.title || prev.title,
       artist_text: item.artist,
       artist_id: "",
-      genere_id: matchedGenere ? String(matchedGenere.id) : prev.genere_id,
+      generes: matchedGeneres.length ? matchedGeneres : prev.generes,
       cover_image_url: item.cover_image || prev.cover_image_url,
       release_year: item.year ? String(item.year) : prev.release_year,
       category_id: matchedCategory || prev.category_id,
@@ -660,21 +677,24 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
 
   /* ── Genre matching helper ── */
 
-  function matchGenreToSelect(
+  /** Ids of our genres named like a Discogs genre/style (ignoring case and
+   * accents). Exact names only, so "Rock" doesn't also pick "Rock Alternativo";
+   * with no exact hit, falls back to the first loose (substring) match. */
+  function matchGenres(
     discogsGenres: string[],
     discogsStyles: string[],
     genereOptions: Genere[]
-  ): string {
-    const allTerms = [...discogsGenres, ...discogsStyles].map((s) =>
-      s.toLowerCase()
+  ): string[] {
+    const norm = normName;
+    const terms = [...discogsGenres, ...discogsStyles].map(norm).filter(Boolean);
+    const exact = genereOptions.filter((g) => terms.includes(norm(g.name)));
+    if (exact.length) return exact.map((g) => String(g.id));
+    const loose = genereOptions.find((g) =>
+      terms.some((t) => t.includes(norm(g.name)) || norm(g.name).includes(t))
     );
-    for (const g of genereOptions) {
-      if (allTerms.some((t) => t.includes(g.name.toLowerCase()) || g.name.toLowerCase().includes(t))) {
-        return String(g.id);
-      }
-    }
-    return "";
+    return loose ? [String(loose.id)] : [];
   }
+
 
   /* ── Render ── */
 
@@ -899,6 +919,105 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
             )}
         </div>
 
+        {/* Format + Condition, then Genres: pick, create, rename or delete in place (like Artist) */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <CatalogPicker
+            label={T.admin.addRecord.fields.category}
+            noun="formato"
+            options={categories as CatalogTerm[]}
+            value={form.category_id ? [form.category_id] : []}
+            onChange={(ids) => updateField("category_id", ids[ids.length - 1] ?? "")}
+            onCreate={
+              hasPerm("apiApp.add_category")
+                ? async (name) => {
+                    const created = await recordService.createCategory({ name });
+                    await refreshCatalog();
+                    return created as CatalogTerm;
+                  }
+                : undefined
+            }
+            onRename={
+              hasPerm("apiApp.change_category")
+                ? async (term, name) => {
+                    await recordService.updateCategory(term.id, { name });
+                    await refreshCatalog();
+                  }
+                : undefined
+            }
+            onDelete={
+              hasPerm("apiApp.delete_category") ? (term) => setTermToDelete({ kind: "format", term }) : undefined
+            }
+            hint={form.category_id && selectedId !== null ? "Detectado de Discogs. Cámbialo si no es correcto." : undefined}
+          />
+          <div>
+            <label className="block text-sm font-semibold text-navy">
+              {T.admin.addRecord.fields.condition}
+            </label>
+            <select
+              value={form.condition}
+              onChange={(e) => updateField("condition", e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Seleccionar...</option>
+              {CONDITIONS.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <CatalogPicker
+          label={T.admin.addRecord.fields.genre}
+          noun="género"
+          multiple
+          options={generes as CatalogTerm[]}
+          value={form.generes}
+          onChange={(ids) => updateField("generes", ids)}
+          onCreate={
+            hasPerm("apiApp.add_genere")
+              ? async (name) => {
+                  const created = await recordService.createGenre({ name });
+                  await refreshCatalog();
+                  return created as CatalogTerm;
+                }
+              : undefined
+          }
+          onRename={
+            hasPerm("apiApp.change_genere")
+              ? async (term, name) => {
+                  await recordService.updateGenre(term.id as number, { name });
+                  await refreshCatalog();
+                }
+              : undefined
+          }
+          onDelete={hasPerm("apiApp.delete_genere") ? (term) => setTermToDelete({ kind: "genre", term }) : undefined}
+          suggestions={discogsGenreNames.filter(
+            (name, i, all) =>
+              all.findIndex((n) => normName(n) === normName(name)) === i &&
+              !generes.some((g) => normName(g.name) === normName(name))
+          )}
+          hint="Puedes elegir varios. Escribe para buscar; Enter agrega."
+        />
+
+        <DeleteCatalogTermDialog
+          target={termToDelete}
+          formats={categories}
+          recordService={recordService}
+          onClose={() => setTermToDelete(null)}
+          onDeleted={({ kind, id, movedTo }) => {
+            // Mirror the server: the form drops a deleted genre, and follows its
+            // records to the new format when the selected one was deleted.
+            if (kind === "genre") {
+              updateField("generes", form.generes.filter((g) => g !== id));
+            } else if (form.category_id === id) {
+              updateField("category_id", movedTo ?? "");
+            }
+            refreshCatalog().catch(() => {});
+          }}
+        />
+
         {/* "Ya existe": offer editing the existing record instead of a duplicate */}
         {!isEditing && matches.length > 0 && (
           <div role="status" className="rounded-xl border border-orange/40 bg-sun/30 p-4">
@@ -966,44 +1085,6 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
             className={`${inputClass} resize-y`}
             placeholder={T.admin.addRecord.fields.description}
           />
-        </div>
-
-        {/* Condition + Genre */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-navy">
-              {T.admin.addRecord.fields.condition}
-            </label>
-            <select
-              value={form.condition}
-              onChange={(e) => updateField("condition", e.target.value)}
-              className={inputClass}
-            >
-              <option value="">Seleccionar...</option>
-              {CONDITIONS.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-navy">
-              {T.admin.addRecord.fields.genre}
-            </label>
-            <select
-              value={form.genere_id}
-              onChange={(e) => updateField("genere_id", e.target.value)}
-              className={inputClass}
-            >
-              <option value="">Seleccionar género...</option>
-              {generes.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {/* Cost price + List price */}
@@ -1191,30 +1272,6 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
               formato (LP 300 g, 7&quot; 100 g, CD 85 g).
             </p>
           </div>
-        </div>
-
-        {/* Category — select, auto-matched from Discogs */}
-        <div>
-          <label className="block text-sm font-semibold text-navy">
-            {T.admin.addRecord.fields.category}
-          </label>
-          <select
-            value={form.category_id}
-            onChange={(e) => updateField("category_id", e.target.value)}
-            className={inputClass}
-          >
-            <option value="">Seleccionar categoría...</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          {form.category_id && (
-            <p className="mt-1 text-[11px] text-navy/40">
-              Auto-detectado de Discogs. Cambia si es necesario.
-            </p>
-          )}
         </div>
 
         {/* Owners — whose units the stock is; several owners split it */}

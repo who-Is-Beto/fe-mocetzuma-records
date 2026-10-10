@@ -25,7 +25,8 @@ export type Record = {
   release_date?: string | number;
   featured?: boolean;
   items_inside?: number;
-  genere?: string | number | { id?: string | number; name?: string; slug?: string };
+  /** A record can be in several genres (possibly none). */
+  generes?: Genere[];
   cost_price?: number | string;
   sell_price?: number | string;
   final_sale_price?: number | string | null;
@@ -52,12 +53,28 @@ export interface Category {
   id: number | string;
   name: string;
   slug: string;
+  /** GET /categories/ only: records using this format. */
+  records_count?: number;
 }
 
 export type Genere = {
   id: number;
   name: string;
   slug: string;
+  description?: string | null;
+  /** GET /generes/ only: records in this genre. */
+  records_count?: number;
+};
+
+/** Admin create/edit body for a format or genre. The slug is never sent: it
+ * is set once from the first name and kept on rename (URLs, shipping weights). */
+export type CatalogTermInput = { name: string; description?: string | null };
+
+/** DELETE /categories/<id>/delete/: where its records were moved. */
+export type CategoryDeleteResult = {
+  deleted: Category["id"];
+  reassigned: number;
+  reassigned_to: Category | null;
 };
 
 export type Artist = {
@@ -79,7 +96,7 @@ export type RecordInput = {
   artist: number | null;
   description: string | null;
   condition: string;
-  genere: number | null;
+  generes: number[];
   cover_image_url: string | null;
   price: number;
   cost_price: number;
@@ -169,6 +186,15 @@ export interface RecordRepository {
   /** Reassignment + delete run in one DB transaction (409 artist_in_use without a target). */
   deleteArtist(id: Artist["id"], reassign: ArtistReassign): Promise<ArtistDeleteResult>;
   getOwners(): Promise<Owner[]>;
+  /** Admin: formats and genres. */
+  createCategory(input: CatalogTermInput): Promise<Category>;
+  updateCategory(id: Category["id"], input: Partial<CatalogTermInput>): Promise<Category>;
+  /** 409 category_in_use when records use it and no `reassign_to` is given. */
+  deleteCategory(id: Category["id"], reassignTo?: Category["id"]): Promise<CategoryDeleteResult>;
+  createGenre(input: CatalogTermInput): Promise<Genere>;
+  updateGenre(id: Genere["id"], input: Partial<CatalogTermInput>): Promise<Genere>;
+  /** Its records stay; they only lose this genre. */
+  deleteGenre(id: Genere["id"]): Promise<{ deleted: Genere["id"]; records_count: number }>;
   createOwner(input: { name: string; email: string }): Promise<Owner>;
   /** Existing records with the same title (+ artist), ignoring case/accents. */
   findMatches(title: string, artist: string): Promise<Record[]>;
