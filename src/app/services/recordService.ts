@@ -4,7 +4,9 @@ import type {
   ArtistDeleteResult,
   ArtistReassign,
   ArtistUsage,
+  CatalogTermInput,
   Category,
+  CategoryDeleteResult,
   Genere,
   Owner,
   Record,
@@ -88,6 +90,47 @@ async getCategories() {
         token: getToken?.() ?? undefined,
         body: { name }
       });
+    },
+    async createCategory(input: CatalogTermInput) {
+      return http<Category>(withBase(baseUrl, "/categories/create"), {
+        method: "POST",
+        token: getToken?.() ?? undefined,
+        body: input
+      });
+    },
+    async updateCategory(id: Category["id"], input: Partial<CatalogTermInput>) {
+      return http<Category>(withBase(baseUrl, `/categories/${id}/update`), {
+        method: "PATCH",
+        token: getToken?.() ?? undefined,
+        body: input
+      });
+    },
+    async deleteCategory(id: Category["id"], reassignTo?: Category["id"]) {
+      return http<CategoryDeleteResult>(withBase(baseUrl, `/categories/${id}/delete`), {
+        method: "DELETE",
+        token: getToken?.() ?? undefined,
+        body: reassignTo === undefined ? {} : { reassign_to: reassignTo }
+      });
+    },
+    async createGenre(input: CatalogTermInput) {
+      return http<Genere>(withBase(baseUrl, "/generes/create"), {
+        method: "POST",
+        token: getToken?.() ?? undefined,
+        body: input
+      });
+    },
+    async updateGenre(id: Genere["id"], input: Partial<CatalogTermInput>) {
+      return http<Genere>(withBase(baseUrl, `/generes/${id}/update`), {
+        method: "PATCH",
+        token: getToken?.() ?? undefined,
+        body: input
+      });
+    },
+    async deleteGenre(id: Genere["id"]) {
+      return http<{ deleted: Genere["id"]; records_count: number }>(
+        withBase(baseUrl, `/generes/${id}/delete`),
+        { method: "DELETE", token: getToken?.() ?? undefined }
+      );
     },
     async getOwners() {
       return http<Owner[]>(withBase(baseUrl, "/owners"), {

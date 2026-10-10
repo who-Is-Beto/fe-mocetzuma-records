@@ -80,24 +80,43 @@ export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props)
       {report.isSuccess && sales.length > 0 && totals && (
         <>
           {/* ── Totals ── */}
-          <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {[
               { label: "Ventas", value: String(sales.length) },
               { label: `Subtotal${ownerSuffix}`, value: currency(totals.subtotal) },
               { label: `Comisiones${ownerSuffix}`, value: currency(totals.commission) },
-              { label: `Total neto${ownerSuffix}`, value: currency(totals.net), strong: true }
+              { label: `Total neto${ownerSuffix}`, value: currency(totals.net), strong: true },
+              { label: `Costo${ownerSuffix}`, value: currency(totals.cost) },
+              {
+                label: `${Number(totals.profit) < 0 ? "Pérdida" : "Ganancia"}${ownerSuffix}`,
+                value: currency(totals.profit),
+                strong: true,
+                negative: Number(totals.profit) < 0
+              }
             ].map((tile) => (
               <div
                 key={tile.label}
                 className="rounded-2xl border border-navy/10 bg-cream/80 px-4 py-3 shadow-card backdrop-blur"
               >
                 <dt className="text-[11px] uppercase tracking-[0.16em] text-orange">{tile.label}</dt>
-                <dd className={`mt-1 font-semibold ${tile.strong ? "text-lg text-denim" : "text-navy"}`}>
+                <dd
+                  className={`mt-1 font-semibold tabular-nums ${tile.strong ? "text-lg" : ""} ${
+                    tile.negative ? "text-coral" : tile.strong ? "text-denim" : "text-navy"
+                  }`}
+                >
                   {tile.value}
                 </dd>
               </div>
             ))}
           </dl>
+          {totals.units_without_cost > 0 && (
+            <p role="status" className="mt-2 rounded-xl border border-orange/40 bg-sun/30 px-4 py-2.5 text-xs text-navy">
+              ⚠️ {totals.units_without_cost}{" "}
+              {totals.units_without_cost === 1 ? "disco vendido no tenía" : "discos vendidos no tenían"} precio de
+              costo registrado: cuentan como ganancia completa. Registra el costo en cada disco para que las
+              próximas ventas lo guarden.
+            </p>
+          )}
 
           {/* ── Tickets ── */}
           <ul className="mt-4 space-y-3">
@@ -172,6 +191,19 @@ export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props)
                           <p className="text-xs text-navy/50">
                             {item.quantity} × {currency(item.price)}
                           </p>
+                          {/* Line profit; "sin costo" says it's the full net because no cost was saved */}
+                          {Number(item.cost_price) > 0 ? (
+                            <p
+                              className={`text-xs font-semibold ${
+                                Number(item.profit) < 0 ? "text-coral" : "text-green-800"
+                              }`}
+                              title={`Costo: ${item.quantity} × ${currency(item.cost_price)}`}
+                            >
+                              {Number(item.profit) < 0 ? "Pérdida" : "Ganancia"} {currency(item.profit)}
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-navy/40">Sin costo registrado</p>
+                          )}
                         </div>
                       </li>
                     );
@@ -192,6 +224,16 @@ export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props)
                   <div className="flex gap-2 font-semibold">
                     <dt className="text-navy">Total final</dt>
                     <dd className="text-denim">{currency(sale.final_sale_price)}</dd>
+                  </div>
+                  <div className="flex gap-2">
+                    <dt className="text-navy/60">Costo</dt>
+                    <dd className="text-navy">−{currency(sale.cost)}</dd>
+                  </div>
+                  <div className="flex gap-2 font-semibold">
+                    <dt className="text-navy">{Number(sale.profit) < 0 ? "Pérdida" : "Ganancia"}</dt>
+                    <dd className={Number(sale.profit) < 0 ? "text-coral" : "text-green-800"}>
+                      {currency(sale.profit)}
+                    </dd>
                   </div>
                 </dl>
               </li>
