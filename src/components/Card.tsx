@@ -1,7 +1,7 @@
 import type { JSX } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { Record } from "../app/domain/album";
-import { getEffectivePrice } from "../app/domain/album";
+import { conditionInfo, getEffectivePrice } from "../app/domain/album";
 import { Button } from "./Button";
 import { useAuth } from "../app/providers/AuthProvider";
 import { useState } from "react";
@@ -28,6 +28,16 @@ const getArtistName = (artist?: string | { name?: string } | null) => {
 
 export function Card({ record, priority = false }: CardProps): JSX.Element {
   const { token, isAuthenticated, emailVerified } = useAuth();
+  const navigate = useNavigate();
+  const detailPath = `/records/${record.slug ?? record.id}`;
+  // Same record in several conditions: one card, the buyer picks the copy in the detail page.
+  const copies = record.copies ?? [];
+  const hasCopies = copies.length > 1;
+  const stock = hasCopies ? copies.reduce((sum, c) => sum + c.stock, 0) : record.stock;
+  const copyPrices = (copies.some((c) => c.stock > 0) ? copies.filter((c) => c.stock > 0) : copies).map(
+    (c) => getEffectivePrice(c).effective
+  );
+  const fromPrice = hasCopies && new Set(copyPrices).size > 1 ? Math.min(...copyPrices) : null;
   const [status, setStatus] = useState<"idle" | "adding" | "added" | "error">("idle");
   const [toast, setToast] = useState<{ message: string; tone: "error" | "success" } | null>(null);
 
@@ -85,7 +95,7 @@ export function Card({ record, priority = false }: CardProps): JSX.Element {
 
   return (
     <Link
-      to={`/records/${record.slug ?? record.id}`}
+      to={detailPath}
       className="group relative flex flex-col gap-3 overflow-hidden rounded-[22px] border border-navy/10 bg-cream/85 p-4 shadow-panel backdrop-blur transition hover:-translate-y-0.5 hover:shadow-panel focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange"
     >
       <article className="flex flex-col gap-3">
@@ -121,15 +131,17 @@ export function Card({ record, priority = false }: CardProps): JSX.Element {
               <span className="rounded-pill bg-sun px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-navy shadow-sm">
                 {record.category && record.category.name}
               </span>
-              <span className="rounded-pill border border-navy/10 bg-white px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/70">
-                {record.condition}
-              </span>
+              {!hasCopies && (
+                <span className="rounded-pill border border-navy/10 bg-white px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/70">
+                  {record.condition}
+                </span>
+              )}
             </div>
             <span className="rounded-pill border border-navy/10 bg-navy/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/70">
-              {record.stock > 0
-                ? record.stock === 1
+              {stock > 0
+                ? stock === 1
                   ? "1 en stock"
-                  : `${record.stock} en stock`
+                  : `${stock} en stock`
                 : "Agotado"}
             </span>
           </div>
@@ -139,8 +151,52 @@ export function Card({ record, priority = false }: CardProps): JSX.Element {
           <p className="text-sm text-navy/70">{getArtistName(record.artist)}</p>
         </div>
 
+        {/* Copies in other conditions: each chip opens the detail with that copy picked */}
+        {hasCopies && (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-orange">
+              {copies.length} condiciones
+            </p>
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
+              {copies.map((copy) => {
+                const info = conditionInfo(copy.condition);
+                const soldOut = copy.stock <= 0;
+                return (
+                  <li key={copy.id}>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        navigate(`${detailPath}?copia=${copy.id}`);
+                      }}
+                      title={info ? `${info.label}: ${info.hint}` : copy.condition}
+                      aria-label={`${info?.label ?? copy.condition}, ${currency(getEffectivePrice(copy).effective)}${soldOut ? ", agotado" : ""}`}
+                      className={`inline-flex min-h-[28px] items-center gap-1.5 rounded-pill border px-2.5 text-[11px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange ${
+                        soldOut
+                          ? "border-navy/10 bg-white/50 text-navy/40"
+                          : "border-navy/15 bg-white text-navy hover:border-orange hover:text-orange"
+                      }`}
+                    >
+                      <span className={soldOut ? "line-through" : "text-denim"}>{copy.condition}</span>
+                      <span className="tabular-nums">{currency(getEffectivePrice(copy).effective)}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-2 pt-1">
-          {(() => {
+          {fromPrice !== null ? (
+            <span className="inline-flex flex-col">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-navy/50">Desde</span>
+              <span className="rounded-pill bg-white/90 px-3 py-1 text-sm font-semibold text-navy shadow-sm">
+                {currency(fromPrice)} MXN
+              </span>
+            </span>
+          ) : (() => {
             const { original, effective, hasDiscount } = getEffectivePrice(record);
             return (
               <span className="inline-flex flex-col">
@@ -159,15 +215,19 @@ export function Card({ record, priority = false }: CardProps): JSX.Element {
             <Button
               tone="orange"
               className="px-3 py-1 text-xs"
-              disabled={status === "adding" || requiresVerification || record.stock <= 0}
-              title={requiresVerification ? verifyHint : undefined}
+              disabled={status === "adding" || stock <= 0 || (requiresVerification && !hasCopies)}
+              title={requiresVerification && !hasCopies ? verifyHint : undefined}
               onClick={(event) => {
                 event.preventDefault();
-                void handleAdd();
+                // Several conditions: the buyer picks which copy in the detail page.
+                if (hasCopies) navigate(detailPath);
+                else void handleAdd();
               }}
             >
-              {record.stock <= 0
+              {stock <= 0
                 ? "Agotado"
+                : hasCopies
+                ? "Elegir condición"
                 : requiresVerification
                 ? "Verifica tu correo"
                 : status === "added"
@@ -176,7 +236,7 @@ export function Card({ record, priority = false }: CardProps): JSX.Element {
                 ? "Añadiendo..."
                 : "Añadir al carrito"}
             </Button>
-            {requiresVerification ? (
+            {requiresVerification && !hasCopies ? (
               <span className="max-w-[150px] text-right text-[10px] leading-tight text-navy/60">
                 Verifica tu correo para comprar
               </span>

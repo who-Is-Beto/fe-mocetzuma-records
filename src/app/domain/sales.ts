@@ -41,7 +41,7 @@ export type SaleItem = {
   email_sent: boolean;
 };
 
-/** One ticket: everything the printable receipt needs. Money is decimal strings. */
+/** One ticket with its items. Money is decimal strings. */
 export type Sale = {
   id: number;
   created_at: string;
@@ -53,7 +53,7 @@ export type Sale = {
   subtotal: string;
   /** Subtotal minus commission. */
   final_sale_price: string;
-  /** Admin only (never printed): cost of the records sold, and final − cost. */
+  /** Cost of the records sold, and final − cost. */
   cost: string;
   profit: string;
   items: SaleItem[];

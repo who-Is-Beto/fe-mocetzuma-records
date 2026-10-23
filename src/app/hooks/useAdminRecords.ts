@@ -59,9 +59,10 @@ export function useAdminRecords({ token }: Options): {
       try {
         // Both /records/ and /search/ return the same paginated envelope
         // (count/next/previous/results); search pages through matches too.
+        // Every copy in its own row: each condition is sold and edited apart.
         const data: RecordPage = query.trim()
-          ? await recordService.search({ query: query.trim(), page: pageNum })
-          : await recordService.list({ page: pageNum });
+          ? await recordService.search({ query: query.trim(), page: pageNum, all_copies: true })
+          : await recordService.list({ page: pageNum, all_copies: true });
         if (seq !== loadSeqRef.current) return false; // stale response
         setRecords(data.results ?? []);
         setTotalCount(data.count ?? 0);
