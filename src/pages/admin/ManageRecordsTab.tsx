@@ -6,19 +6,13 @@ import { Button } from "../../components/Button";
 import { Toast } from "../../components/Toast";
 import { Img } from "../../components/Img";
 import { extractErrorMessage } from "../../app/lib/httpClient";
-import type { Record as AlbumRecord, RecordOwnerStock } from "../../app/domain/album";
+import type { Record as AlbumRecord } from "../../app/domain/album";
 import { getEffectivePrice } from "../../app/domain/album";
 import { currency } from "../../app/lib/format";
 import { useAdminRecords } from "../../app/hooks/useAdminRecords";
-import {
-  DEFAULT_CARD_COMMISSION_RATE,
-  PAYMENT_METHOD_LABELS,
-  commissionCents,
-  toCents,
-  type PaymentMethod,
-  type Sale,
-} from "../../app/domain/sales";
-import { ReceiptPrinter } from "./sales/SaleReceipt";
+import { createRecordService } from "../../app/services/recordService";
+import { SaleTicket } from "./sales/SaleTicket";
+import { subtotalCents, type TicketLine } from "./sales/ticket";
 import type { EditReturn } from "./AdminPage";
 
 /* Pills show the grading code (NM, VG+…); the full name is the tooltip. */
@@ -40,29 +34,6 @@ type Props = {
   onReturnHandled?: () => void;
 };
 
-/** A line of the sale ticket; `price` is the raw input value (unit, MXN).
- * `owners` are the ones with stock (null while loading). With several owners
- * `split` says how many units of each are sold and `quantity` is their sum. */
-type TicketLine = {
-  record: AlbumRecord;
-  quantity: number;
-  price: string;
-  owners: RecordOwnerStock[] | null;
-  split: { [ownerId: string]: number };
-};
-
-const isSplit = (line: TicketLine) => (line.owners?.length ?? 0) > 1;
-
-const PAYMENT_OPTIONS: { method: PaymentMethod; icon: string }[] = [
-  { method: "cash", icon: "💵" },
-  { method: "card", icon: "💳" },
-  { method: "transfer", icon: "🏦" },
-];
-
-/** 0–100 with at most two decimals, like the backend's commission_rate field. */
-const isValidRate = (rate: string) =>
-  /^\d{1,3}(\.\d{1,2})?$/.test(rate.trim()) && Number(rate) <= 100;
-
 /* ── Component ── */
 
 export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props) {
@@ -71,6 +42,8 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
   const canDelete = hasPerm("apiApp.delete_record");
   const { records, totalCount, hasNext, loading, error, loadPage, sell, loadForEdit, remove } =
     useAdminRecords({ token });
+  // The sale ticket's owner picker / record updates ("Antes de vender").
+  const recordService = useMemo(() => createRecordService({ getToken: () => token }), [token]);
 
   // ?q= and ?page= live in the URL (AdminPage owns ?tab/?edit), so a reload,
   // Back, or closing the editor lands on the same search and page.
@@ -110,14 +83,6 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
   /* ── Sale ticket: "Vender" adds a record; several records → one sale ── */
   const [ticket, setTicket] = useState<TicketLine[]>([]);
   const [ticketOpen, setTicketOpen] = useState(false);
-  const [selling, setSelling] = useState(false);
-  const [sellError, setSellError] = useState<string | null>(null);
-  // The registered sale: the modal shows the success state + "Imprimir ticket".
-  const [soldSale, setSoldSale] = useState<Sale | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
-  const [commissionRate, setCommissionRate] = useState(DEFAULT_CARD_COMMISSION_RATE);
-  const [printing, setPrinting] = useState<Sale | null>(null);
-  const stopPrinting = useCallback(() => setPrinting(null), []);
   const [toast, setToast] = useState<{ tone: "warning" | "error"; message: string } | null>(null);
 
   /* ── Permanent delete ── */
@@ -158,81 +123,37 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
     }
     setTicket((prev) => [
       ...prev,
-      { record, quantity: 1, price: String(record.sell_price || record.price || ""), owners: null, split: {} },
+      {
+        record,
+        quantity: 1,
+        price: String(record.sell_price || record.price || ""),
+        owners: null,
+        cost: null,
+        split: {},
+      },
     ]);
-    setSellError(null);
     setTicketOpen(true);
-    // List rows don't carry owners (admin-only field): load whose units it has.
+    // List rows don't carry owners/cost (admin-only fields): load the full record.
     loadForEdit(record.id)
       .then((full) => {
         const owners = (full.owners ?? []).filter((o) => o.quantity > 0);
+        const cost = String(full.cost_price ?? "0");
         // Several owners: nothing picked yet, the admin says how many of whose.
-        updateLine(record.id, owners.length > 1 ? { owners, quantity: 0 } : { owners });
+        updateLine(record.id, owners.length > 1 ? { owners, cost, quantity: 0 } : { owners, cost });
       })
-      .catch(() => updateLine(record.id, { owners: [] }));
+      // Unknown owner/cost: sell as is (the backend resolves the owner) without asking.
+      .catch(() => updateLine(record.id, { owners: [], cost: "1" }));
   };
 
   const updateLine = (id: AlbumRecord["id"], changes: Partial<TicketLine>) =>
     setTicket((prev) => prev.map((l) => (l.record.id === id ? { ...l, ...changes } : l)));
 
-  // An empty price means the record's current price (the backend's default too).
-  const unitPrice = (line: TicketLine) =>
-    Number(line.price.trim() || line.record.sell_price || line.record.price) || 0;
-  // Integer cents, so the preview matches the backend's Decimal math exactly.
-  const subtotalCents = ticket.reduce((sum, l) => sum + toCents(unitPrice(l)) * l.quantity, 0);
-  const rateValid = isValidRate(commissionRate);
-  const feeCents =
-    paymentMethod === "card" && rateValid ? commissionCents(subtotalCents, commissionRate) : 0;
-  const canConfirm =
-    paymentMethod !== null &&
-    (paymentMethod !== "card" || rateValid) &&
-    ticket.every((l) => l.owners !== null && l.quantity > 0);
-
   /** Clears the ticket for the next sale (after it was registered or discarded). */
   const resetTicket = () => {
     setTicket([]);
     setTicketOpen(false);
-    setSoldSale(null);
-    setPaymentMethod(null);
-    setCommissionRate(DEFAULT_CARD_COMMISSION_RATE);
   };
-
-  const closeTicket = () => {
-    if (selling) return;
-    if (soldSale) resetTicket();
-    else setTicketOpen(false);
-  };
-
-  const confirmSell = async () => {
-    if (!paymentMethod || !canConfirm) return;
-    setSelling(true);
-    setSellError(null);
-    try {
-      const { sale, warnings } = await sell(
-        // A split line goes out as one sale line per owner.
-        ticket.flatMap((l) => {
-          const price = l.price.trim() || undefined;
-          if (!isSplit(l)) return [{ record: l.record, quantity: l.quantity, price }];
-          return Object.entries(l.split)
-            .filter(([, quantity]) => quantity > 0)
-            .map(([owner, quantity]) => ({ record: l.record, quantity, price, owner: Number(owner) }));
-        }),
-        {
-          payment_method: paymentMethod,
-          commission_rate: paymentMethod === "card" ? commissionRate.trim() : undefined,
-        }
-      );
-      setSoldSale(sale);
-      // No owner / failed email never undo the sale: warn without blocking.
-      if (warnings.length > 0) {
-        setToast({ tone: "warning", message: `Venta registrada. ${warnings.join(" ")}` });
-      }
-    } catch (err: unknown) {
-      setSellError(extractErrorMessage(err, "Error al registrar la venta."));
-    } finally {
-      setSelling(false);
-    }
-  };
+  const inTicket = (id: AlbumRecord["id"]) => ticket.some((l) => l.record.id === id);
 
   /* ── Editar: list rows lack description/weight/etc., so edit the full record ── */
   const openEditor = async (record: AlbumRecord) => {
@@ -363,16 +284,19 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
         />
       </div>
 
-      {/* ── Sale in progress (ticket closed to add more records) ── */}
+      {/* ── Sale in progress (ticket closed to add more records): floats at
+           the bottom on phones so "Continuar venta" is always under the thumb ── */}
       {!ticketOpen && ticket.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-orange/40 bg-orange/10 px-4 py-2.5">
-          <span className="text-sm font-semibold text-navy">
-            🧾 Venta en curso: {ticket.length} {ticket.length === 1 ? "disco" : "discos"} ·{" "}
-            {currency(subtotalCents / 100)}
+        <div className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex items-center justify-between gap-3 rounded-2xl border border-orange/40 bg-sand/95 px-4 py-2.5 shadow-panel backdrop-blur animate-toast-in md:static md:mt-3 md:rounded-xl md:bg-orange/10 md:shadow-none md:backdrop-blur-none">
+          <span className="min-w-0 text-sm font-semibold text-navy">
+            <span aria-hidden="true">🧾 </span>Venta en curso
+            <span className="block text-xs font-normal text-navy/60 md:ml-1 md:inline">
+              {ticket.length} {ticket.length === 1 ? "disco" : "discos"} · {currency(subtotalCents(ticket) / 100)}
+            </span>
           </span>
           <button
             onClick={() => setTicketOpen(true)}
-            className="rounded-pill bg-orange px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-orange/80"
+            className="min-h-[44px] shrink-0 rounded-pill bg-orange px-5 text-xs font-semibold text-charcoal shadow-sm transition hover:bg-amber"
           >
             Continuar venta
           </button>
@@ -482,7 +406,14 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
                         {typeof record.artist === "object" && record.artist
                           ? record.artist.name
                           : T.shared.unknownArtist}
+                        {/* The condition column only shows from xl; copies of one record differ by it */}
+                        <span className="xl:hidden"> · {record.condition}</span>
                       </p>
+                      {(record.copies?.length ?? 0) > 1 && (
+                        <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange">
+                          {record.copies!.length} condiciones
+                        </p>
+                      )}
                     </td>
                     <td className="hidden px-3 py-3 xl:table-cell lg:px-4">
                       <span
@@ -522,9 +453,14 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
                             <button
                               onClick={() => addToTicket(record)}
                               disabled={(record.stock ?? 0) <= 0}
-                              className="rounded-full bg-orange px-3 py-1 text-[11px] font-semibold text-white transition hover:bg-orange/80 disabled:opacity-40"
+                              aria-pressed={inTicket(record.id)}
+                              className={`rounded-full px-3 py-1 text-[11px] font-semibold transition disabled:opacity-40 ${
+                                inTicket(record.id)
+                                  ? "border border-orange bg-white text-orange hover:bg-orange/10"
+                                  : "bg-orange text-white hover:bg-orange/80"
+                              }`}
                             >
-                              Vender
+                              {inTicket(record.id) ? "✓ En venta" : "Vender"}
                             </button>
                             <button
                               onClick={() => void openEditor(record)}
@@ -628,6 +564,11 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
                         ★
                       </span>
                     )}
+                    {(record.copies?.length ?? 0) > 1 && (
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-orange">
+                        {record.copies!.length} condiciones
+                      </span>
+                    )}
                   </div>
                   <div className="mt-2 flex items-center gap-2">
                     {canEdit && (
@@ -635,13 +576,18 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
                         <button
                           onClick={() => addToTicket(record)}
                           disabled={(record.stock ?? 0) <= 0}
-                          className="rounded-full bg-orange px-3 py-1 text-[11px] font-semibold text-white transition hover:bg-orange/80 disabled:opacity-40"
+                          aria-pressed={inTicket(record.id)}
+                          className={`min-h-[36px] rounded-full px-4 text-xs font-semibold transition disabled:opacity-40 ${
+                            inTicket(record.id)
+                              ? "border border-orange bg-white text-orange hover:bg-orange/10"
+                              : "bg-orange text-white hover:bg-orange/80"
+                          }`}
                         >
-                          Vender
+                          {inTicket(record.id) ? "✓ En venta" : "Vender"}
                         </button>
                         <button
                           onClick={() => void openEditor(record)}
-                          className="rounded-full border border-navy/15 bg-white px-3 py-1 text-[11px] font-semibold text-navy transition hover:bg-navy/5"
+                          className="min-h-[36px] rounded-full border border-navy/15 bg-white px-4 text-xs font-semibold text-navy transition hover:bg-navy/5"
                         >
                           Editar
                         </button>
@@ -708,264 +654,23 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
         </>
       )}
 
-      {/* ── Sale ticket modal: one or more records, one sale ── */}
-      {ticketOpen && ticket.length > 0 && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm animate-overlay-in"
-          onClick={closeTicket}
-        >
-          <div
-            className="w-full max-w-lg rounded-2xl border border-navy/10 bg-sand p-5 shadow-panel animate-modal-in sm:p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-display text-lg text-denim">Registrar venta</h3>
-            <p className="mt-1 text-xs text-navy/60">
-              Para vender varios discos juntos usa «Agregar otro disco». Cada
-              dueño recibe un correo solo con sus discos.
-            </p>
-
-            {soldSale ? (
-              <>
-                <div className="mt-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                  Venta #{soldSale.id} registrada correctamente · Total final{" "}
-                  <span className="font-semibold">{currency(soldSale.final_sale_price)}</span>
-                </div>
-                <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
-                  <button
-                    onClick={resetTicket}
-                    className="rounded-full border border-navy/15 bg-white px-4 py-2 text-xs font-semibold text-navy transition hover:bg-navy/5"
-                  >
-                    Cerrar
-                  </button>
-                  <button
-                    onClick={() => setPrinting(soldSale)}
-                    className="rounded-pill bg-orange px-5 py-2 text-xs font-semibold text-charcoal shadow-panel transition hover:bg-amber"
-                  >
-                    🖨 Imprimir ticket
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <ul className="mt-4 max-h-[50vh] space-y-3 overflow-y-auto">
-                  {ticket.map((line) => (
-                    <li
-                      key={line.record.id}
-                      className="rounded-xl border border-navy/10 bg-white/70 p-3"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="min-w-0 text-sm font-semibold text-navy">
-                          {line.record.title}
-                          {typeof line.record.artist === "object" &&
-                            line.record.artist &&
-                            ` — ${line.record.artist.name}`}
-                        </p>
-                        <button
-                          onClick={() =>
-                            setTicket((prev) => prev.filter((l) => l.record.id !== line.record.id))
-                          }
-                          disabled={selling}
-                          aria-label={`Quitar ${line.record.title} de la venta`}
-                          className="shrink-0 rounded-full px-2 text-sm text-coral transition hover:bg-coral/10 disabled:opacity-50"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      <div className="mt-2 grid grid-cols-2 gap-3">
-                        {isSplit(line) ? (
-                          <p className="text-[11px] font-semibold text-navy/60">
-                            Cantidad
-                            <span className="mt-1 block px-1 py-2 text-sm text-navy">
-                              {line.quantity} (stock: {line.record.stock ?? 0})
-                            </span>
-                          </p>
-                        ) : (
-                          <label className="block text-[11px] font-semibold text-navy/60">
-                            Cantidad (stock: {line.record.stock ?? 0})
-                            <input
-                              type="number"
-                              min={1}
-                              max={line.record.stock ?? 0}
-                              value={line.quantity}
-                              onChange={(e) =>
-                                updateLine(line.record.id, {
-                                  quantity: Math.max(
-                                    1,
-                                    Math.min(Number(e.target.value) || 1, line.record.stock ?? 0)
-                                  ),
-                                })
-                              }
-                              className="mt-1 w-full rounded-xl border border-navy/15 bg-white px-3 py-2 text-sm text-navy outline-none transition focus:border-orange focus:ring-2 focus:ring-orange/30"
-                            />
-                          </label>
-                        )}
-                        <label className="block text-[11px] font-semibold text-navy/60">
-                          Precio unitario (MXN)
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            value={line.price}
-                            onChange={(e) => updateLine(line.record.id, { price: e.target.value })}
-                            className="mt-1 w-full rounded-xl border border-navy/15 bg-white px-3 py-2 text-sm text-navy outline-none transition focus:border-orange focus:ring-2 focus:ring-orange/30"
-                          />
-                        </label>
-                      </div>
-                      {line.owners === null && (
-                        <p className="mt-2 text-[11px] text-navy/50 animate-pulse">Cargando dueños…</p>
-                      )}
-                      {/* Several owners have it: how many of whose, like the record form */}
-                      {line.owners && isSplit(line) && (
-                        <fieldset className="mt-2">
-                          <legend className="text-[11px] font-semibold text-navy/60">
-                            ¿De quién son los que vendes? <span className="text-coral">*</span>
-                          </legend>
-                          <ul className="mt-1 space-y-1.5">
-                            {line.owners.map((o) => (
-                              <li key={o.owner} className="flex items-center gap-2">
-                                <span className="min-w-0 flex-1 truncate text-sm text-navy">
-                                  {o.owner_name}{" "}
-                                  <span className="text-[11px] text-navy/50">({o.quantity} en stock)</span>
-                                </span>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={o.quantity}
-                                  value={line.split[o.owner] ?? 0}
-                                  aria-label={`Cantidad de ${o.owner_name}`}
-                                  disabled={selling}
-                                  onChange={(e) => {
-                                    const split: TicketLine["split"] = {
-                                      ...line.split,
-                                      [o.owner]: Math.max(0, Math.min(Number(e.target.value) || 0, o.quantity)),
-                                    };
-                                    const quantity = Object.values(split).reduce((sum, n) => sum + n, 0);
-                                    updateLine(line.record.id, { split, quantity });
-                                  }}
-                                  className="w-20 rounded-xl border border-navy/15 bg-white px-3 py-1.5 text-sm text-navy outline-none transition focus:border-orange focus:ring-2 focus:ring-orange/30"
-                                />
-                              </li>
-                            ))}
-                          </ul>
-                          {line.quantity === 0 && (
-                            <p className="mt-1 text-[11px] font-semibold text-coral">
-                              Indica cuántos vendes de cada dueño.
-                            </p>
-                          )}
-                        </fieldset>
-                      )}
-                      {line.owners?.length === 1 && (
-                        <p className="mt-2 text-[11px] text-navy/50">Dueño: {line.owners[0].owner_name}</p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-
-                {/* ── Payment method (required) + card commission ── */}
-                <fieldset className="mt-4">
-                  <legend className="text-[11px] font-semibold text-navy/60">
-                    Forma de pago <span className="text-coral">*</span>
-                  </legend>
-                  <div className="mt-1.5 grid grid-cols-3 gap-2">
-                    {PAYMENT_OPTIONS.map(({ method, icon }) => (
-                      <label
-                        key={method}
-                        className="flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-navy/15 bg-white px-2 py-2.5 text-xs font-semibold text-navy transition hover:border-orange has-[:checked]:border-orange has-[:checked]:bg-orange has-[:checked]:text-charcoal has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-orange/30 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50"
-                      >
-                        <input
-                          type="radio"
-                          name="payment_method"
-                          value={method}
-                          checked={paymentMethod === method}
-                          onChange={() => setPaymentMethod(method)}
-                          disabled={selling}
-                          className="sr-only"
-                        />
-                        <span aria-hidden="true">{icon}</span>
-                        {PAYMENT_METHOD_LABELS[method]}
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-
-                {paymentMethod === "card" && (
-                  <label className="mt-3 flex items-center justify-between gap-3 text-[11px] font-semibold text-navy/60">
-                    Comisión por tarjeta (%)
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step="0.01"
-                      inputMode="decimal"
-                      value={commissionRate}
-                      onChange={(e) => setCommissionRate(e.target.value)}
-                      disabled={selling}
-                      aria-invalid={!rateValid}
-                      className={`w-24 rounded-xl border bg-white px-3 py-2 text-right text-sm text-navy outline-none transition focus:border-orange focus:ring-2 focus:ring-orange/30 ${
-                        rateValid ? "border-navy/15" : "border-coral"
-                      }`}
-                    />
-                  </label>
-                )}
-                {paymentMethod === "card" && !rateValid && (
-                  <p className="mt-1 text-right text-[11px] text-coral">
-                    Usa un porcentaje entre 0 y 100 (máx. 2 decimales).
-                  </p>
-                )}
-
-                <dl className="mt-4 space-y-1 rounded-xl border border-navy/10 bg-white/70 px-4 py-3 text-sm text-navy">
-                  <div className="flex justify-between">
-                    <dt className="text-navy/60">Subtotal</dt>
-                    <dd>{currency(subtotalCents / 100)}</dd>
-                  </div>
-                  {paymentMethod === "card" && (
-                    <div className="flex justify-between">
-                      <dt className="text-navy/60">
-                        Comisión tarjeta ({rateValid ? Number(commissionRate) : "—"}%)
-                      </dt>
-                      <dd className="text-coral">−{currency(feeCents / 100)}</dd>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t border-navy/10 pt-1.5 font-semibold">
-                    <dt>Total final</dt>
-                    <dd className="text-lg text-denim">{currency((subtotalCents - feeCents) / 100)}</dd>
-                  </div>
-                </dl>
-
-                {sellError && (
-                  <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
-                    {sellError}
-                  </div>
-                )}
-
-                <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
-                  <button
-                    onClick={resetTicket}
-                    disabled={selling}
-                    className="rounded-full border border-navy/15 bg-white px-4 py-2 text-xs font-semibold text-navy transition hover:bg-navy/5 disabled:opacity-50"
-                  >
-                    Descartar
-                  </button>
-                  <button
-                    onClick={() => setTicketOpen(false)}
-                    disabled={selling}
-                    className="rounded-full border border-orange/40 bg-white px-4 py-2 text-xs font-semibold text-orange transition hover:bg-orange/10 disabled:opacity-50"
-                  >
-                    + Agregar otro disco
-                  </button>
-                  <button
-                    onClick={confirmSell}
-                    disabled={selling || !canConfirm}
-                    title={paymentMethod ? undefined : "Elige la forma de pago"}
-                    className="rounded-pill bg-orange px-5 py-2 text-xs font-semibold text-white shadow-panel transition hover:bg-orange/80 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {selling ? "Procesando..." : "Confirmar venta"}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+      {/* ── Sale ticket: one or more records, one sale ── */}
+      {ticket.length > 0 && (
+        <SaleTicket
+          open={ticketOpen}
+          lines={ticket}
+          onUpdateLine={updateLine}
+          onRemoveLine={(id) => {
+            const rest = ticket.filter((l) => l.record.id !== id);
+            setTicket(rest);
+            if (rest.length === 0) setTicketOpen(false);
+          }}
+          onAddMore={() => setTicketOpen(false)}
+          onClose={() => setTicketOpen(false)}
+          onReset={resetTicket}
+          sell={sell}
+          recordService={recordService}
+        />
       )}
       {/* ── Delete confirmation modal ── */}
       {deleteTarget && (
@@ -1026,9 +731,7 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
         </div>
       )}
 
-      {printing && <ReceiptPrinter sale={printing} onDone={stopPrinting} />}
-
-      {/* ── Non-blocking notices: sale saved without an owner email, edit load failed ── */}
+      {/* ── Non-blocking notices: edit load failed ── */}
       {toast && (
         <Toast
           tone={toast.tone}

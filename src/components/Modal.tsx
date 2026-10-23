@@ -41,6 +41,12 @@ export function Modal({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const previouslyFocused = useRef<Element | null>(null);
   const isSheet = variant === "sheet";
+  // Latest close handler/flag for the key listener: callers pass inline arrows,
+  // and re-running the focus effect on each render would yank focus from inputs.
+  const closeRef = useRef({ onClose, dismissible });
+  useEffect(() => {
+    closeRef.current = { onClose, dismissible };
+  });
 
   /* ── Sheet motion: stay mounted while sliding out; `shown` = at rest on screen ── */
   const [rendered, setRendered] = useState(open);
@@ -100,9 +106,9 @@ export function Modal({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (!dismissible) return;
+        if (!closeRef.current.dismissible) return;
         event.stopPropagation();
-        onClose();
+        closeRef.current.onClose();
         return;
       }
       if (event.key !== "Tab" || !panelRef.current) return;
@@ -133,7 +139,7 @@ export function Modal({
         previouslyFocused.current.focus();
       }
     };
-  }, [open, dismissible, onClose]);
+  }, [open]);
 
   if (isSheet ? !rendered : !open) return null;
 

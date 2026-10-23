@@ -25,6 +25,8 @@ export function createSalesService(config: SalesServiceConfig = {}): {
   list(filters: SalesFilters): Promise<SalesReport>;
   /** Point of sale + online orders; `owner` is ignored. */
   metrics(filters: SalesFilters): Promise<SalesMetrics>;
+  /** Every sold line (point of sale + online) as CSV text, same filters as `list`. */
+  exportCsv(filters: SalesFilters): Promise<string>;
 } {
   const baseUrl = config.baseUrl ?? API_BASE_URL;
   const getToken = config.getToken;
@@ -45,6 +47,14 @@ export function createSalesService(config: SalesServiceConfig = {}): {
     },
     async metrics(filters) {
       return http<SalesMetrics>(withBase(baseUrl, "/sales/metrics"), {
+        token: getToken?.() ?? undefined,
+        query: filters
+      });
+    },
+    async exportCsv(filters) {
+      return http<string>(withBase(baseUrl, "/sales/export"), {
+        // Default JSON Accept on purpose: DRF 406s an Accept no renderer has;
+        // the view answers CSV anyway (errors still come back as JSON).
         token: getToken?.() ?? undefined,
         query: filters
       });

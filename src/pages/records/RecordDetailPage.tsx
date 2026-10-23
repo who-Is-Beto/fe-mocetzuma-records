@@ -1,11 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/Button";
 import { Loader } from "../../components/Loader";
 import { Toast } from "../../components/Toast";
 import { createRecordService } from "../../app/services/recordService";
-import type { Record as MusicRecord } from "../../app/domain/album";
-import { getEffectivePrice } from "../../app/domain/album";
+import type { Record as MusicRecord, RecordCopy } from "../../app/domain/album";
+import { conditionInfo, getEffectivePrice } from "../../app/domain/album";
 import { useServiceQuery } from "../../app/hooks";
 import { HttpError } from "../../app/lib/httpClient";
 import { useAuth } from "../../app/providers/AuthProvider";
@@ -14,6 +14,8 @@ import { useSeo } from "../../app/hooks/useSeo";
 import { Img } from "../../components/Img";
 import { currency } from "../../app/lib/format";
 import { getCartCode, persistCartCode } from "../../app/lib/cartStorage";
+import { ConditionPicker } from "./ConditionPicker";
+import { RecordDescription } from "./RecordDescription";
 
 type CarouselProps = { images: string[]; title: string };
 
@@ -119,6 +121,9 @@ export function RecordDetailPage() {
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
   const location = useLocation();
+  // ?copia=<id>: the condition picked among the record's copies (shareable link).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const copyParam = searchParams.get("copia");
   const { token, isAuthenticated, emailVerified } = useAuth();
   const [cartStatus, setCartStatus] = useState<
     "idle" | "adding" | "added" | "error"
@@ -196,18 +201,58 @@ export function RecordDetailPage() {
     }
   }, [cacheKey, recordService, slug]);
 
-  const { data, isLoading, isError, error } = useServiceQuery<MusicRecord | null>(
+  const { data: fetched, isLoading, isError, error } = useServiceQuery<MusicRecord | null>(
     [recordService, slug],
     fetchRecord,
     { initialData: cachedRecord ?? undefined, enabled: Boolean(slug) }
   );
+
+  /* ── Copies in other conditions: the picked one drives price, stock, photos and the cart ── */
+  const copies = useMemo(() => fetched?.copies ?? [], [fetched]);
+  const selectedCopy: RecordCopy | null = useMemo(() => {
+    if (copies.length < 2 || !fetched) return null;
+    return (
+      copies.find((c) => String(c.id) === copyParam) ??
+      copies.find((c) => String(c.id) === String(fetched.id) && c.stock > 0) ??
+      copies.find((c) => c.stock > 0) ??
+      copies.find((c) => String(c.id) === String(fetched.id)) ??
+      copies[0]
+    );
+  }, [copies, copyParam, fetched]);
+  const data: MusicRecord | null | undefined =
+    fetched && selectedCopy
+      ? {
+          ...fetched,
+          id: String(selectedCopy.id),
+          condition: selectedCopy.condition,
+          price: selectedCopy.price,
+          sell_price: selectedCopy.sell_price,
+          discount_porcentage: selectedCopy.discount_porcentage,
+          stock: selectedCopy.stock,
+          cover_image_url: selectedCopy.cover_image_url || fetched.cover_image_url,
+          images: selectedCopy.images?.length ? selectedCopy.images : fetched.images
+        }
+      : fetched;
+  const selectCopy = (copy: RecordCopy) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("copia", String(copy.id));
+        return next;
+      },
+      { replace: true }
+    );
 
   // Dynamic SEO: the record title + a short pitch once data arrives.
   useSeo({
     title: data?.title ?? null,
     description: data
       ? `${data.title} de ${data.artist.name} — vinilo ${
-          data.condition ? `(${data.condition})` : ""
+          copies.length > 1
+            ? `en ${copies.length} condiciones`
+            : data.condition
+            ? `(${data.condition})`
+            : ""
         } disponible en Moctezuma Records. Compra segura con envíos a todo México.`
       : undefined
   });
@@ -261,7 +306,7 @@ export function RecordDetailPage() {
   }
 
   const { original, effective: effectivePrice, discount: discountPct, hasDiscount } = getEffectivePrice(data);
-  const genereLabel = data.generes?.length ? data.generes.map((g) => g.name).join(", ") : "—";
+  const condition = conditionInfo(data.condition);
 
   const handleAddToCart = async () => {
     if (!isAuthenticated || !token) {
@@ -360,7 +405,8 @@ export function RecordDetailPage() {
                 </div>
               );
             }
-            return <RecordImageCarousel images={images} title={data.title} />;
+            // keyed by copy: a different condition starts on its own first photo
+            return <RecordImageCarousel key={data.id} images={images} title={data.title} />;
           })()}
           <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-1.5 sm:left-4 sm:top-4 sm:gap-2">
             <span className="rounded-pill bg-sun px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-navy shadow-sm sm:px-3 sm:py-1 sm:text-[11px]">
@@ -424,6 +470,8 @@ export function RecordDetailPage() {
               ? "Agregado"
               : cartStatus === "adding"
               ? "Añadiendo..."
+              : selectedCopy
+              ? `Agregar al carrito · ${data.condition}`
               : "Agregar al carrito"}
           </Button>
         </div>
@@ -467,7 +515,26 @@ export function RecordDetailPage() {
             )}
           </p>
 
+          {/* Genres: compact pills, each one opens the catalog filtered by it */}
+          {data.generes?.length ? (
+            <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={data.generes.length > 1 ? "Géneros" : "Género"}>
+              {data.generes.map((g) => (
+                <li key={g.id}>
+                  <Link
+                    to={`/catalogo?genere=${encodeURIComponent(g.slug)}`}
+                    className="inline-flex min-h-[28px] items-center rounded-pill border border-denim/15 bg-denim/5 px-3 text-[11px] font-semibold tracking-wide text-denim transition hover:border-orange hover:bg-orange/10 hover:text-orange focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange"
+                  >
+                    {g.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
           <div className="mt-4 space-y-3">
+            {selectedCopy && (
+              <ConditionPicker copies={copies} selectedId={selectedCopy.id} onSelect={selectCopy} />
+            )}
             <div className="flex flex-col gap-2 rounded-xl border border-navy/10 bg-cream/70 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.14em] text-orange">
@@ -489,12 +556,14 @@ export function RecordDetailPage() {
                   ) : null}
                 </div>
               </div>
-              <span className="rounded-pill border border-navy/10 bg-navy/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-navy/80">
-                {data.stock > 0 ? `${data.stock} en stock` : "Agotado"}
+              <span className="self-start rounded-pill border border-navy/10 bg-navy/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-navy/80 sm:self-auto">
+                {data.stock > 0
+                  ? `${data.stock} en stock${selectedCopy ? ` · ${data.condition}` : ""}`
+                  : "Agotado"}
               </span>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="rounded-xl border border-navy/10 bg-cream/60 p-4 shadow-inner">
                 <p className="text-xs uppercase tracking-[0.14em] text-orange">
                   Lanzamiento
@@ -515,12 +584,6 @@ export function RecordDetailPage() {
                     : "No especificado"}
                 </p>
               </div>
-              <div className="rounded-xl border border-navy/10 bg-cream/60 p-4 shadow-inner">
-                <p className="text-xs uppercase tracking-[0.14em] text-orange">
-                  {(data.generes?.length ?? 0) > 1 ? "Géneros" : "Género"}
-                </p>
-                <p className="font-semibold text-denim">{genereLabel}</p>
-              </div>
             </div>
           </div>
         </div>
@@ -530,30 +593,28 @@ export function RecordDetailPage() {
             Detalle
           </p>
           <div className="mt-3 grid gap-3 text-sm text-navy">
-            <div className="rounded-xl border border-navy/10 bg-cream/60 p-3 shadow-inner sm:p-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-orange">
-                Categoría
-              </p>
-              <p className="font-semibold text-denim">
-                {data.category?.name ?? "—"}
-              </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-navy/10 bg-cream/60 p-3 shadow-inner sm:p-4">
+                <p className="text-xs uppercase tracking-[0.14em] text-orange">
+                  Formato
+                </p>
+                <p className="font-semibold text-denim">
+                  {data.category?.name ?? "—"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-navy/10 bg-cream/60 p-3 shadow-inner sm:p-4">
+                <p className="text-xs uppercase tracking-[0.14em] text-orange">
+                  Estado
+                </p>
+                <p className="font-semibold text-denim" title={condition?.hint}>
+                  {data.condition ?? "—"}
+                  {condition && (
+                    <span className="ml-1.5 text-xs font-normal text-navy/60">{condition.label}</span>
+                  )}
+                </p>
+              </div>
             </div>
-            <div className="rounded-xl border border-navy/10 bg-cream/60 p-3 shadow-inner sm:p-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-orange">
-                Estado
-              </p>
-              <p className="font-semibold text-denim">
-                {data.condition ?? "—"}
-              </p>
-            </div>
-            <div className="rounded-xl border border-navy/10 bg-cream/60 p-3 shadow-inner sm:p-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-orange">
-                Descripción
-              </p>
-              <p className="text-sm text-navy/80">
-                {data.description ?? "Sin descripción"}
-              </p>
-            </div>
+            <RecordDescription description={data.description} />
           </div>
         </div>
 

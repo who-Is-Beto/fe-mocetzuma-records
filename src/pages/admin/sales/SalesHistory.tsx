@@ -1,11 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { Button } from "../../../components/Button";
 import { extractErrorMessage } from "../../../app/lib/httpClient";
 import { useServiceQuery } from "../../../app/hooks/useServiceQuery";
 import type { createSalesService } from "../../../app/services/salesService";
 import { PAYMENT_METHOD_LABELS, type Sale } from "../../../app/domain/sales";
 import { currency, formatStoreDateTime } from "../../../app/lib/format";
-import { ReceiptPrinter } from "./SaleReceipt";
 import { Img } from "../../../components/Img";
 
 type Props = {
@@ -23,7 +22,7 @@ const PAYMENT_BADGE: { [method in Sale["payment_method"]]: string } = {
   "": "bg-navy/5 text-navy/50"
 };
 
-/** Ventas → Registro: one card per ticket, with its printable receipt. */
+/** Ventas → Registro: one card per ticket. */
 export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props) {
   // Stable fetcher: useServiceQuery refetches whenever the fetcher identity changes.
   const fetchSales = useCallback(
@@ -36,8 +35,6 @@ export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props)
     [salesService, dateFrom, dateTo, ownerId]
   );
   const report = useServiceQuery([salesService], fetchSales);
-  const [printing, setPrinting] = useState<Sale | null>(null);
-  const stopPrinting = useCallback(() => setPrinting(null), []);
 
   const sales = report.data?.results ?? [];
   const totals = report.data?.totals;
@@ -130,21 +127,11 @@ export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props)
                     <p className="text-xs uppercase tracking-[0.16em] text-orange">Venta #{sale.id}</p>
                     <p className="mt-0.5 text-sm text-navy/60">{formatStoreDateTime(sale.created_at)}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${PAYMENT_BADGE[sale.payment_method]}`}
-                    >
-                      {PAYMENT_METHOD_LABELS[sale.payment_method]}
-                    </span>
-                    <Button
-                      tone="outline"
-                      className="px-3 py-1.5 text-xs"
-                      onClick={() => setPrinting(sale)}
-                      aria-label={`Imprimir ticket de la venta ${sale.id}`}
-                    >
-                      🖨 Imprimir ticket
-                    </Button>
-                  </div>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${PAYMENT_BADGE[sale.payment_method]}`}
+                  >
+                    {PAYMENT_METHOD_LABELS[sale.payment_method]}
+                  </span>
                 </div>
 
                 <ul className="mt-3 divide-y divide-navy/5 rounded-xl border border-navy/10 bg-white/60">
@@ -241,8 +228,6 @@ export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props)
           </ul>
         </>
       )}
-
-      {printing && <ReceiptPrinter sale={printing} onDone={stopPrinting} />}
     </>
   );
 }

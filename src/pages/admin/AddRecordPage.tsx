@@ -6,7 +6,8 @@ import { HttpError, extractErrorMessage } from "../../app/lib/httpClient";
 import { createRecordService } from "../../app/services/recordService";
 import { useDiscogsSearch } from "../../app/hooks/useDiscogsSearch";
 import type { DiscogsSearchResult } from "../../app/services/discogsService";
-import type { Artist, Category, Genere, Owner, Record as AlbumRecord, RecordOwnerStock } from "../../app/domain/album";
+import type { Artist, Category, Genere, Owner, Record as AlbumRecord, RecordCopy, RecordOwnerStock } from "../../app/domain/album";
+import { currency } from "../../app/lib/format";
 import { Img } from "../../components/Img";
 import { DeleteArtistDialog } from "./DeleteArtistDialog";
 import { CatalogPicker, DeleteCatalogTermDialog, type CatalogTerm } from "./CatalogPicker";
@@ -140,8 +141,22 @@ type AddRecordPageProps = {
     category?: { id: string; name: string } | null;
     owners?: RecordOwnerStock[];
     slug?: string;
+    /** This record and its copies in other conditions ([] when it's the only one). */
+    copies?: RecordCopy[];
   } | null;
   onEditDone?: () => void;
+};
+
+type CopySource = NonNullable<AddRecordPageProps["editingRecord"]>;
+
+/* Each copy has its own condition, prices, stock and owners; the rest is the release's. */
+const PER_COPY_FIELDS: Partial<RecordForm> = {
+  condition: "",
+  price: "",
+  cost_price: "",
+  stock: "",
+  discount: "",
+  owners: [],
 };
 
 /* ── Component ── */
@@ -164,7 +179,10 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
   // turns into its editor, so stock/owners are added there instead of a duplicate.
   const [adopted, setAdopted] = useState<AlbumRecord | null>(null);
   const [matches, setMatches] = useState<AlbumRecord[]>([]);
-  const current: AddRecordPageProps["editingRecord"] = editingRecord ?? adopted;
+  // "Otra condición": the form creates a new copy of this record (same release,
+  // own condition/price/stock) instead of editing it.
+  const [copyOf, setCopyOf] = useState<CopySource | null>(null);
+  const current: AddRecordPageProps["editingRecord"] = copyOf ? null : editingRecord ?? adopted;
   const isEditing = Boolean(current);
 
   // Discogs search
@@ -242,6 +260,10 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
     // Basic validation
     if (!form.title.trim()) {
       setSubmitError("El título es obligatorio.");
+      return;
+    }
+    if (copyOf && !form.condition) {
+      setSubmitError("Elige la condición de esta copia.");
       return;
     }
     if (!form.price || Number(form.price) <= 0) {
@@ -333,7 +355,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
         }, 1500);
       } else {
         try {
-          await recordService.create(payload);
+          await recordService.create(copyOf ? { ...payload, variant_of: Number(copyOf.id) } : payload);
         } catch (err) {
           setSubmitError(extractErrorMessage((err as HttpError).data, "Error al guardar el disco."));
           return;
@@ -343,6 +365,10 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
 
         // Reset form after success
         setTimeout(() => {
+          // A copy added from the record editor goes back to the list (it refreshes).
+          if (copyOf && editingRecord) onEditDone?.();
+          setCopyOf(null);
+          setAdopted(null);
           setForm(INITIAL_FORM);
           setSubmitSuccess(false);
           setResults([]);
@@ -463,7 +489,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
   /* ── "Ya existe": same title (+ artist) as a record in the catalog ── */
 
   useEffect(() => {
-    if (isEditing || !token) return;
+    if (isEditing || copyOf || !token) return;
     const title = form.title.trim();
     let cancelled = false;
     const timer = setTimeout(() => {
@@ -480,7 +506,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [form.title, form.artist_text, isEditing, recordService, token]);
+  }, [form.title, form.artist_text, isEditing, copyOf, recordService, token]);
 
   const adoptMatch = async (id: string | number) => {
     setSubmitError(null);
@@ -491,6 +517,40 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
     } catch (err) {
       setSubmitError(extractErrorMessage(err, "No se pudo abrir el disco para editar."));
     }
+  };
+
+  /** Start a new copy of `source` in another condition. From the editor the
+   * per-copy fields start empty; from the "ya existe" list what was typed stays
+   * and only blanks are filled from the existing record. */
+  const startCopy = (source: CopySource, keepTyped: boolean) => {
+    setCopyOf(source);
+    setMatches([]);
+    setNewOwner(null);
+    setOwnerLimit(null);
+    setSubmitError(null);
+    setSubmitSuccess(false);
+    setForm((prev) =>
+      keepTyped
+        ? {
+            ...prev,
+            artist_id: prev.artist_id || (source.artist?.id ? String(source.artist.id) : ""),
+            artist_text: prev.artist_text || source.artist?.name || "",
+            description: prev.description || source.description || "",
+            generes: prev.generes.length ? prev.generes : (source.generes ?? []).map((g) => String(g.id)),
+            category_id: prev.category_id || (source.category?.id ? String(source.category.id) : ""),
+            cover_image_url: prev.cover_image_url || source.cover_image_url || "",
+            images: prev.images.length ? prev.images : source.images ?? [],
+            release_year: prev.release_year || (source.release_date ? String(source.release_date) : ""),
+          }
+        : { ...prev, ...PER_COPY_FIELDS }
+    );
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Back to the editor (its prefill effect reloads the record) or to the add form as typed.
+  const cancelCopy = () => {
+    setCopyOf(null);
+    setSubmitError(null);
   };
 
   const cancelAdopted = () => {
@@ -701,14 +761,82 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
   return (
     <section className="w-full">
       <h2 className="font-display text-xl sm:text-2xl text-denim">
-        {isEditing ? "Editar disco" : T.admin.addRecord.title}
+        {copyOf ? "Agregar otra condición" : isEditing ? "Editar disco" : T.admin.addRecord.title}
       </h2>
       <p className="mt-2 text-xs sm:text-sm text-navy/60">
-        {T.admin.addRecord.subtitle}
+        {copyOf
+          ? "Misma edición, con su propia condición, precio, stock y dueños. En la tienda se muestran juntas como un solo disco."
+          : T.admin.addRecord.subtitle}
       </p>
 
+      {/* ── New copy of: which record, and the conditions it already has ── */}
+      {copyOf && (
+        <div role="status" className="mt-6 flex items-center gap-3 rounded-2xl border border-orange/40 bg-sun/30 p-3 sm:p-4">
+          {copyOf.cover_image_url ? (
+            <Img src={copyOf.cover_image_url} alt="" width={56} className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+          ) : (
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-navy/5">🎵</div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-orange">Otra condición de</p>
+            <p className="truncate text-sm font-semibold text-navy">
+              {copyOf.title}
+              {copyOf.artist?.name && ` — ${copyOf.artist.name}`}
+            </p>
+            <p className="mt-0.5 text-[11px] text-navy/60">
+              Ya registradas:{" "}
+              {(copyOf.copies?.length
+                ? copyOf.copies
+                : [{ id: Number(copyOf.id), condition: copyOf.condition, stock: copyOf.stock }]
+              )
+                .map((c) => `${c.condition} (${c.stock})`)
+                .join(" · ")}
+            </p>
+          </div>
+          <Button tone="outline" className="shrink-0 px-3 py-1.5 text-xs" onClick={cancelCopy}>
+            Cancelar
+          </Button>
+        </div>
+      )}
+
+      {/* ── Editing: the record's conditions + add another one ── */}
+      {current && (
+        <div className="mt-6 rounded-2xl border border-navy/10 bg-white/60 p-4 shadow-sm backdrop-blur sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-navy">Condiciones de este disco</p>
+              <p className="mt-0.5 text-xs text-navy/50">
+                ¿Tienes otra copia en distinto estado? Agrégala con su propio precio; en la tienda se ven juntas.
+              </p>
+            </div>
+            <Button tone="outline" className="shrink-0 px-4 py-2 text-xs" onClick={() => startCopy(current, false)}>
+              + Otra condición
+            </Button>
+          </div>
+          {(current.copies?.length ?? 0) > 1 && (
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {current.copies!.map((c) => {
+                const editingThis = String(c.id) === String(current.id);
+                return (
+                  <li
+                    key={c.id}
+                    className={`rounded-xl border px-3 py-1.5 text-xs ${
+                      editingThis ? "border-orange bg-sun/30 text-navy" : "border-navy/10 bg-white text-navy/70"
+                    }`}
+                  >
+                    <span className="font-display text-denim">{c.condition}</span> · {currency(c.sell_price)} ·{" "}
+                    {c.stock} en stock
+                    {editingThis && <span className="ml-1 font-semibold text-orange">· editando</span>}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
       {/* ── Discogs Search — hidden when editing ── */}
-      {!isEditing && (
+      {!isEditing && !copyOf && (
         <>
           <div className="mt-6 sm:mt-8 rounded-2xl border border-navy/10 bg-white/60 p-4 sm:p-5 shadow-sm backdrop-blur">
             <label className="block text-sm font-semibold text-navy">
@@ -965,6 +1093,13 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
                 </option>
               ))}
             </select>
+            {copyOf &&
+              form.condition &&
+              (copyOf.copies?.length ? copyOf.copies : [copyOf]).some((c) => c.condition === form.condition) && (
+                <p className="mt-1 text-[11px] text-orange">
+                  Ya hay una copia en {form.condition}. Si es la misma condición, mejor suma stock a esa.
+                </p>
+              )}
           </div>
         </div>
 
@@ -1019,13 +1154,14 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
         />
 
         {/* "Ya existe": offer editing the existing record instead of a duplicate */}
-        {!isEditing && matches.length > 0 && (
+        {!isEditing && !copyOf && matches.length > 0 && (
           <div role="status" className="rounded-xl border border-orange/40 bg-sun/30 p-4">
             <p className="text-sm font-semibold text-navy">
               {matches.length === 1 ? "¿Ya existe este disco?" : "¿Ya existe este disco? Encontramos estos"}
             </p>
             <p className="mt-0.5 text-xs text-navy/60">
-              Edítalo para sumar stock o dueños en lugar de crear un duplicado.
+              Misma condición: edítalo para sumar stock o dueños. En otro estado: agrégalo como otra
+              condición y en la tienda se verán juntos.
             </p>
             <ul className="mt-3 space-y-2">
               {matches.map((m) => (
@@ -1060,13 +1196,28 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
                         .join(" · ")}
                     </p>
                   </div>
-                  <Button
-                    tone="navy"
-                    className="shrink-0 px-3 py-1.5 text-xs"
-                    onClick={() => adoptMatch(m.id)}
-                  >
-                    Editar este
-                  </Button>
+                  {(() => {
+                    // A different condition picked in the form → suggest a new copy first.
+                    const otherCondition = Boolean(form.condition) && form.condition !== m.condition;
+                    return (
+                      <div className={`flex shrink-0 flex-col gap-1.5 sm:flex-row ${otherCondition ? "sm:flex-row-reverse" : ""}`}>
+                        <Button
+                          tone={otherCondition ? "outline" : "navy"}
+                          className="px-3 py-1.5 text-xs"
+                          onClick={() => adoptMatch(m.id)}
+                        >
+                          Editar este
+                        </Button>
+                        <Button
+                          tone={otherCondition ? "navy" : "outline"}
+                          className="px-3 py-1.5 text-xs"
+                          onClick={() => startCopy(m, true)}
+                        >
+                          Otra condición
+                        </Button>
+                      </div>
+                    );
+                  })()}
                 </li>
               ))}
             </ul>
@@ -1458,15 +1609,19 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
         {/* Submit success */}
         {submitSuccess && (
           <p className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-            {isEditing ? "Disco actualizado exitosamente." : "Disco agregado exitosamente."}
+            {isEditing
+              ? "Disco actualizado exitosamente."
+              : copyOf
+              ? "Condición agregada: en la tienda se muestra junto a las demás."
+              : "Disco agregado exitosamente."}
           </p>
         )}
 
-        {isEditing && (
+        {(isEditing || copyOf) && (
           <Button
             tone="outline"
             className="mt-2 w-full py-3 text-base"
-            onClick={adopted ? cancelAdopted : onEditDone}
+            onClick={copyOf ? cancelCopy : adopted ? cancelAdopted : onEditDone}
           >
             Cancelar
           </Button>
@@ -1478,7 +1633,13 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
           disabled={submitting}
           onClick={handleSubmit}
         >
-          {submitting ? "Guardando..." : isEditing ? "Actualizar Disco" : T.admin.addRecord.submit}
+          {submitting
+            ? "Guardando..."
+            : copyOf
+            ? "Agregar esta condición"
+            : isEditing
+            ? "Actualizar Disco"
+            : T.admin.addRecord.submit}
         </Button>
       </form>
     </section>

@@ -33,6 +33,23 @@ export type Record = {
   weight_grams?: number | null;
   /** Admin responses only: whose units the stock is; empty = store stock. */
   owners?: RecordOwnerStock[];
+  /** Set on a copy of another record in a different condition (the group's first record). */
+  variant_of?: number | null;
+  /** This record and its copies in other conditions, best condition first; [] when it's the only one. */
+  copies?: RecordCopy[];
+};
+
+/** One copy of a release in the condition picker: its own condition, price and stock. */
+export type RecordCopy = {
+  id: number;
+  slug: string;
+  condition: string;
+  price: string;
+  sell_price: string;
+  discount_porcentage: number;
+  stock: number;
+  cover_image_url?: string | null;
+  images?: string[];
 };
 
 /** How many of a record's stock belong to one owner (they add up to `stock`). */
@@ -110,13 +127,17 @@ export type RecordInput = {
   category: number | null;
   /** [] = store stock; one owner gets the whole stock; several must add up to `stock`. */
   owners: { owner: number; quantity?: number }[];
+  /** Another condition of this record (the server links it to the group's first one). */
+  variant_of?: number | null;
 };
 
 /**
  * Compute the effective (discounted) price from `price` and `discount_porcentage`.
  * Always derives from source-of-truth fields so it's resilient to stale `sell_price`.
  */
-export function getEffectivePrice(record: Record): {
+export function getEffectivePrice(
+  record: Pick<Record, "price" | "discount_porcentage" | "discount_percentage">
+): {
   original: number;
   effective: number;
   discount: number;
@@ -130,17 +151,19 @@ export function getEffectivePrice(record: Record): {
   return { original, effective, discount, hasDiscount: discount > 0 };
 }
 
-/** Backend CONDITIONS codes (vinyl grading), best first. */
+/** Backend CONDITIONS codes (vinyl grading), best first; `hint` explains it to buyers. */
 export const RECORD_CONDITIONS = [
-  { code: "M", label: "Mint" },
-  { code: "NM", label: "Near Mint" },
-  { code: "NM-", label: "Near Mint -" },
-  { code: "VG+", label: "Very Good +" },
-  { code: "VG", label: "Very Good" },
-  { code: "G", label: "Good" },
-  { code: "F", label: "Fair" },
-  { code: "P", label: "Poor" },
+  { code: "M", label: "Mint", hint: "Nuevo, sin abrir o sin tocar." },
+  { code: "NM", label: "Near Mint", hint: "Casi nuevo: sin marcas visibles." },
+  { code: "NM-", label: "Near Mint -", hint: "Casi nuevo, con mínimas señales de uso." },
+  { code: "VG+", label: "Very Good +", hint: "Ligeras marcas de uso; suena muy bien." },
+  { code: "VG", label: "Very Good", hint: "Marcas visibles y algo de ruido en los silencios." },
+  { code: "G", label: "Good", hint: "Desgaste evidente; se escucha con ruido." },
+  { code: "F", label: "Fair", hint: "Muy desgastado; para completar colección." },
+  { code: "P", label: "Poor", hint: "Dañado; solo como pieza de colección." },
 ] as const;
+
+export const conditionInfo = (code: string) => RECORD_CONDITIONS.find((c) => c.code === code);
 
 export type RecordOrdering = "newest" | "price_asc" | "price_desc";
 
@@ -157,6 +180,8 @@ export type RecordFilters = {
   price_min?: string;
   price_max?: string;
   ordering?: RecordOrdering;
+  /** Every copy as its own row (Punto de venta); by default one row per release. */
+  all_copies?: boolean;
   signal?: AbortSignal;
 };
 
