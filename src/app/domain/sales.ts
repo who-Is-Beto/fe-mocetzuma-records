@@ -16,6 +16,20 @@ export const PAYMENT_METHOD_LABELS: { [method in PaymentMethod | ""]: string } =
   "": "Sin registrar"
 };
 
+export type SaleChannel = "store" | "bazar" | "other";
+
+/** Where a point-of-sale ticket sold. "" = registered before the channel was recorded. */
+export const SALE_CHANNEL_LABELS: { [channel in SaleChannel | ""]: string } = {
+  store: "Tienda física",
+  bazar: "Bazar",
+  other: "Otro",
+  "": "Sin registrar"
+};
+
+/** "Bazar · Bazar del Chopo": the channel plus its note. */
+export const salePlace = (sale: Pick<Sale, "channel" | "channel_note">): string =>
+  sale.channel_note ? `${SALE_CHANNEL_LABELS[sale.channel]} · ${sale.channel_note}` : SALE_CHANNEL_LABELS[sale.channel];
+
 /** Card commission % the ticket starts with (the backend default too). */
 export const DEFAULT_CARD_COMMISSION_RATE = "4.06";
 
@@ -46,6 +60,9 @@ export type Sale = {
   id: number;
   created_at: string;
   payment_method: PaymentMethod | "";
+  channel: SaleChannel | "";
+  /** Free detail: which bazar, "Instagram", "Encargo"… */
+  channel_note: string;
   /** Percent, e.g. "4.06"; "0.00" for cash/transfer. */
   commission_rate: string;
   commission_amount: string;
@@ -73,6 +90,8 @@ export type SaleInput = {
   items: SaleLineInput[];
   payment_method: PaymentMethod;
   commission_rate?: string;
+  channel: SaleChannel;
+  channel_note?: string;
 };
 
 /** POST /sales/create/ — `warnings` are non-blocking (no owner, email failed). */
@@ -128,6 +147,15 @@ export type SalesMetrics = {
   summary: MetricsBucket & { shipping: string };
   channels: (MetricsBucket & { channel: "pos" | "online" })[];
   payment_methods: (MetricsBucket & { method: MetricsPaymentMethod })[];
+  /** Gross per period and channel; `grain` is "month" for ranges over ~3 months. Every period is present. */
+  timeline: {
+    grain: "day" | "month";
+    points: { period: string; pos: string; online: string; profit: string; count: number }[];
+  };
+  /** Summary of the same-length period right before the range; null without both dates. */
+  previous: MetricsBucket | null;
+  /** Point-of-sale tickets by where they sold; "unknown" = before channels were recorded. */
+  sale_channels: (MetricsBucket & { channel: SaleChannel | "unknown" })[];
   top_records: {
     record: number | null;
     title: string;

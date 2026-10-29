@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Spinner } from "./Loader";
 import { Modal } from "./Modal";
 
 type ConfirmDialogProps = {
@@ -40,8 +41,8 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const confirmClasses =
     tone === "danger"
-      ? "rounded-pill bg-red-600 px-5 py-2 text-xs font-semibold text-white shadow-panel transition hover:bg-red-700 disabled:opacity-50"
-      : "rounded-pill bg-orange px-5 py-2 text-xs font-semibold text-white shadow-panel transition hover:bg-orange/80 disabled:opacity-50";
+      ? "inline-flex items-center gap-2 rounded-pill bg-red-600 px-5 py-2 text-xs font-semibold text-white shadow-panel transition hover:bg-red-700 disabled:opacity-50"
+      : "inline-flex items-center gap-2 rounded-pill bg-orange px-5 py-2 text-xs font-semibold text-white shadow-panel transition hover:bg-orange/80 disabled:opacity-50";
 
   return (
     <Modal open={open} onClose={onCancel} dismissible={!busy} labelledBy="confirm-dialog-title">
@@ -69,6 +70,7 @@ export function ConfirmDialog({
           {cancelLabel}
         </button>
         <button type="button" onClick={onConfirm} disabled={busy || confirmDisabled} className={confirmClasses}>
+          {busy && <Spinner />}
           {busy ? busyLabel : confirmLabel}
         </button>
       </div>

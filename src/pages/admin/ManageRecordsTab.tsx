@@ -388,6 +388,7 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
                       {record.cover_image_url ? (
                         <Img
                           src={record.cover_image_url}
+                          thumbs={record.cover_thumbs}
                           alt={record.title}
                           width={40}
                           className="h-10 w-10 rounded-lg object-cover"
@@ -524,6 +525,7 @@ export function ManageRecordsTab({ onEdit, editReturn, onReturnHandled }: Props)
                 {record.cover_image_url ? (
                   <Img
                     src={record.cover_image_url}
+                    thumbs={record.cover_thumbs}
                     alt={record.title}
                     width={48}
                     className="h-12 w-12 shrink-0 rounded-lg object-cover"

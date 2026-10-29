@@ -12,6 +12,10 @@ type SeoOptions = {
    * perfil, inventario, auth). Sets robots to noindex,nofollow.
    */
   noindex?: boolean;
+  /** Absolute image URL for share previews (og:image / twitter:image). */
+  image?: string;
+  /** schema.org structured data (e.g. a Product) injected as JSON-LD. */
+  jsonLd?: object;
 };
 
 type ManagedValue = { element: Element; previous: string | null };
@@ -41,7 +45,9 @@ const applyTag = (
  * All values are restored on unmount so client-side navigation between
  * pages never leaks one page's metadata into the next.
  */
-export function useSeo({ title, description, noindex }: SeoOptions) {
+export function useSeo({ title, description, noindex, image, jsonLd }: SeoOptions) {
+  // Objects change identity every render: compare their serialized form.
+  const jsonLdText = jsonLd ? JSON.stringify(jsonLd) : null;
   useEffect(() => {
     const undo: Array<() => void> = [];
     const remember = (managed: ManagedValue | null) => {
@@ -131,10 +137,24 @@ export function useSeo({ title, description, noindex }: SeoOptions) {
       noindex ? "noindex, nofollow" : "index, follow"
     );
 
+    if (image) {
+      setMeta('meta[property="og:image"]', "property", "og:image", image);
+      setMeta('meta[name="twitter:image"]', "name", "twitter:image", image);
+    }
+
+    if (jsonLdText) {
+      const script = document.createElement("script");
+      script.type = "application/ld+json";
+      script.dataset.page = "true";
+      script.textContent = jsonLdText;
+      document.head.appendChild(script);
+      undo.push(() => script.remove());
+    }
+
     return () => {
       while (undo.length) undo.pop()?.();
     };
-  }, [title, description, noindex]);
+  }, [title, description, noindex, image, jsonLdText]);
 }
 
 /** The attribute this hook manages on a given element ('content' or 'href'). */

@@ -1,14 +1,14 @@
 import { Suspense, lazy } from "react";
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { Layout } from "../../components/Layout";
-import { Loader } from "../../components/Loader";
+import { PageSkeleton } from "../../components/Skeleton";
 import { AuthGuard } from "./AuthGuard";
+import { HomePage } from "../../pages/home/HomePage";
 
 // Route-level code splitting: every page is its own chunk. Layout, Navbar and
-// AuthGuard stay eager because every route depends on them.
-const HomePage = lazy(() =>
-  import("../../pages/home/HomePage").then((m) => ({ default: m.HomePage }))
-);
+// AuthGuard stay eager because every route depends on them, and so does the
+// home page: it's where most visits land, and lazy-loading it put a second
+// round trip in front of its headline (the LCP).
 const CatalogoPage = lazy(() =>
   import("../../pages/catalog/CatalogoPage").then((m) => ({ default: m.CatalogoPage }))
 );
@@ -71,7 +71,7 @@ export const router = createBrowserRouter([
   {
     element: (
       <Layout>
-        <Suspense fallback={<Loader />}>
+        <Suspense fallback={<PageSkeleton />}>
           <Outlet />
         </Suspense>
       </Layout>

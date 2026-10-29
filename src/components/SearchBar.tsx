@@ -137,7 +137,7 @@ export function SearchBar({
                   }`}
                 >
                   {record.cover_image_url ? (
-                    <Img src={record.cover_image_url} alt="" width={40} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+                    <Img src={record.cover_image_url} thumbs={record.cover_thumbs} alt="" width={40} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
                   ) : (
                     <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-navy/5">🎵</span>
                   )}

@@ -22,7 +22,7 @@ export function QuantityStepper({ value, min, max, onChange, label, disabled = f
     "flex h-11 w-11 shrink-0 items-center justify-center text-lg font-semibold text-navy transition hover:bg-orange/10 hover:text-orange active:bg-orange/20 disabled:cursor-not-allowed disabled:text-navy/25 disabled:hover:bg-transparent";
 
   return (
-    <div className="inline-flex items-stretch overflow-hidden rounded-xl border border-navy/15 bg-white focus-within:border-orange focus-within:ring-2 focus-within:ring-orange/30">
+    <div className="inline-flex shrink-0 items-stretch overflow-hidden rounded-xl border border-navy/15 bg-white focus-within:border-orange focus-within:ring-2 focus-within:ring-orange/30">
       <button
         type="button"
         onClick={() => set(value - 1)}

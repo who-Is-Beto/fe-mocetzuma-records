@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /carrito
+Disallow: /design-system
+Disallow: /albums
+Disallow: /mis-ordenes
+Disallow: /perfil
+Disallow: /login
+Disallow: /register
+Disallow: /verificar-correo
+Disallow: /olvidaste-contrasena
+Disallow: /restablecer-contrasena
+
+Sitemap: https://moctezumarecords.com/sitemap.xml

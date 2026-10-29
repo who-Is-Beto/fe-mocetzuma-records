@@ -1,16 +1,21 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Modal } from "../../../components/Modal";
 import { Img } from "../../../components/Img";
+import { Spinner } from "../../../components/Loader";
+import { SuccessCheck } from "../../../components/SuccessCheck";
 import { extractErrorMessage } from "../../../app/lib/httpClient";
 import { currency } from "../../../app/lib/format";
 import type { Owner, Record as AlbumRecord, RecordRepository } from "../../../app/domain/album";
 import {
   DEFAULT_CARD_COMMISSION_RATE,
   PAYMENT_METHOD_LABELS,
+  SALE_CHANNEL_LABELS,
   commissionCents,
+  salePlace,
   toCents,
   type PaymentMethod,
   type Sale,
+  type SaleChannel,
   type SaleResult
 } from "../../../app/domain/sales";
 import type { SellLine, SellPayment } from "../../../app/hooks/useAdminRecords";
@@ -21,6 +26,12 @@ const PAYMENT_OPTIONS: { method: PaymentMethod; icon: string }[] = [
   { method: "cash", icon: "💵" },
   { method: "card", icon: "💳" },
   { method: "transfer", icon: "🏦" }
+];
+
+const CHANNEL_OPTIONS: { channel: SaleChannel; icon: string; notePlaceholder: string }[] = [
+  { channel: "store", icon: "🏪", notePlaceholder: "Nota (opcional)" },
+  { channel: "bazar", icon: "🎪", notePlaceholder: "¿Cuál bazar? (opcional)" },
+  { channel: "other", icon: "📱", notePlaceholder: "Facebook, Instagram, encargo…" }
 ];
 
 /** 0–100 with at most two decimals, like the backend's commission_rate field. */
@@ -76,6 +87,9 @@ export function SaleTicket({
 }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [commissionRate, setCommissionRate] = useState(DEFAULT_CARD_COMMISSION_RATE);
+  // Most tickets are rung up in the store: preselected, one tap to change.
+  const [channel, setChannel] = useState<SaleChannel>("store");
+  const [channelNote, setChannelNote] = useState("");
   const [step, setStep] = useState<"ticket" | "details">("ticket");
   // Asked once per ticket: after "Omitir" or saving, confirming sells directly.
   const [detailsReviewed, setDetailsReviewed] = useState(false);
@@ -129,7 +143,9 @@ export function SaleTicket({
         }),
         {
           payment_method: paymentMethod,
-          commission_rate: paymentMethod === "card" ? commissionRate.trim() : undefined
+          commission_rate: paymentMethod === "card" ? commissionRate.trim() : undefined,
+          channel,
+          channel_note: channelNote.trim()
         }
       );
       setSold({ sale: result.sale, warnings: result.warnings });
@@ -281,16 +297,11 @@ export function SaleTicket({
       <Modal open={open} onClose={close} labelledBy="sale-ticket-title" variant="sheet">
         {header("Venta registrada", `Venta #${sold.sale.id}`)}
         <div className="flex flex-col items-center rounded-2xl border border-green-200 bg-green-50 px-4 py-6 text-center">
-          <span
-            aria-hidden="true"
-            className="flex h-14 w-14 items-center justify-center rounded-full bg-green-600 text-2xl text-white shadow-panel animate-modal-in"
-          >
-            ✓
-          </span>
+          <SuccessCheck className="h-14 w-14" />
           <p className="mt-3 text-sm text-green-800">
             {sold.sale.items.reduce((sum, i) => sum + i.quantity, 0)}{" "}
             {sold.sale.items.reduce((sum, i) => sum + i.quantity, 0) === 1 ? "disco" : "discos"} ·{" "}
-            {PAYMENT_METHOD_LABELS[sold.sale.payment_method]}
+            {PAYMENT_METHOD_LABELS[sold.sale.payment_method]} · {salePlace(sold.sale)}
           </p>
           <p className="mt-1 font-display text-2xl text-denim">{currency(sold.sale.final_sale_price)}</p>
           <p className="text-[11px] uppercase tracking-[0.16em] text-green-800/70">Total final</p>
@@ -570,7 +581,7 @@ export function SaleTicket({
               )}
               {/* Several owners have it: how many of whose, like the record form */}
               {line.owners && isSplit(line) && (
-                <fieldset className="mt-3 rounded-xl border border-navy/10 bg-cream/60 p-2.5">
+                <fieldset className="min-w-0 mt-3 rounded-xl border border-navy/10 bg-cream/60 p-2.5">
                   <legend className="px-1 text-[11px] font-semibold text-navy/60">
                     ¿De quién son los que vendes? <span className="text-coral">*</span>
                   </legend>
@@ -621,6 +632,41 @@ export function SaleTicket({
       >
         + Agregar otro disco
       </button>
+
+      {/* ── Where it sold + optional detail ── */}
+      <fieldset className="mt-4">
+        <legend className="text-[11px] font-semibold text-navy/60">Lugar de venta</legend>
+        <div className="mt-1.5 grid grid-cols-3 gap-2">
+          {CHANNEL_OPTIONS.map((option) => (
+            <label
+              key={option.channel}
+              className="flex min-h-[48px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-navy/15 bg-white px-2 text-xs font-semibold text-navy transition hover:border-orange has-[:checked]:border-orange has-[:checked]:bg-orange has-[:checked]:text-charcoal has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-orange/30 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50"
+            >
+              <input
+                type="radio"
+                name="sale_channel"
+                value={option.channel}
+                checked={channel === option.channel}
+                onChange={() => setChannel(option.channel)}
+                disabled={working}
+                className="sr-only"
+              />
+              <span aria-hidden="true">{option.icon}</span>
+              {SALE_CHANNEL_LABELS[option.channel]}
+            </label>
+          ))}
+        </div>
+        <input
+          type="text"
+          value={channelNote}
+          onChange={(e) => setChannelNote(e.target.value)}
+          maxLength={100}
+          disabled={working}
+          aria-label="Detalle del lugar de venta"
+          placeholder={CHANNEL_OPTIONS.find((o) => o.channel === channel)?.notePlaceholder}
+          className={`${inputClass} mt-2`}
+        />
+      </fieldset>
 
       {/* ── Payment method (required) + card commission ── */}
       <fieldset className="mt-4">
@@ -710,8 +756,9 @@ export function SaleTicket({
               onClick={confirm}
               disabled={working || !canConfirm}
               aria-describedby={blockReason ? "sale-block-reason" : undefined}
-              className="min-h-[48px] w-full rounded-pill bg-orange px-5 text-sm font-semibold text-charcoal shadow-panel transition hover:bg-amber disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-pill bg-orange px-5 text-sm font-semibold text-charcoal shadow-panel transition hover:bg-amber disabled:cursor-not-allowed disabled:opacity-50"
             >
+              {busy === "selling" && <Spinner />}
               {busy === "selling" ? "Registrando…" : "Confirmar venta"}
             </button>
             {blockReason && (

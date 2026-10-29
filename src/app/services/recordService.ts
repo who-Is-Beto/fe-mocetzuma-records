@@ -49,6 +49,11 @@ export function createRecordService(config: RecordServiceConfig = {}): RecordRep
         signal: params?.signal,
       });
     },
+    async featured() {
+      return http<Record>(withBase(baseUrl, "/records/featured"), {
+        token: getToken?.() ?? undefined,
+      });
+    },
     async search({ query: q, ...params }: RecordFilters & { query: string }) {
       return http<RecordPage>(withBase(baseUrl, "/search"), {
         token: getToken?.() ?? undefined,

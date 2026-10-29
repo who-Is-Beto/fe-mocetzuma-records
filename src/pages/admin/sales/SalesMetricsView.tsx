@@ -1,15 +1,18 @@
-import { useCallback } from "react";
+import { useCallback, type CSSProperties } from "react";
 import { Button } from "../../../components/Button";
 import { extractErrorMessage } from "../../../app/lib/httpClient";
 import { useServiceQuery } from "../../../app/hooks/useServiceQuery";
 import type { createSalesService } from "../../../app/services/salesService";
 import {
   PAYMENT_METHOD_LABELS,
-  type MetricsBucket,
-  type MetricsPaymentMethod
+  SALE_CHANNEL_LABELS,
+  type MetricsPaymentMethod,
+  type SaleChannel
 } from "../../../app/domain/sales";
 import { currency } from "../../../app/lib/format";
 import { Img } from "../../../components/Img";
+import { Skeleton } from "../../../components/Skeleton";
+import { KpiCard, RankedBars, StackedShare, TimelineChart } from "./charts";
 
 type Props = {
   salesService: ReturnType<typeof createSalesService>;
@@ -25,6 +28,11 @@ const METHOD_LABELS: { [method in MetricsPaymentMethod]: string } = {
   transfer: PAYMENT_METHOD_LABELS.transfer,
   stripe: "Tarjeta en línea (Stripe)",
   unknown: PAYMENT_METHOD_LABELS[""]
+};
+
+const PLACE_LABELS: { [channel in SaleChannel | "unknown"]: string } = {
+  ...SALE_CHANNEL_LABELS,
+  unknown: SALE_CHANNEL_LABELS[""]
 };
 
 const panelClass = "rounded-2xl border border-navy/10 bg-cream/80 p-4 shadow-card backdrop-blur sm:p-5";
@@ -47,13 +55,10 @@ function ShareBar({ value, max, label }: { value: number; max: number; label: st
       aria-valuetext={`${Math.round(max > 0 ? (value / max) * 100 : 0)} %`}
       className="h-2.5 w-full rounded-full bg-navy/10"
     >
-      <div className="h-2.5 rounded-full bg-denim" style={{ width: `${pct}%` }} />
+      <div className="h-2.5 rounded-full bg-chart-1" style={{ width: `${pct}%` }} />
     </div>
   );
 }
-
-const pct = (part: number, total: number) =>
-  total > 0 ? `${Math.round((part / total) * 100)}%` : "0%";
 
 /** Ventas → Métricas: point of sale + online orders for the date range. */
 export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
@@ -87,8 +92,17 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
   }
   if (query.isLoading || !data) {
     return (
-      <div className="mt-8 flex justify-center">
-        <p className="text-sm text-navy/70 animate-pulse" role="status">Cargando…</p>
+      <div role="status" aria-label="Cargando métricas" className="mt-4 space-y-4">
+        <div className="grid gap-3 min-[480px]:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-36 rounded-2xl" />
+          ))}
+        </div>
+        <Skeleton className="h-80 rounded-2xl" />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-44 rounded-2xl" />
+          <Skeleton className="h-44 rounded-2xl" />
+        </div>
       </div>
     );
   }
@@ -102,53 +116,114 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
   }
 
   const { summary } = data;
-  const totalGross = Number(summary.gross);
-  const maxMethodGross = Math.max(...data.payment_methods.map((m) => Number(m.gross)));
   const maxOwnerGross = Math.max(...data.owners.map((o) => Number(o.gross)));
+  const sales = (count: number) => `${count} ${count === 1 ? "venta" : "ventas"}`;
 
   const loss = Number(summary.profit) < 0;
-  const tiles = [
-    { label: "Ingreso bruto", value: currency(summary.gross) },
-    { label: "Ingreso neto", value: currency(summary.net), strong: true },
-    { label: "Comisiones", value: currency(summary.commission) },
-    { label: "Costo", value: currency(summary.cost) },
-    { label: loss ? "Pérdida" : "Ganancia", value: currency(summary.profit), strong: true, negative: loss },
-    { label: "Ventas", value: String(summary.count) },
-    { label: "Ticket promedio", value: currency(summary.average_ticket) },
-    { label: "Discos vendidos", value: String(summary.units) }
-  ];
-
-  const bucketRows = (bucket: MetricsBucket) => [
-    ["Bruto", currency(bucket.gross)],
-    ["Comisiones", currency(bucket.commission)],
-    ["Neto", currency(bucket.net)],
-    ["Costo", currency(bucket.cost)],
-    ["Ganancia", currency(bucket.profit)],
-    ["Ventas", String(bucket.count)],
-    ["Ticket promedio", currency(bucket.average_ticket)]
-  ];
+  const previous = data.previous;
+  const points = data.timeline.points.map((p) => ({
+    period: p.period,
+    pos: Number(p.pos),
+    online: Number(p.online),
+    profit: Number(p.profit),
+    count: p.count
+  }));
+  const gross = points.map((p) => p.pos + p.online);
 
   return (
     <div className="mt-4 space-y-4">
-      {/* ── Headline numbers ── */}
-      {/* 1 column on the narrowest phones, 2 from ~360 px, 4 on larger screens (2 rows of 4) */}
-      <dl className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-4 [&>*]:min-w-0">
-        {tiles.map((tile) => (
-          <div
-            key={tile.label}
-            className="min-w-0 rounded-2xl border border-navy/10 bg-cream/80 px-4 py-3 shadow-card backdrop-blur"
-          >
-            <dt className="text-xs uppercase tracking-[0.12em] text-navy/70">{tile.label}</dt>
-            <dd
-              className={`mt-1 break-words text-lg font-semibold tabular-nums ${
-                tile.negative ? "text-coral" : tile.strong ? "text-denim" : "text-navy"
-              }`}
-            >
-              {tile.value}
-            </dd>
+      {/* ── Headline figures: count up, change vs. the previous period, trend ── */}
+      <div className="grid gap-3 min-[480px]:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
+        <KpiCard
+          hero
+          index={0}
+          label="Ingreso neto"
+          value={Number(summary.net)}
+          previous={previous ? Number(previous.net) : null}
+          hint="Después de comisiones"
+          trend={gross}
+        />
+        <KpiCard
+          index={1}
+          label={loss ? "Pérdida" : "Ganancia"}
+          value={Number(summary.profit)}
+          previous={previous ? Number(previous.profit) : null}
+          hint="Neto menos costo"
+          trend={points.map((p) => p.profit)}
+        />
+        <KpiCard
+          index={2}
+          label="Ventas"
+          format="count"
+          value={summary.count}
+          previous={previous?.count ?? null}
+          hint={`${summary.units} discos vendidos`}
+          trend={points.map((p) => p.count)}
+        />
+        <KpiCard
+          index={3}
+          label="Ticket promedio"
+          value={Number(summary.average_ticket)}
+          previous={previous ? Number(previous.average_ticket) : null}
+          hint={`Bruto ${currency(summary.gross)}`}
+        />
+      </div>
+
+      {/* ── Timeline ── */}
+      {points.length > 1 && (
+        <section className={panelClass} aria-labelledby="metrics-timeline">
+          <h3 id="metrics-timeline" className={eyebrowClass}>
+            Ingreso por {data.timeline.grain === "month" ? "mes" : "día"}
+          </h3>
+          <div className="mt-2">
+            <TimelineChart points={points} grain={data.timeline.grain} />
           </div>
-        ))}
-      </dl>
+        </section>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
+        {/* ── Where each peso of gross goes ── */}
+        <section className={panelClass} aria-labelledby="metrics-split">
+          <h3 id="metrics-split" className={eyebrowClass}>¿A dónde va cada peso?</h3>
+          <p className="mt-1 text-xs text-navy/70">Ingreso bruto de {currency(summary.gross)}, repartido.</p>
+          <div className="mt-3">
+            {loss ? (
+              <p role="status" className="rounded-xl border border-coral/40 bg-coral/10 px-4 py-2.5 text-sm text-navy">
+                En este periodo el costo y las comisiones superan lo cobrado: hay una pérdida de{" "}
+                <strong>{currency(-Number(summary.profit))}</strong>.
+              </p>
+            ) : (
+              <StackedShare
+                label={`Del ingreso bruto: ganancia ${currency(summary.profit)}, costo ${currency(summary.cost)}, comisiones ${currency(summary.commission)}`}
+                segments={[
+                  { label: "Ganancia", value: Number(summary.profit) },
+                  { label: "Costo de los discos", value: Number(summary.cost) },
+                  { label: "Comisiones", value: Number(summary.commission), detail: "Tarjeta y Stripe (estimada)" }
+                ]}
+              />
+            )}
+          </div>
+        </section>
+        {/* ── By channel: one share bar + the numbers of each side ── */}
+        <section className={panelClass} aria-labelledby="metrics-channels">
+          <h3 id="metrics-channels" className={eyebrowClass}>Punto de venta vs. en línea</h3>
+          <div className="mt-3">
+            <StackedShare
+              label={data.channels
+                .map((c) => `${CHANNEL_LABELS[c.channel]} ${currency(c.gross)}`)
+                .join(", ")}
+              segments={data.channels.map((c) => ({
+                label: CHANNEL_LABELS[c.channel],
+                value: Number(c.gross),
+                detail: `${sales(c.count)} · neto ${currency(c.net)} · ganancia ${currency(c.profit)}${
+                  c.channel === "online" ? " (comisión estimada)" : ""
+                }`
+              }))}
+            />
+          </div>
+        </section>
+      </div>
+
       <p className="text-xs text-navy/70">
         Bruto = lo que se cobró por los discos (sin envíos: {currency(summary.shipping)} cobrados
         aparte en línea). La comisión en línea es una <strong>estimación</strong> de la tarifa de
@@ -163,135 +238,98 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
         </p>
       )}
 
-      {/* ── By channel ── */}
-      <section className={panelClass} aria-labelledby="metrics-channels">
-        <h3 id="metrics-channels" className={eyebrowClass}>Por canal</h3>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 [&>*]:min-w-0">
-          {data.channels.map((channel) => (
-            <div key={channel.channel} className="rounded-xl border border-navy/10 bg-white/60 p-3">
-              <div className="flex items-baseline justify-between gap-2">
-                <p className="font-semibold text-navy">
-                  {CHANNEL_LABELS[channel.channel]}
-                  {channel.channel === "online" && (
-                    <span className="ml-1 text-xs font-normal text-navy/70">(comisión estimada)</span>
-                  )}
-                </p>
-                <p className="text-sm text-navy/70">
-                  {pct(Number(channel.gross), totalGross)} del bruto
-                </p>
-              </div>
-              <div className="mt-2">
-                <ShareBar
-                  value={Number(channel.gross)}
-                  max={totalGross}
-                  label={`${CHANNEL_LABELS[channel.channel]}: ${pct(Number(channel.gross), totalGross)} del ingreso bruto`}
-                />
-              </div>
-              <dl className="mt-3 space-y-1.5 text-sm">
-                {bucketRows(channel).map(([label, value]) => (
-                  <div key={label} className="flex justify-between gap-3">
-                    <dt className="text-navy/70">{label}</dt>
-                    <dd className="whitespace-nowrap tabular-nums text-navy">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          ))}
-        </div>
-      </section>
+      <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
+        {/* ── Point of sale by place ── */}
+        <section className={panelClass} aria-labelledby="metrics-places">
+          <h3 id="metrics-places" className={eyebrowClass}>Punto de venta por lugar</h3>
+          <div className="mt-3">
+            {data.sale_channels.length === 0 ? (
+              <p className="text-sm text-navy/60">Sin ventas en punto de venta en este periodo.</p>
+            ) : (
+              <RankedBars
+                caption="Ventas de punto de venta por lugar"
+                bars={data.sale_channels.map((place) => ({
+                  key: place.channel,
+                  label: PLACE_LABELS[place.channel],
+                  value: Number(place.gross),
+                  detail: `${sales(place.count)} · ganancia ${currency(place.profit)}`,
+                  muted: place.channel === "unknown"
+                }))}
+              />
+            )}
+          </div>
+        </section>
 
-      {/* ── By payment method ── */}
-      <section className={panelClass} aria-labelledby="metrics-methods">
-        <h3 id="metrics-methods" className={eyebrowClass}>Por forma de pago</h3>
-        <ul className="mt-3 space-y-3">
-          {data.payment_methods.map((method) => (
-            <li key={method.method}>
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
-                <span className="font-medium text-navy">{METHOD_LABELS[method.method]}</span>
-                <span className="tabular-nums text-navy/70">
-                  <span className="font-semibold text-navy">{currency(method.gross)}</span> ·{" "}
-                  {method.count} {method.count === 1 ? "venta" : "ventas"}
-                  {Number(method.commission) > 0 && ` · comisión ${currency(method.commission)}`}
-                </span>
-              </div>
-              <div className="mt-1.5">
-                <ShareBar
-                  value={Number(method.gross)}
-                  max={maxMethodGross}
-                  label={`${METHOD_LABELS[method.method]}: ${currency(method.gross)}, ${pct(Number(method.gross), totalGross)} del ingreso bruto`}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+        {/* ── By payment method ── */}
+        <section className={panelClass} aria-labelledby="metrics-methods">
+          <h3 id="metrics-methods" className={eyebrowClass}>Por forma de pago</h3>
+          <div className="mt-3">
+            <RankedBars
+              caption="Ingreso bruto por forma de pago"
+              bars={data.payment_methods.map((method) => ({
+                key: method.method,
+                label: METHOD_LABELS[method.method],
+                value: Number(method.gross),
+                detail: `${sales(method.count)}${
+                  Number(method.commission) > 0 ? ` · comisión ${currency(method.commission)}` : ""
+                }`,
+                muted: method.method === "unknown"
+              }))}
+            />
+          </div>
+        </section>
+      </div>
 
       {/* Stacked, full width: the admin column is ≤1024 px, too narrow for two
           tables side by side. min-w-0 lets long titles truncate instead of
           stretching the column past the screen (Layout clips overflow-x). */}
       <div className="grid gap-4 [&>*]:min-w-0">
-        {/* ── Top records: ranked cards on phones, table from md ── */}
+        {/* ── Top records: one ranked list at every size, units as a bar ── */}
         <section className={panelClass} aria-labelledby="metrics-top">
           <h3 id="metrics-top" className={eyebrowClass}>Discos más vendidos</h3>
-          <ol className="mt-3 divide-y divide-navy/5 md:hidden">
-            {data.top_records.map((row, index) => (
-              <li key={`${row.record ?? row.title}-${index}`} className="flex items-center gap-3 py-2.5">
-                <span className="w-5 shrink-0 text-center text-sm font-semibold text-navy/70">{index + 1}</span>
-                {row.cover_image_url ? (
-                  <Img src={row.cover_image_url} alt="" width={44} className="h-11 w-11 shrink-0 rounded-md object-cover" />
-                ) : (
-                  <span aria-hidden="true" className="h-11 w-11 shrink-0 rounded-md bg-gradient-to-br from-denim/10 via-cream to-sand/80" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="line-clamp-2 break-words text-sm font-medium leading-snug text-navy">{row.title}</p>
-                  {row.artist && <p className="truncate text-xs text-navy/70">{row.artist}</p>}
-                </div>
-                <div className="shrink-0 text-right text-sm tabular-nums">
-                  <p className="font-semibold text-navy">{currency(row.gross)}</p>
-                  <p className="text-xs text-navy/70">
-                    {row.units} {row.units === 1 ? "unidad" : "unidades"}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
-          <div className="mt-3 hidden overflow-x-auto md:block">
-            {/* table-fixed: a long title wraps in its column instead of pushing
-                Unid./Bruto out of view */}
-            <table className="w-full table-fixed text-left text-sm">
-              <caption className="sr-only">Discos más vendidos en el periodo</caption>
-              <thead>
-                <tr className="border-b border-navy/10 text-xs uppercase tracking-wider text-navy/70">
-                  <th scope="col" className={`${thClass} w-10`}>#</th>
-                  <th scope="col" className={thClass}>Disco</th>
-                  <th scope="col" className={`${thClass} w-20 text-right`}>Unid.</th>
-                  <th scope="col" className={`${thClass} w-36 text-right`}>Bruto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.top_records.map((row, index) => (
-                  <tr key={`${row.record ?? row.title}-${index}`} className="border-b border-navy/5 last:border-0">
-                    <td className="px-3 py-2 text-navy/70">{index + 1}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        {row.cover_image_url ? (
-                          <Img src={row.cover_image_url} alt="" width={36} className="h-9 w-9 shrink-0 rounded-md object-cover" />
-                        ) : (
-                          <span aria-hidden="true" className="h-9 w-9 shrink-0 rounded-md bg-gradient-to-br from-denim/10 via-cream to-sand/80" />
-                        )}
-                        <div className="min-w-0">
-                          <p className="line-clamp-2 break-words font-medium leading-snug text-navy">{row.title}</p>
-                          {row.artist && <p className="truncate text-xs text-navy/70">{row.artist}</p>}
-                        </div>
+          <ol className="mt-4 grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-2">
+            {data.top_records.map((row, index) => {
+              const maxUnits = data.top_records[0]?.units || 1;
+              return (
+                <li
+                  key={`${row.record ?? row.title}-${index}`}
+                  style={{ "--i": index } as CSSProperties}
+                  className="reveal flex min-w-0 items-center gap-3"
+                >
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                      index === 0 ? "bg-sun text-navy" : index < 3 ? "bg-navy text-cream" : "bg-navy/10 text-navy"
+                    }`}
+                  >
+                    {index + 1}
+                  </span>
+                  {row.cover_image_url ? (
+                    <Img src={row.cover_image_url} alt="" width={48} className="h-12 w-12 shrink-0 rounded-lg object-cover shadow-card" />
+                  ) : (
+                    <span aria-hidden="true" className="h-12 w-12 shrink-0 rounded-lg bg-gradient-to-br from-denim/10 via-cream to-sand/80" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="truncate text-sm font-medium text-navy">{row.title}</p>
+                      <p className="shrink-0 text-sm font-semibold tabular-nums text-navy">{currency(row.gross)}</p>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="h-1.5 min-w-0 flex-1 rounded-full bg-navy/[0.06]">
+                        <div
+                          style={{ "--i": index, width: `${(row.units / maxUnits) * 100}%` } as CSSProperties}
+                          className="grow-x h-full rounded-full bg-chart-1"
+                        />
                       </div>
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-navy">{row.units}</td>
-                    <td className="px-3 py-2 text-right font-medium tabular-nums text-navy">{currency(row.gross)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      <span className="shrink-0 text-[11px] text-navy/70">
+                        {row.units} {row.units === 1 ? "unidad" : "unidades"}
+                      </span>
+                    </div>
+                    {row.artist && <p className="mt-0.5 truncate text-xs text-navy/70">{row.artist}</p>}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
         </section>
 
         {/* ── By owner: cards on phones, table from md ── */}

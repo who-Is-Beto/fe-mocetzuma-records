@@ -1,4 +1,5 @@
 import { RECORD_CONDITIONS, type RecordFilters, type RecordOrdering } from "../../app/domain/album";
+import { canUseOptionalStorage } from "../../app/lib/consent";
 
 /**
  * Catalog state lives in the URL so filtered views can be shared/bookmarked:
@@ -38,6 +39,8 @@ export const storedPageSize = (): number => {
   }
 };
 export const rememberPageSize = (n: number) => {
+  // A preference: only kept with the visitor's consent.
+  if (!canUseOptionalStorage()) return;
   try {
     localStorage.setItem(PAGE_SIZE_KEY, String(n));
   } catch {

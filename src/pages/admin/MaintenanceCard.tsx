@@ -3,7 +3,7 @@ import { T } from "../../app/i18n/strings";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useMaintenanceConfig } from "../../app/hooks/useMaintenanceConfig";
 import { Button } from "../../components/Button";
-import { Loader } from "../../components/Loader";
+import { Skeleton } from "../../components/Skeleton";
 
 /**
  * Opens/closes the site-wide maintenance window. While it is active the
@@ -51,8 +51,10 @@ export function MaintenanceCard() {
 
   if (isLoading && !config) {
     return (
-      <section className="mt-6 sm:mt-8 flex items-center justify-center rounded-2xl border border-navy/10 bg-cream/60 p-4 sm:p-5">
-        <Loader />
+      <section className="mt-6 space-y-3 rounded-2xl border border-navy/10 bg-cream/60 p-4 sm:mt-8 sm:p-5">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-32 rounded-pill" />
       </section>
     );
   }

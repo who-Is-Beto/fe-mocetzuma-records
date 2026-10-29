@@ -13,6 +13,9 @@ module.exports = {
         sun: '#f8d15a',
         coral: '#e85f3c',
         charcoal: '#1b1f2a',
+        // Chart series, in this fixed order (validated for color-blind separation
+        // on cream; orange is the brand one). Text never wears these colors.
+        chart: { 1: '#2b74b0', 2: '#f4903c', 3: '#2a9d8f' },
       },
       fontFamily: {
         display: ['"Krona One"', 'sans-serif'],

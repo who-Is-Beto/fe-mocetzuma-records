@@ -1,39 +1,32 @@
 /**
- * Vercel Image Optimization (the non-Next.js `/_vercel/image` endpoint):
- * resizes, re-encodes to AVIF/WebP and caches remote covers at the edge.
+ * Third-party image hosts we serve through our own domain: the browser asks
+ * /ext-img/<host>/<path> and Vercel (vercel.json rewrites; vite.config.ts in
+ * dev) fetches it from the host. Their cookies are scoped to their domain, so
+ * the browser drops them: these images load with or without cookie consent.
  *
- * Keep IMAGE_WIDTHS and OPTIMIZED_HOSTS in sync with `images.sizes` and
- * `images.remotePatterns` in vercel.json — Vercel rejects anything else.
+ * Keep in sync with the /ext-img rewrites in vercel.json and vite.config.ts.
+ * An explicit list on purpose: a generic proxy would serve anything for anyone.
  */
-export const IMAGE_WIDTHS = [64, 128, 256, 384, 640, 828, 1080, 1200] as const;
-
-const OPTIMIZED_HOSTS = new Set([
+export const PROXIED_IMAGE_HOSTS = [
   "i.discogs.com",
-  "pub-68b3bb8285924e24851b40086d6cc375.r2.dev",
-]);
+  "i.ebayimg.com",
+  "http2.mlstatic.com",
+  "udiscover.mx",
+  "i.scdn.co",
+  "m.media-amazon.com",
+  "is1-ssl.mzstatic.com",
+] as const;
 
-const QUALITY = 75;
+const PROXIED = new Set<string>(PROXIED_IMAGE_HOSTS);
 
-/** Only production builds run on Vercel; dev/preview serve images as-is. */
-export const canOptimize = (src: string): boolean => {
-  if (!import.meta.env.PROD) return false;
+/** https://i.discogs.com/a/b.jpeg → /ext-img/i.discogs.com/a/b.jpeg; anything else unchanged. */
+export function imageSrc(src: string): string {
   try {
     const url = new URL(src);
-    return url.protocol === "https:" && OPTIMIZED_HOSTS.has(url.hostname);
+    return url.protocol === "https:" && PROXIED.has(url.hostname)
+      ? `/ext-img/${url.hostname}${url.pathname}${url.search}`
+      : src;
   } catch {
-    return false; // relative/bundled asset
+    return src; // relative / bundled asset
   }
-};
-
-export const optimizedUrl = (src: string, width: number): string =>
-  `/_vercel/image?url=${encodeURIComponent(src)}&w=${width}&q=${QUALITY}`;
-
-/** srcset covering 1x–2x of the rendered width (retina) from the allowed widths. */
-export const buildSrcSet = (src: string, renderWidth: number): string => {
-  const max = renderWidth * 2;
-  const widths = IMAGE_WIDTHS.filter((w) => w <= max);
-  // Always offer at least one candidate that covers 2x.
-  const cover = IMAGE_WIDTHS.find((w) => w >= max);
-  if (cover && !widths.includes(cover)) widths.push(cover);
-  return widths.map((w) => `${optimizedUrl(src, w)} ${w}w`).join(", ");
-};
+}

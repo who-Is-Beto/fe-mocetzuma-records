@@ -19,6 +19,8 @@ export type Record = {
   discount_porcentage?: number;
   description?: string;
   cover_image_url?: string;
+  /** WebP thumbnails of the cover in our storage; {} until generated. */
+  cover_thumbs?: CoverThumbs;
   images?: string[];
   slug: string;
   stock: number;
@@ -39,6 +41,9 @@ export type Record = {
   copies?: RecordCopy[];
 };
 
+/** Cover width (px, as a string key: "320", "640") → WebP thumbnail URL. */
+export type CoverThumbs = { [width: string]: string };
+
 /** One copy of a release in the condition picker: its own condition, price and stock. */
 export type RecordCopy = {
   id: number;
@@ -49,6 +54,7 @@ export type RecordCopy = {
   discount_porcentage: number;
   stock: number;
   cover_image_url?: string | null;
+  cover_thumbs?: CoverThumbs;
   images?: string[];
 };
 
@@ -199,6 +205,8 @@ export type ArtistDeleteResult = {
 
 export interface RecordRepository {
   list(params?: RecordFilters): Promise<RecordPage>;
+  /** A random in-stock record with a cover (home hero); 404 when there's none. */
+  featured(): Promise<Record>;
   search(params: RecordFilters & { query: string }): Promise<RecordPage>;
   getRecordById(id: string): Promise<Record>;
   getRecordBySlug(slug: string): Promise<Record>;

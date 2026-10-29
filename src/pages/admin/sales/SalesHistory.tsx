@@ -3,7 +3,7 @@ import { Button } from "../../../components/Button";
 import { extractErrorMessage } from "../../../app/lib/httpClient";
 import { useServiceQuery } from "../../../app/hooks/useServiceQuery";
 import type { createSalesService } from "../../../app/services/salesService";
-import { PAYMENT_METHOD_LABELS, type Sale } from "../../../app/domain/sales";
+import { PAYMENT_METHOD_LABELS, salePlace, type Sale } from "../../../app/domain/sales";
 import { currency, formatStoreDateTime } from "../../../app/lib/format";
 import { Img } from "../../../components/Img";
 
@@ -127,11 +127,21 @@ export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props)
                     <p className="text-xs uppercase tracking-[0.16em] text-orange">Venta #{sale.id}</p>
                     <p className="mt-0.5 text-sm text-navy/60">{formatStoreDateTime(sale.created_at)}</p>
                   </div>
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${PAYMENT_BADGE[sale.payment_method]}`}
-                  >
-                    {PAYMENT_METHOD_LABELS[sale.payment_method]}
-                  </span>
+                  <div className="flex flex-wrap justify-end gap-1.5">
+                    <span
+                      title="Lugar de venta"
+                      className={`max-w-[16rem] truncate rounded-full border border-navy/15 bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold ${
+                        sale.channel ? "text-navy" : "text-navy/50"
+                      }`}
+                    >
+                      {salePlace(sale)}
+                    </span>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${PAYMENT_BADGE[sale.payment_method]}`}
+                    >
+                      {PAYMENT_METHOD_LABELS[sale.payment_method]}
+                    </span>
+                  </div>
                 </div>
 
                 <ul className="mt-3 divide-y divide-navy/5 rounded-xl border border-navy/10 bg-white/60">

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "./Button";
 import { SearchBar } from "./SearchBar";
-import logo from "../assets/logo.png";
+import logo from "../assets/logo.webp";
 import { useAuth } from "../app/providers/AuthProvider";
 import { Img } from "./Img";
 import type { Record as AlbumRecord } from "../app/domain/album";

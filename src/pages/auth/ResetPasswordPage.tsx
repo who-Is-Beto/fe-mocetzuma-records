@@ -5,8 +5,10 @@ import { Button } from '../../components/Button'
 import { createAuthService } from '../../app/services/authService'
 import { HttpError, extractErrorMessage } from '../../app/lib/httpClient'
 import { T } from '../../app/i18n/strings'
+import { useSeo } from '../../app/hooks/useSeo'
 
 export function ResetPasswordPage() {
+  useSeo({ title: 'Nueva contraseña', noindex: true })
   const [searchParams] = useSearchParams()
   const uid = searchParams.get('uid') ?? ''
   const token = searchParams.get('token') ?? ''

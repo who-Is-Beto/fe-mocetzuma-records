@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { Spinner } from "./Loader";
 
 type Tone = "navy" | "orange" | "sun" | "outline";
 
@@ -6,6 +7,8 @@ type ButtonProps = {
   children: ReactNode;
   tone?: Tone;
   pill?: boolean;
+  /** Busy: shows the spinning record before the label and disables the button. */
+  loading?: boolean;
 } & ButtonHTMLAttributes<HTMLButtonElement>;
 
 const toneClasses: Record<Tone, string> = {
@@ -20,7 +23,9 @@ export function Button({
   children,
   tone = "navy",
   pill = true,
+  loading = false,
   className = "",
+  disabled,
   ...props
 }: ButtonProps) {
   const radius = pill ? "rounded-pill" : "rounded-xl";
@@ -30,7 +35,8 @@ export function Button({
   const composed = `${base} ${radius} ${toneClasses[tone]} ${className}`.trim();
 
   return (
-    <button type="button" className={composed} {...props}>
+    <button type="button" className={composed} disabled={disabled || loading} aria-busy={loading || undefined} {...props}>
+      {loading && <Spinner />}
       {children}
     </button>
   );

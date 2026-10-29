@@ -126,7 +126,7 @@ export function LoginPage() {
             type="submit"
             tone="orange"
             className="w-full justify-center px-4 py-3 text-base disabled:opacity-70"
-            disabled={isSubmitting}
+            loading={isSubmitting}
           >
             <span>🎵</span>
             {isSubmitting ? T.auth.login.submitting : T.auth.login.submit}

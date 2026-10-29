@@ -103,6 +103,7 @@ export function Card({ record, priority = false }: CardProps): JSX.Element {
           {record.cover_image_url ? (
             <Img
               src={record.cover_image_url}
+              thumbs={record.cover_thumbs}
               alt={record.title}
               width={384}
               sizes="(min-width: 1280px) 300px, (min-width: 640px) 45vw, 100vw"
@@ -215,7 +216,8 @@ export function Card({ record, priority = false }: CardProps): JSX.Element {
             <Button
               tone="orange"
               className="px-3 py-1 text-xs"
-              disabled={status === "adding" || stock <= 0 || (requiresVerification && !hasCopies)}
+              loading={status === "adding"}
+              disabled={stock <= 0 || (requiresVerification && !hasCopies)}
               title={requiresVerification && !hasCopies ? verifyHint : undefined}
               onClick={(event) => {
                 event.preventDefault();
@@ -231,7 +233,7 @@ export function Card({ record, priority = false }: CardProps): JSX.Element {
                 : requiresVerification
                 ? "Verifica tu correo"
                 : status === "added"
-                ? "Agregado"
+                ? <span className="success-pop">✓ Agregado</span>
                 : status === "adding"
                 ? "Añadiendo..."
                 : "Añadir al carrito"}

@@ -5,10 +5,12 @@ import { createAuthService } from '../../app/services/authService'
 import { HttpError } from '../../app/lib/httpClient'
 import { useAuth } from '../../app/providers/AuthProvider'
 import { T } from '../../app/i18n/strings'
+import { useSeo } from '../../app/hooks/useSeo'
 
 type VerifyStatus = 'verifying' | 'success' | 'error'
 
 export function VerifyEmailPage() {
+  useSeo({ title: 'Verificar correo', noindex: true })
   const [searchParams] = useSearchParams()
   const uid = searchParams.get('uid') ?? ''
   const token = searchParams.get('token') ?? ''
