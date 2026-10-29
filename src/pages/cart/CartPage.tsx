@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Button } from "../../components/Button";
-import { Loader } from "../../components/Loader";
+import { ListSkeleton, Skeleton } from "../../components/Skeleton";
+import { Spinner } from "../../components/Loader";
+import { StatusPanel } from "../../components/StatusPanel";
+import { primaryCta, secondaryCta } from "../../components/cta";
 import { Toast } from "../../components/Toast";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useServiceQuery } from "../../app/hooks";
@@ -41,7 +44,6 @@ const SHIPPING_REQUIRED_FIELDS: Array<keyof ShippingDetails> = [
  */
 export function CartPage() {
   useSeo({ title: "Tu carrito", noindex: true });
-  const navigate = useNavigate();
   const { token, isAuthenticated, emailVerified, user, resendVerification } =
     useAuth();
   const [toast, setToast] = useState<{
@@ -389,73 +391,50 @@ export function CartPage() {
   // ── Gate: not authenticated ─────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
-      <section className="space-y-5 rounded-[28px] border border-navy/10 bg-cream/80 p-6 text-center shadow-panel backdrop-blur">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-sun/60 text-3xl shadow-inner">
-          🛒
-        </div>
-        <header className="space-y-2">
-          <h1 className="font-display text-3xl text-denim">Tu carrito</h1>
-          <p className="mx-auto max-w-md text-sm text-navy/70">
-            Inicia sesión para ver tu carrito y continuar con tu compra.
-          </p>
-        </header>
-        <Button tone="orange" onClick={() => navigate("/login")}>
-          Iniciar sesión
-        </Button>
-      </section>
+      <StatusPanel
+        icon="🛒"
+        eyebrow="Carrito"
+        title="Inicia sesión para ver tu carrito"
+        text="Tu carrito se guarda en tu cuenta: entra y sigue donde te quedaste."
+        actions={
+          <>
+            <Link to="/login" className={primaryCta}>Iniciar sesión</Link>
+            <Link to="/catalogo" className={secondaryCta}>Ver catálogo</Link>
+          </>
+        }
+      />
     );
   }
 
   // ── Gate: authenticated but email not verified ──────────────────────────
   if (requiresVerification || blockedByApi) {
     return (
-      <section className="space-y-5 rounded-[28px] border border-navy/10 bg-cream/80 p-6 text-center shadow-panel backdrop-blur">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-orange/20 text-3xl shadow-inner">
-          ✉️
-        </div>
-        <header className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.18em] text-orange">
-            Carrito bloqueado
-          </p>
-          <h1 className="font-display text-3xl text-denim">
-            Verifica tu correo para continuar
-          </h1>
-          <p className="mx-auto max-w-md text-sm text-navy/70">
-            Aún puedes ver los discos del catálogo, pero necesitas confirmar tu
-            correo para agregar artículos al carrito y pagar. Revisa tu bandeja
-            de entrada o solicita un nuevo enlace.
-          </p>
-        </header>
-
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <Button
-            tone="orange"
-            disabled={resendStatus === "sending"}
-            onClick={handleResend}
-          >
-            {resendStatus === "sending"
-              ? "Enviando..."
-              : "Reenviar enlace de verificación"}
-          </Button>
-          <Button tone="outline" onClick={() => navigate("/perfil")}>
-            Ir a mi perfil
-          </Button>
-        </div>
-
-        {resendStatus === "sent" ? (
-          <p className="text-sm font-semibold text-denim">
-            Te reenviamos el enlace. Revisa tu bandeja de entrada.
-          </p>
-        ) : null}
-      </section>
+      <StatusPanel
+        icon="✉️"
+        eyebrow="Carrito bloqueado"
+        title="Verifica tu correo para continuar"
+        text="Aún puedes ver los discos del catálogo, pero necesitas confirmar tu correo para agregar artículos al carrito y pagar. Revisa tu bandeja de entrada o solicita un nuevo enlace."
+        actions={
+          <>
+            <Button tone="orange" className="min-h-[52px] px-7" loading={resendStatus === "sending"} onClick={handleResend}>
+              {resendStatus === "sending" ? "Enviando..." : "Reenviar enlace de verificación"}
+            </Button>
+            <Link to="/perfil" className={secondaryCta}>Ir a mi perfil</Link>
+          </>
+        }
+        footer={resendStatus === "sent" ? "Te reenviamos el enlace. Revisa tu bandeja de entrada." : null}
+      />
     );
   }
 
   // ── Loading (only on initial fetch, not background refetch) ─────────────
   if (isLoading && !data) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <Loader />
+      <div className="grid gap-6 lg:grid-cols-12 lg:gap-8">
+        <div className="lg:col-span-7">
+          <ListSkeleton rows={3} label="Cargando tu carrito…" />
+        </div>
+        <Skeleton className="h-96 rounded-[24px] lg:col-span-5" />
       </div>
     );
   }
@@ -463,224 +442,251 @@ export function CartPage() {
   // ── Error ───────────────────────────────────────────────────────────────
   if (isError) {
     return (
-      <section className="space-y-4 rounded-[28px] border border-navy/10 bg-cream/80 p-6 text-center shadow-panel backdrop-blur">
-        <h1 className="font-display text-2xl text-denim">
-          No pudimos cargar tu carrito
-        </h1>
-        <p className="text-sm text-navy/70">Intenta de nuevo en unos segundos.</p>
-        <Button tone="navy" onClick={() => void refetch()}>
-          Reintentar
-        </Button>
-      </section>
+      <StatusPanel
+        icon="🔌"
+        title="No pudimos cargar tu carrito"
+        text="Intenta de nuevo en unos segundos."
+        actions={
+          <Button tone="navy" className="min-h-[52px] px-7" onClick={() => void refetch()}>
+            Reintentar
+          </Button>
+        }
+      />
     );
   }
 
   // ── Empty cart ──────────────────────────────────────────────────────────
   if (!cart || items.length === 0) {
     return (
-      <section className="space-y-5 rounded-[28px] border border-navy/10 bg-cream/80 p-6 text-center shadow-panel backdrop-blur">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-sun/60 text-3xl shadow-inner">
-          🛒
-        </div>
-        <header className="space-y-2">
-          <h1 className="font-display text-3xl text-denim">
-            Tu carrito está vacío
-          </h1>
-          <p className="mx-auto max-w-md text-sm text-navy/70">
-            Explora el catálogo y encuentra tu próximo vinilo favorito.
-          </p>
-        </header>
-        <Link
-          to="/"
-          className="inline-block rounded-pill border border-orange/60 bg-orange px-5 py-2.5 text-sm font-semibold text-charcoal shadow-panel transition hover:-translate-y-0.5 hover:bg-amber"
-        >
-          Ir al catálogo
-        </Link>
-      </section>
+      <StatusPanel
+        icon="💿"
+        eyebrow="Carrito vacío"
+        title="Aún no hay discos girando aquí"
+        text="Explora el catálogo y encuentra tu próximo vinilo favorito."
+        actions={
+          <Link to="/catalogo" className={primaryCta}>
+            Explorar el catálogo
+            <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+          </Link>
+        }
+      />
     );
   }
 
   // ── Cart with items ─────────────────────────────────────────────────────
+  const units = items.reduce((sum, item) => sum + item.quantity, 0);
+  const shippingTotal = deliveryOption === "home" && shippingQuote ? Number(shippingQuote.selected.total) : 0;
   return (
-    <section className="space-y-5">
-      <header className="space-y-1">
-        <p className="text-xs uppercase tracking-[0.18em] text-orange">
-          Carrito
-        </p>
-        <h1 className="font-display text-3xl text-denim">Tu carrito</h1>
+    <section className="space-y-8">
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-orange">Carrito</p>
+          <h1 className="mt-2 font-display text-3xl leading-tight text-denim sm:text-4xl">Tu carrito</h1>
+          <p className="mt-1.5 text-sm text-navy/75">
+            {units} {units === 1 ? "disco listo" : "discos listos"} para girar
+          </p>
+        </div>
+        <CheckoutSteps current={deliveryOption ? 1 : 0} />
       </header>
 
-      <div className="grid gap-5 lg:grid-cols-[1.2fr,0.85fr]">
-        <div className="min-w-0 space-y-3">
-          {items.map((item) => (
-            <CartItemRow
-              key={item.id}
-              item={item}
-              isUpdating={actionLoadingId === item.id}
-              onUpdateQuantity={(itemId, next) =>
-                void handleUpdateQuantity(itemId, next)
-              }
-              onRemove={(recordId) => void handleRemoveItem(recordId)}
-            />
-          ))}
-
-          <div className="flex items-center justify-between rounded-2xl border border-navy/10 bg-cream/80 px-3 py-3 shadow-card sm:px-4">
-            <p className="text-sm text-navy/70">
-              {items.length} {items.length === 1 ? "artículo" : "artículos"}
-            </p>
+      <div className="grid gap-6 lg:grid-cols-12 lg:items-start lg:gap-8">
+        {/* ── Items ── */}
+        <div className="min-w-0 lg:col-span-7">
+          <ul className="divide-y divide-navy/10 overflow-hidden rounded-[24px] border border-navy/10 bg-cream shadow-card">
+            {items.map((item, index) => (
+              <CartItemRow
+                key={item.id}
+                item={item}
+                index={index}
+                isUpdating={actionLoadingId === item.id}
+                onUpdateQuantity={(itemId, next) => void handleUpdateQuantity(itemId, next)}
+                onRemove={(recordId) => void handleRemoveItem(recordId)}
+              />
+            ))}
+          </ul>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 px-1">
+            <Link
+              to="/catalogo"
+              className="group inline-flex min-h-[44px] items-center gap-1.5 text-sm font-semibold text-navy transition hover:text-orange"
+            >
+              <span aria-hidden="true" className="transition-transform duration-300 group-hover:-translate-x-1">←</span>
+              Seguir explorando
+            </Link>
             <button
               type="button"
               onClick={() => void handleRemoveAll()}
               disabled={isClearing}
-              className="text-xs font-semibold text-coral underline underline-offset-2 transition hover:text-navy disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex min-h-[44px] items-center gap-2 text-xs font-semibold text-coral underline-offset-4 transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
             >
+              {isClearing && <Spinner />}
               {isClearing ? "Vaciando…" : "Vaciar carrito"}
             </button>
           </div>
         </div>
 
-        <aside className="min-w-0 h-fit space-y-4 overflow-hidden rounded-2xl border border-navy/10 bg-cream/80 p-5 shadow-panel backdrop-blur">
-          <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-orange">
-              Resumen
-            </p>
-            <div className="mt-2 space-y-2 rounded-2xl border border-navy/10 bg-cream/70 p-3 shadow-inner">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-orange">
-                Método de entrega
-              </p>
-              <DeliveryOptions
-                value={deliveryOption}
-                onChange={setDeliveryOption}
-              />
-              {!deliveryOption ? (
-                <p className="text-[11px] font-semibold text-coral">
-                  Selecciona una opción para continuar.
-                </p>
-              ) : null}
+        {/* ── Summary: stays in view while the list scrolls (desktop) ── */}
+        <aside className="min-w-0 lg:sticky lg:top-6 lg:col-span-5">
+          <div className="overflow-hidden rounded-[24px] border border-navy/10 bg-cream shadow-panel">
+            <div className="space-y-4 p-5 sm:p-6">
+              <h2 className="font-display text-lg text-denim">Resumen del pedido</h2>
+
+              <fieldset className="space-y-3">
+                <legend className="text-[11px] font-semibold uppercase tracking-[0.18em] text-orange">
+                  ¿Cómo lo recibes?
+                </legend>
+                <DeliveryOptions value={deliveryOption} onChange={setDeliveryOption} />
+                {!deliveryOption ? (
+                  <p className="text-xs font-semibold text-coral">Selecciona una opción para continuar.</p>
+                ) : null}
+              </fieldset>
 
               {/* ── Bazar pickup picker ── */}
               {deliveryOption === "bazar" ? (
-                <div className="space-y-2 rounded-xl border border-navy/10 bg-white/80 p-3 shadow-inner">
+                <div className="page-enter space-y-2 rounded-2xl border border-navy/10 bg-white/80 p-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-orange">
-                      Elige tu bazar
-                    </p>
-                    <span className="rounded-pill bg-sun px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-navy">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-orange">Elige tu bazar</p>
+                    <span className="rounded-pill bg-sun px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-navy">
                       Requerido
                     </span>
                   </div>
-
                   {bazaresLoading ? (
-                    <p className="py-2 text-xs text-navy/60">Cargando bazares...</p>
+                    <div className="space-y-2 py-1">
+                      <Skeleton className="h-14 w-full rounded-xl" />
+                      <Skeleton className="h-14 w-full rounded-xl" />
+                    </div>
                   ) : bazaresError ? (
                     <div className="flex items-center justify-between gap-2 py-1">
                       <p className="text-xs text-coral">{bazaresError}</p>
                       <button
                         type="button"
                         onClick={retryFetchBazares}
-                        className="shrink-0 rounded-pill border border-navy/15 bg-white px-3 py-1 text-[11px] font-semibold text-navy transition hover:border-orange hover:bg-orange hover:text-white"
+                        className="min-h-[36px] shrink-0 rounded-pill border border-navy/15 bg-white px-3 text-[11px] font-semibold text-navy transition hover:border-orange hover:text-orange"
                       >
                         Reintentar
                       </button>
                     </div>
                   ) : bazares.length === 0 ? (
-                    <p className="py-2 text-xs text-navy/60">
-                      No hay bazares agendados por ahora. Elige otro método de
-                      entrega y nos vemos en la próxima. 🎪
+                    <p className="py-2 text-xs text-navy/75">
+                      No hay bazares agendados por ahora. Elige otro método de entrega y nos vemos en la próxima. 🎪
                     </p>
                   ) : (
-                    <BazarPicker
-                      bazares={bazares}
-                      selectedId={selectedBazarId}
-                      onSelect={setSelectedBazarId}
-                    />
+                    <BazarPicker bazares={bazares} selectedId={selectedBazarId} onSelect={setSelectedBazarId} />
                   )}
                 </div>
               ) : null}
 
               {/* ── Home delivery address form ── */}
               {deliveryOption === "home" ? (
-                <ShippingAddressFields
-                  formRef={shippingFormRef}
-                  values={shippingAddress}
-                  errors={shippingErrors}
-                  locations={locations}
-                  locationsZip={locationsZip}
-                  onChange={handleShippingChange}
-                  onSubmit={() => void handleCheckout()}
-                />
+                <div className="page-enter">
+                  <ShippingAddressFields
+                    formRef={shippingFormRef}
+                    values={shippingAddress}
+                    errors={shippingErrors}
+                    locations={locations}
+                    locationsZip={locationsZip}
+                    onChange={handleShippingChange}
+                    onSubmit={() => void handleCheckout()}
+                  />
+                </div>
               ) : null}
             </div>
-          </div>
 
-          <div className="flex items-center justify-between border-t border-navy/10 pt-3">
-            <span className="text-sm font-semibold text-navy">Subtotal</span>
-            <span className="text-sm text-navy">
-              {currency(cart.total_price)}
-            </span>
-          </div>
+            <div className="space-y-4 border-t border-navy/10 bg-white/60 p-5 sm:p-6">
+              <dl className="space-y-2 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-navy/75">
+                    Subtotal · {units} {units === 1 ? "disco" : "discos"}
+                  </dt>
+                  <dd className="font-semibold tabular-nums text-navy">{currency(cart.total_price)}</dd>
+                </div>
+                {deliveryOption === "home" ? (
+                  <div className="flex items-start justify-between gap-3">
+                    <dt className="text-navy/75">Envío</dt>
+                    <dd className="text-right font-semibold text-navy">
+                      {isQuoting ? (
+                        <Skeleton className="ml-auto h-4 w-24" />
+                      ) : quoteError ? (
+                        <span className="font-normal text-coral">{quoteError}</span>
+                      ) : shippingQuote ? (
+                        <>
+                          <span className="tabular-nums">{currency(shippingQuote.selected.total)}</span>
+                          <span className="block text-[11px] font-normal text-navy/75">{shippingQuote.selected.title}</span>
+                        </>
+                      ) : (
+                        <span className="font-normal text-navy/75">Ingresa tu código postal</span>
+                      )}
+                    </dd>
+                  </div>
+                ) : deliveryOption ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-navy/75">Entrega</dt>
+                    <dd className="font-semibold text-green-700">Sin costo</dd>
+                  </div>
+                ) : null}
+                <div className="flex items-end justify-between gap-3 border-t border-navy/10 pt-3">
+                  <dt className="font-semibold text-navy">Total</dt>
+                  <dd className="font-display text-2xl text-denim sm:text-[1.7rem]">
+                    {currency(Number(cart.total_price) + shippingTotal)}
+                  </dd>
+                </div>
+              </dl>
 
-          {deliveryOption === "home" ? (
-            <div className="flex items-start justify-between gap-2">
-              <span className="text-sm font-semibold text-navy">Envío</span>
-              <span className="text-right text-sm text-navy">
-                {isQuoting
-                  ? "Calculando…"
-                  : quoteError
-                    ? quoteError
-                    : shippingQuote
-                      ? `${currency(shippingQuote.selected.total)} · ${shippingQuote.selected.title}`
-                      : "Ingresa tu código postal"}
-              </span>
+              <Button
+                tone="orange"
+                className="min-h-[52px] w-full justify-center text-base"
+                onClick={() => void handleCheckout()}
+                loading={isCheckingOut}
+                disabled={checkoutDisabled}
+              >
+                {isCheckingOut ? "Procesando..." : "Proceder al pago"}
+              </Button>
+
+              {noBazaresAvailable ? (
+                <p className="text-center text-xs text-coral">
+                  No hay bazares disponibles para recoger por ahora. Elige otro método de entrega.
+                </p>
+              ) : bazarNotSelected && deliveryOption === "bazar" ? (
+                <p className="text-center text-xs text-coral">Elige el bazar donde recogerás tu pedido.</p>
+              ) : null}
+
+              <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-navy/75">
+                <li className="flex items-center gap-1"><span aria-hidden="true">🔒</span> Pago seguro con Stripe</li>
+                <li className="flex items-center gap-1"><span aria-hidden="true">🎧</span> Graduación honesta</li>
+              </ul>
             </div>
-          ) : null}
-
-          <div className="flex items-center justify-between border-t border-navy/10 pt-3">
-            <span className="text-sm font-semibold text-navy">Total</span>
-            <span className="font-display text-2xl text-denim">
-              {currency(
-                Number(cart.total_price) +
-                  (deliveryOption === "home" && shippingQuote
-                    ? Number(shippingQuote.selected.total)
-                    : 0)
-              )}
-            </span>
           </div>
-
-          <Button
-            tone="orange"
-            className="w-full justify-center py-3"
-            onClick={() => void handleCheckout()}
-            disabled={checkoutDisabled}
-          >
-            {isCheckingOut ? "Procesando..." : "Proceder al pago"}
-          </Button>
-
-          {noBazaresAvailable ? (
-            <p className="text-center text-[11px] text-coral">
-              No hay bazares disponibles para recoger por ahora. Elige otro
-              método de entrega.
-            </p>
-          ) : bazarNotSelected && deliveryOption === "bazar" ? (
-            <p className="text-center text-[11px] text-coral">
-              Elige el bazar donde recogerás tu pedido.
-            </p>
-          ) : null}
-
-          <p className="text-center text-[11px] text-navy/60">
-            Pago seguro procesado por Stripe.
-          </p>
         </aside>
       </div>
 
-      {toast ? (
-        <Toast
-          message={toast.message}
-          tone={toast.tone}
-          onClose={() => setToast(null)}
-        />
-      ) : null}
+      {toast ? <Toast message={toast.message} tone={toast.tone} onClose={() => setToast(null)} /> : null}
     </section>
+  );
+}
+
+const STEPS = ["Carrito", "Entrega", "Pago"];
+
+/** Where the buyer is: Carrito → Entrega → Pago (Stripe, on its own page). */
+function CheckoutSteps({ current }: { current: number }) {
+  return (
+    <ol aria-label="Pasos de la compra" className="flex items-center gap-2 text-xs font-semibold">
+      {STEPS.map((step, i) => (
+        <li key={step} className="flex items-center gap-2" aria-current={i === current ? "step" : undefined}>
+          <span
+            className={`flex h-7 items-center gap-1.5 rounded-pill px-3 transition-colors duration-300 ${
+              i < current
+                ? "bg-navy text-cream"
+                : i === current
+                ? "bg-orange text-charcoal shadow-card"
+                : "border border-navy/15 bg-white/60 text-navy/75"
+            }`}
+          >
+            <span aria-hidden="true">{i < current ? "✓" : i + 1}</span>
+            {step}
+          </span>
+          {i < STEPS.length - 1 ? <span aria-hidden="true" className="h-px w-4 bg-navy/20 sm:w-6" /> : null}
+        </li>
+      ))}
+    </ol>
   );
 }
 

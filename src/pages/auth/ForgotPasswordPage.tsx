@@ -5,8 +5,10 @@ import { Button } from '../../components/Button'
 import { createAuthService } from '../../app/services/authService'
 import { HttpError, extractErrorMessage } from '../../app/lib/httpClient'
 import { T } from '../../app/i18n/strings'
+import { useSeo } from '../../app/hooks/useSeo'
 
 export function ForgotPasswordPage() {
+  useSeo({ title: 'Recuperar contraseña', noindex: true })
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)

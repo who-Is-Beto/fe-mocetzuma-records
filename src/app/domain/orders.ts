@@ -9,6 +9,7 @@
  * ("canceled", one L).
  */
 
+import type { CoverThumbs } from "./album";
 import type { PickupBazar } from "./bazares";
 
 export type OrderStatus =
@@ -25,6 +26,7 @@ export type OrderItem = {
     title: string;
     slug?: string;
     cover_image_url?: string | null;
+    cover_thumbs?: CoverThumbs;
     artist?: { name?: string } | null;
     price?: string | number;
   } | null;

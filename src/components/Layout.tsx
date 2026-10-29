@@ -1,11 +1,13 @@
-import { lazy, Suspense, type ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { lazy, Suspense, useState, type ReactNode } from "react";
+import { Link, useLocation, useNavigationType } from "react-router-dom";
 import { useMaintenanceStatus } from "../app/hooks/useMaintenanceStatus";
 import { MaintenanceStatusContext } from "../app/providers/MaintenanceStatusContext";
 import { useAuth } from "../app/providers/AuthProvider";
-import { Loader } from "./Loader";
+import { PageSkeleton } from "./Skeleton";
 import { Navbar } from "./Navbar";
 import { AdminMaintenanceBar } from "./AdminMaintenanceBar";
+import { CookieBanner } from "./CookieBanner";
+import { resetConsent } from "../app/lib/consent";
 
 // Loaded only when the maintenance window is actually open.
 const MaintenancePage = lazy(() =>
@@ -44,14 +46,25 @@ export function Layout({ children }: LayoutProps) {
   const { hasPerm } = useAuth();
   const canManageMaintenance = hasPerm("apiApp.change_siteconfig");
   const { pathname } = useLocation();
+  // POP = browser back/forward (or a back button using navigate(-1)).
+  const navigationType = useNavigationType();
+  // No entrance on the first page of the visit: fading the hero in would
+  // only delay its first paint (LCP). Every later navigation animates.
+  const [firstPath] = useState(pathname);
+  const [navigated, setNavigated] = useState(false);
+  // Render-time sync with the path (no effect needed).
+  if (!navigated && pathname !== firstPath) setNavigated(true);
+  const pageMotion = !navigated ? "" : navigationType === "POP" ? "page-back" : "page-enter";
   const { config, isLoading, refetch } = useMaintenanceStatus({ enabled: true });
   const maintenanceActive = config?.maintenance_mode === true;
 
   if (!canManageMaintenance) {
     if (isLoading) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-sand">
-          <Loader />
+        <div className="min-h-screen bg-sand px-6 md:px-10">
+          <div className="mx-auto max-w-6xl">
+            <PageSkeleton />
+          </div>
         </div>
       );
     }
@@ -59,8 +72,10 @@ export function Layout({ children }: LayoutProps) {
       return (
         <Suspense
           fallback={
-            <div className="flex min-h-screen items-center justify-center bg-sand">
-              <Loader />
+            <div className="min-h-screen bg-sand px-6 md:px-10">
+              <div className="mx-auto max-w-6xl">
+                <PageSkeleton />
+              </div>
             </div>
           }
         >
@@ -84,7 +99,11 @@ export function Layout({ children }: LayoutProps) {
           <Navbar />
 
           <main className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 pb-28 pt-6 md:px-10 lg:pb-20 lg:pt-0">
-            {children}
+            {/* Keyed by path: each page change replays the entrance (query-string
+                changes like catalog filters don't). */}
+            <div key={pathname} className={`flex flex-1 flex-col ${pageMotion}`}>
+              {children}
+            </div>
           </main>
 
           <footer className="relative mt-auto border-t border-navy/10 bg-cream/70 backdrop-blur">
@@ -106,9 +125,17 @@ export function Layout({ children }: LayoutProps) {
                     {item.label}
                   </Link>
                 ))}
+                <button
+                  type="button"
+                  onClick={resetConsent}
+                  className="text-sm font-semibold text-navy transition hover:text-orange"
+                >
+                  Preferencias de cookies
+                </button>
               </div>
             </div>
           </footer>
+          <CookieBanner />
         </div>
       </div>
     </MaintenanceStatusContext.Provider>

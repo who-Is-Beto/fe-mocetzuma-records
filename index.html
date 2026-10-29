@@ -15,14 +15,15 @@
     <meta property="og:locale" content="es_MX" />
     <meta property="og:title" content="Moctezuma Records — Vinilos en la Ciudad de México" />
     <meta property="og:description" content="Tienda de vinilos en la CDMX. Discos de segunda mano y nuevos: LP, CD, 12&quot;, 7&quot; y más." />
-    <meta property="og:image" content="/moctelogo.png" />
+    <meta property="og:image" content="https://moctezumarecords.com/moctelogo.png" />
+    <meta property="og:url" content="https://moctezumarecords.com/" />
     <meta property="og:site_name" content="Moctezuma Records" />
 
     <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="Moctezuma Records — Vinilos en la Ciudad de México" />
     <meta name="twitter:description" content="Tienda de vinilos en la CDMX. Discos de segunda mano y nuevos." />
-    <meta name="twitter:image" content="/moctelogo.png" />
+    <meta name="twitter:image" content="https://moctezumarecords.com/moctelogo.png" />
 
     <!-- Theme color -->
     <meta name="theme-color" content="#f4903c" />
@@ -35,7 +36,8 @@
         "@type": "MusicStore",
         "name": "Moctezuma Records",
         "description": "Tienda de vinilos en la Ciudad de México. Discos de segunda mano y nuevos: LP, CD, 12\", 7\" y más. Envío a domicilio o recoge en tienda.",
-        "image": "/moctelogo.png",
+        "image": "https://moctezumarecords.com/moctelogo.png",
+        "url": "https://moctezumarecords.com/",
         "address": {
           "@type": "PostalAddress",
           "streetAddress": "Av. África #51",
@@ -47,6 +49,13 @@
         "sameAs": ["https://www.instagram.com/moctezuma_records/"]
       }
     </script>
+
+    <link rel="canonical" href="https://moctezumarecords.com/" />
+
+    <!-- Warm up the connections the first screen needs: the API (catalog,
+         maintenance check) and R2 (cover thumbnails). -->
+    <link rel="preconnect" href="https://api.moctezumarecords.com" crossorigin />
+    <link rel="preconnect" href="https://pub-68b3bb8285924e24851b40086d6cc375.r2.dev" />
 
     <!-- Self-hosted webfonts, preloaded: takes the Google Fonts round-trip
          (CSS -> font CSS -> woff2) out of the critical rendering path. -->

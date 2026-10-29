@@ -17,9 +17,6 @@ const API_URL = (
   "https://api.moctezumarecords.com"
 ).replace(/\/$/, "");
 
-// Same allowlist as src/app/lib/image.ts / vercel.json images.remotePatterns.
-const OPTIMIZED_HOSTS = new Set(["i.discogs.com", "pub-68b3bb8285924e24851b40086d6cc375.r2.dev"]);
-
 type ApiRecord = {
   title: string;
   slug: string;
@@ -66,18 +63,9 @@ async function fetchRecord(slug: string): Promise<ApiRecord | null> {
 }
 
 export function shareImage(record: ApiRecord, origin: string): string {
-  const src = record.cover_image_url || record.images?.[0] || "";
-  if (!src) return `${origin}/moctelogo.png`;
-  try {
-    // 1200px via the image optimizer: the size preview cards want, served
-    // from our domain (no hotlink surprises).
-    if (OPTIMIZED_HOSTS.has(new URL(src).hostname)) {
-      return `${origin}/_vercel/image?url=${encodeURIComponent(src)}&w=1200&q=75`;
-    }
-  } catch {
-    return `${origin}/moctelogo.png`;
-  }
-  return src;
+  // The original cover (JPEG): every preview crawler reads it. Vercel's image
+  // optimizer used to resize it here, but its quota ran out (402s).
+  return record.cover_image_url || record.images?.[0] || `${origin}/moctelogo.png`;
 }
 
 export function buildMetaTags(record: ApiRecord, origin: string): string {

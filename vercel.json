@@ -1,32 +1,37 @@
 {
-  "images": {
-    "sizes": [
-      64,
-      128,
-      256,
-      384,
-      640,
-      828,
-      1080,
-      1200
-    ],
-    "formats": [
-      "image/avif",
-      "image/webp"
-    ],
-    "minimumCacheTTL": 86400,
-    "remotePatterns": [
-      {
-        "protocol": "https",
-        "hostname": "i.discogs.com"
-      },
-      {
-        "protocol": "https",
-        "hostname": "pub-68b3bb8285924e24851b40086d6cc375.r2.dev"
-      }
-    ]
-  },
   "rewrites": [
+    {
+      "source": "/ext-img/i.discogs.com/:path*",
+      "destination": "https://i.discogs.com/:path*"
+    },
+    {
+      "source": "/ext-img/i.ebayimg.com/:path*",
+      "destination": "https://i.ebayimg.com/:path*"
+    },
+    {
+      "source": "/ext-img/http2.mlstatic.com/:path*",
+      "destination": "https://http2.mlstatic.com/:path*"
+    },
+    {
+      "source": "/ext-img/udiscover.mx/:path*",
+      "destination": "https://udiscover.mx/:path*"
+    },
+    {
+      "source": "/ext-img/i.scdn.co/:path*",
+      "destination": "https://i.scdn.co/:path*"
+    },
+    {
+      "source": "/ext-img/m.media-amazon.com/:path*",
+      "destination": "https://m.media-amazon.com/:path*"
+    },
+    {
+      "source": "/ext-img/is1-ssl.mzstatic.com/:path*",
+      "destination": "https://is1-ssl.mzstatic.com/:path*"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/sitemap"
+    },
     {
       "source": "/records/:slug",
       "destination": "/api/record-meta?slug=:slug",
@@ -48,5 +53,34 @@
       "includeFiles": "dist/index.html",
       "maxDuration": 10
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/fonts/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/ext-img/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800, stale-while-revalidate=2592000"
+        }
+      ]
+    }
+  ]
 }

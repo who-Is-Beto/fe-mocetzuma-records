@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { Record, RecordPage } from "../domain/album";
-import type { PaymentMethod, SaleResult } from "../domain/sales";
+import type { SaleInput, SaleResult } from "../domain/sales";
 import { createRecordService } from "../services/recordService";
 import { createSalesService } from "../services/salesService";
 import { extractErrorMessage } from "../lib/httpClient";
@@ -13,7 +13,7 @@ type Options = {
 export type SellLine = { record: Record; quantity: number; price?: string; owner?: number };
 
 /** How the ticket was paid; `commission_rate` (%) only applies to card. */
-export type SellPayment = { payment_method: PaymentMethod; commission_rate?: string };
+export type SellPayment = Pick<SaleInput, "payment_method" | "commission_rate" | "channel" | "channel_note">;
 
 /**
  * Admin record manager: paginated list, tokenized search across every page,

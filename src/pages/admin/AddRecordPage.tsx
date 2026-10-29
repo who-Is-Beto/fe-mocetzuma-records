@@ -1630,7 +1630,7 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
         <Button
           tone="orange"
           className="mt-2 w-full py-3 text-base"
-          disabled={submitting}
+          loading={submitting}
           onClick={handleSubmit}
         >
           {submitting

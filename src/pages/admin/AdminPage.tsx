@@ -1,10 +1,10 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ListSkeleton, RecordDetailSkeleton } from "../../components/Skeleton";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useSeo } from "../../app/hooks/useSeo";
 import { T } from "../../app/i18n/strings";
 import { Button } from "../../components/Button";
-import { Loader } from "../../components/Loader";
 import { MaintenanceCard } from "./MaintenanceCard";
 import { createRecordService } from "../../app/services/recordService";
 import type { Record as AlbumRecord } from "../../app/domain/album";
@@ -200,7 +200,7 @@ export function AdminPage() {
 
       {/* ── Tab content ── */}
       <div className="mt-6">
-        <Suspense fallback={<Loader />}>
+        <Suspense fallback={<ListSkeleton rows={5} />}>
           {editing && editLoadError && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               No se pudo abrir el disco para editar.
@@ -209,7 +209,7 @@ export function AdminPage() {
               </Button>
             </div>
           )}
-          {editing && !editLoadError && !editingRecord && <Loader />}
+          {editing && !editLoadError && !editingRecord && <RecordDetailSkeleton />}
           {editing && editingRecord && (
             <AddRecordPage
               key={editingRecord.id}

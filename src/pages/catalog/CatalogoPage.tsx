@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card } from "../../components/Card";
 import { Button } from "../../components/Button";
-import { Loader } from "../../components/Loader";
+import { CardGridSkeleton } from "../../components/Skeleton";
 import { Modal } from "../../components/Modal";
 import type { Artist, Category, Genere, RecordPage } from "../../app/domain/album";
 import { useServiceQuery } from "../../app/hooks";
@@ -184,9 +184,7 @@ export const CatalogoPage = () => {
           />
 
           {firstLoad ? (
-            <div className="flex min-h-[40vh] items-center justify-center">
-              <Loader />
-            </div>
+            <CardGridSkeleton />
           ) : (
             <div
               aria-busy={isLoading}

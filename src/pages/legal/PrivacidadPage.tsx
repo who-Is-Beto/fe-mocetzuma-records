@@ -69,10 +69,26 @@ export function PrivacidadPage() {
             5. Cookies y tecnologías similares
           </h2>
           <p>
-            Utilizamos cookies esenciales para el funcionamiento del sitio
-            (autenticación, carrito de compras). No utilizamos cookies de
-            rastreo publicitario de terceros.
+            Usamos almacenamiento local del navegador (no cookies propias) y te
+            pedimos tu decisión la primera vez que nos visitas. Puedes cambiarla
+            cuando quieras desde «Preferencias de cookies» al pie de cada página.
           </p>
+          <p>
+            <strong>Siempre activo (indispensable):</strong> tu sesión al iniciar
+            sesión, el código de tu carrito y tu decisión sobre cookies. Sin esto
+            no podrías comprar. Al pagar, Stripe usa sus propias cookies en su
+            página de pago para procesar el cobro de forma segura.
+          </p>
+          <p>
+            <strong>Solo si aceptas:</strong> preferencias (por ejemplo, cuántos
+            discos ver por página), memoria temporal para cargar más rápido,
+            estadísticas anónimas de visitas (Cloudflare Web Analytics, sin
+            cookies ni datos personales) y algunas imágenes poco comunes alojadas
+            en sitios de terceros, que pueden colocar sus propias cookies. Si
+            rechazas, no guardamos nada de esto. Las portadas (incluidas las de
+            Discogs) se sirven desde nuestro dominio, sin cookies de terceros.
+          </p>
+          <p>No utilizamos cookies de rastreo publicitario.</p>
         </section>
 
         <section className="space-y-2">

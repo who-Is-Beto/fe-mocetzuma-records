@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/Button";
-import { Loader } from "../../components/Loader";
+import { RecordDetailSkeleton } from "../../components/Skeleton";
 import { Toast } from "../../components/Toast";
 import { createRecordService } from "../../app/services/recordService";
 import type { Record as MusicRecord, RecordCopy } from "../../app/domain/album";
@@ -15,6 +15,7 @@ import { Img } from "../../components/Img";
 import { currency } from "../../app/lib/format";
 import { getCartCode, persistCartCode } from "../../app/lib/cartStorage";
 import { ConditionPicker } from "./ConditionPicker";
+import { canUseOptionalStorage } from "../../app/lib/consent";
 import { RecordDescription } from "./RecordDescription";
 
 type CarouselProps = { images: string[]; title: string };
@@ -166,7 +167,7 @@ export function RecordDetailPage() {
 
     try {
       const record = await recordService.getRecordBySlug(slug);
-      if (cacheKey && typeof window !== "undefined") {
+      if (cacheKey && typeof window !== "undefined" && canUseOptionalStorage()) {
         sessionStorage.setItem(cacheKey, JSON.stringify(record));
       }
       return record;
@@ -187,7 +188,7 @@ export function RecordDetailPage() {
             searchResults.results?.[0];
 
           if (match) {
-            if (cacheKey && typeof window !== "undefined") {
+            if (cacheKey && typeof window !== "undefined" && canUseOptionalStorage()) {
               sessionStorage.setItem(cacheKey, JSON.stringify(match));
             }
             return match;
@@ -254,6 +255,28 @@ export function RecordDetailPage() {
             ? `(${data.condition})`
             : ""
         } disponible en Moctezuma Records. Compra segura con envíos a todo México.`
+      : undefined,
+    image: data?.cover_image_url || data?.images?.[0],
+    // Product rich result: price, stock and condition in Google's listing.
+    jsonLd: data
+      ? {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: `${data.title} — ${data.artist.name}`,
+          image: [data.cover_image_url, ...(data.images ?? [])].filter(Boolean),
+          description: data.description || undefined,
+          category: data.category?.name,
+          brand: { "@type": "Brand", name: data.artist.name },
+          offers: {
+            "@type": "Offer",
+            url: window.location.href.split("?")[0],
+            priceCurrency: "MXN",
+            price: getEffectivePrice(data).effective.toFixed(2),
+            availability: data.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+            itemCondition: data.condition === "M" ? "https://schema.org/NewCondition" : "https://schema.org/UsedCondition",
+            seller: { "@type": "Organization", name: "Moctezuma Records" }
+          }
+        }
       : undefined
   });
 
@@ -267,9 +290,7 @@ export function RecordDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <Loader />
-      </div>
+      <RecordDetailSkeleton />
     );
   }
 
@@ -459,7 +480,8 @@ export function RecordDetailPage() {
             tone="orange"
             className="w-full px-4 py-2.5 text-sm sm:w-auto"
             onClick={handleAddToCart}
-            disabled={cartStatus === "adding" || requiresVerification || data.stock <= 0}
+            loading={cartStatus === "adding"}
+            disabled={requiresVerification || data.stock <= 0}
             title={requiresVerification ? verifyHint : undefined}
           >
             {data.stock <= 0
@@ -467,7 +489,7 @@ export function RecordDetailPage() {
               : requiresVerification
               ? "Verifica tu correo para comprar"
               : cartStatus === "added"
-              ? "Agregado"
+              ? <span className="success-pop">✓ Agregado</span>
               : cartStatus === "adding"
               ? "Añadiendo..."
               : selectedCopy

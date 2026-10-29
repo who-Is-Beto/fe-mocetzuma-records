@@ -177,7 +177,7 @@ export function RegisterPage() {
             type="submit"
             tone="orange"
             className="px-4 py-2 text-sm disabled:opacity-70"
-            disabled={isSubmitting}
+            loading={isSubmitting}
           >
             <span>🚀</span>
             {isSubmitting ? T.auth.register.submitting : T.auth.register.submit}

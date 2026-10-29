@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Spinner } from "../../../components/Loader";
 import { Modal } from "../../../components/Modal";
 import type { Bazar } from "../../../app/domain/bazares";
 import { Img } from "../../../components/Img";
@@ -222,8 +223,9 @@ export function BazarFormModal({
           type="button"
           onClick={handleSubmit}
           disabled={saving}
-          className="rounded-pill bg-orange px-5 py-2 text-xs font-semibold text-white shadow-panel transition hover:bg-orange/80 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-pill bg-orange px-5 py-2 text-xs font-semibold text-white shadow-panel transition hover:bg-orange/80 disabled:opacity-50"
         >
+          {saving && <Spinner />}
           {saving ? "Guardando..." : editing ? "Guardar cambios" : "Crear bazar"}
         </button>
       </div>
