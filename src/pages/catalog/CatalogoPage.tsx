@@ -9,6 +9,9 @@ import { useServiceQuery } from "../../app/hooks";
 import { createRecordService } from "../../app/services/recordService";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useSeo } from "../../app/hooks/useSeo";
+import { CatalogEmpty, type EmptyReason } from "./CatalogEmpty";
+import { StatusPanel } from "../../components/StatusPanel";
+import { HttpError } from "../../app/lib/httpClient";
 import { ActiveFilterChips, AvailabilitySwitch, CatalogFilterPanel, SortSelect } from "./CatalogFilters";
 import {
   activeFilterCount,
@@ -69,20 +72,19 @@ export const CatalogoPage = () => {
   const fetchRecords = useCallback(async () => {
     const cached = cacheRef.current.get(queryKey);
     if (cached) return cached;
-    try {
-      const filters = toRecordFilters(params);
-      const response = params.search
-        ? await recordService.search({ query: params.search, ...filters })
-        : await recordService.list(filters);
-      const page = response ?? EMPTY_PAGE;
-      cacheRef.current.set(queryKey, page);
-      return page;
-    } catch {
-      return EMPTY_PAGE;
-    }
+    // Errors propagate: a failed load must not look like "no results".
+    const filters = toRecordFilters(params);
+    const response = params.search
+      ? await recordService.search({ query: params.search, ...filters })
+      : await recordService.list(filters);
+    const page = response ?? EMPTY_PAGE;
+    cacheRef.current.set(queryKey, page);
+    return page;
   }, [recordService, queryKey, params]);
 
-  const { data, isLoading } = useServiceQuery<RecordPage>([recordService, queryKey], fetchRecords);
+  const { data, isLoading, isError, error, refetch } = useServiceQuery<RecordPage>([recordService, queryKey], fetchRecords);
+  // DRF answers 404 for ?page= past the last page.
+  const pageGone = isError && error instanceof HttpError && error.status === 404 && params.page > 1;
 
   const artistName = params.artist
     ? (pickedArtist?.slug === params.artist && pickedArtist.name) ||
@@ -122,8 +124,24 @@ export const CatalogoPage = () => {
       onArtistPicked={setPickedArtist}
     />
   );
-  const results = data?.results ?? [];
+  const results = isError ? [] : data?.results ?? [];
   const firstLoad = isLoading && !data;
+  const unknownFormat =
+    Boolean(params.category) && categories.length > 0 && !categories.some((c) => c.slug === params.category);
+  const emptyReason: EmptyReason | null = pageGone
+    ? "page"
+    : isError || isLoading || !data || results.length > 0
+    ? null
+    : unknownFormat
+    ? "format"
+    : params.search
+    ? "search"
+    : "filters";
+  const goToPage1 = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("page");
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <section className="space-y-4">
@@ -201,36 +219,34 @@ export const CatalogoPage = () => {
             </div>
           )}
 
-          {data && results.length === 0 && !isLoading ? (
-            <div className="flex flex-col items-start gap-3 rounded-2xl border border-navy/10 bg-cream/80 px-4 py-3 shadow-card sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="font-display text-lg text-denim">
-                  {params.search ? "Disco no encontrado" : "Sin resultados"}
-                </p>
-                <p className="text-sm text-navy/70">
-                  {params.search
-                    ? "No encontramos coincidencias para tu búsqueda."
-                    : "No hay discos que coincidan con estos filtros. Intenta con otros criterios."}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {params.search ? (
-                  <Button
-                    tone="outline"
-                    onClick={() => window.open("https://www.instagram.com/moctezuma_records/", "_blank")}
-                    className="text-sm rounded-md"
-                  >
-                    Contáctame en Instagram para encargarlo
-                  </Button>
-                ) : null}
-                <Button tone="navy" onClick={() => setSearchParams(new URLSearchParams(), { replace: true })} className="text-sm rounded-md">
-                  Limpiar filtros
+          {isError && !pageGone ? (
+            <StatusPanel
+              icon="🔌"
+              title="No pudimos cargar el catálogo"
+              text="Puede ser tu conexión o un problema de nuestro lado. Intenta de nuevo en unos segundos."
+              actions={
+                <Button tone="navy" className="min-h-[52px] px-7" onClick={() => void refetch().catch(() => {})}>
+                  Reintentar
                 </Button>
-              </div>
-            </div>
+              }
+            />
           ) : null}
 
-          {data && data.count > 0 ? (
+          {emptyReason ? (
+            <CatalogEmpty
+              reason={emptyReason}
+              search={params.search}
+              availableOnly={params.available}
+              hasFilters={filterCount > 0}
+              categories={categories}
+              onIncludeSoldOut={() => applyFilters({ available: false })}
+              onClearFilters={clearAll}
+              onPickFormat={(category) => applyFilters({ category })}
+              onFirstPage={goToPage1}
+            />
+          ) : null}
+
+          {data && data.count > 0 && !isError ? (
             <div className="flex flex-col gap-2 rounded-2xl border border-navy/10 bg-cream/80 px-4 py-3 shadow-card sm:flex-row sm:items-center sm:justify-end">
               <Pagination
                 page={params.page}

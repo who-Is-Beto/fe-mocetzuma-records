@@ -63,6 +63,12 @@ const ContactoPage = lazy(() =>
 const AdminPage = lazy(() =>
   import("../../pages/admin/AdminPage").then((m) => ({ default: m.AdminPage }))
 );
+const RecordRequestPage = lazy(() =>
+  import("../../pages/requests/RecordRequestPage").then((m) => ({ default: m.RecordRequestPage }))
+);
+const FavoritesPage = lazy(() =>
+  import("../../pages/favorites/FavoritesPage").then((m) => ({ default: m.FavoritesPage }))
+);
 const NotFoundPage = lazy(() =>
   import("../../pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage }))
 );
@@ -88,6 +94,8 @@ export const router = createBrowserRouter([
       { path: "albums/:albumId", element: <AlbumDetailPage /> },
       { path: "design-system", element: <DesignSystemPage /> },
       { path: "carrito", element: <CartPage /> },
+      { path: "favoritos", element: <FavoritesPage /> },
+      { path: "encargar", element: <RecordRequestPage /> },
       { path: "bazares", element: <BazaresPage /> },
       { path: "mis-ordenes", element: <OrdersPage /> },
       { path: "terminos-y-condiciones", element: <TerminosPage /> },

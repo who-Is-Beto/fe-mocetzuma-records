@@ -13,7 +13,9 @@ import { useSeo } from "../../app/hooks/useSeo";
 import { currency, formatEventDate, getDateParts } from "../../app/lib/format";
 import { Img } from "../../components/Img";
 import { Reveal } from "../../components/Reveal";
+import { HeartButton } from "../../components/HeartButton";
 import { Skeleton } from "../../components/Skeleton";
+import { Vinyl } from "../../components/Vinyl";
 import { primaryCta, secondaryCta } from "../../components/cta";
 
 const INSTAGRAM_URL = "https://www.instagram.com/moctezuma_records/";
@@ -172,9 +174,9 @@ function HomeHero({
               Ver catálogo
               <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1">→</span>
             </Link>
-            <a href={INSTAGRAM_URL} target="_blank" rel="noreferrer" className={secondaryCta}>
+            <Link to="/encargar" className={secondaryCta}>
               Encargar un disco
-            </a>
+            </Link>
           </div>
 
           {/* Fixed height: the count arriving never moves the layout. */}
@@ -233,14 +235,14 @@ function SleeveArt({ featured, loading }: { featured?: RecordItem; loading: bool
   return (
     <div className="relative mx-auto w-full max-w-[230px] pr-[24%] min-[480px]:max-w-[280px] sm:max-w-[340px] lg:max-w-[360px]">
       {/* The disc: a touch smaller than the sleeve, slid ~1/3 out to the right. */}
-      <div key={featured?.id ?? "none"} aria-hidden="true" className="vinyl-out absolute right-0 top-[4%] aspect-square w-[72%]">
+      <div key={`disc-${featured?.id ?? "none"}`} aria-hidden="true" className="vinyl-out absolute right-0 top-[4%] aspect-square w-[72%]">
         <Vinyl />
       </div>
 
       {featured ? (
         <Link
           to={`/records/${featured.slug ?? featured.id}`}
-          key={featured.id}
+          key={`sleeve-${featured.id}`}
           className="sleeve-in group relative block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange"
         >
           {sleeve}
@@ -254,32 +256,6 @@ function SleeveArt({ featured, loading }: { featured?: RecordItem; loading: bool
       ) : (
         <div className="relative">{sleeve}</div>
       )}
-    </div>
-  );
-}
-
-/** Charcoal vinyl (grooves + serape label), spinning slowly. */
-function Vinyl() {
-  return (
-    <div
-      className="relative h-full w-full animate-[spin_14s_linear_infinite] rounded-full shadow-[0_20px_40px_-18px_rgba(0,0,0,0.6)] motion-reduce:animate-none"
-      style={{
-        backgroundImage:
-          "repeating-radial-gradient(circle at center, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 2px, transparent 4px), linear-gradient(135deg, #1b1f2a, #262b38 55%, #000)"
-      }}
-    >
-      <div className="absolute inset-[9%] rounded-full border border-white/10" />
-      <div
-        className="absolute left-1/2 top-1/2 h-[34%] w-[34%] -translate-x-1/2 -translate-y-1/2 rounded-full ring-4 ring-white/10"
-        style={{
-          background:
-            "repeating-conic-gradient(from 0deg, #f8d15a 0deg 30deg, #f4903c 30deg 60deg, #e85f3c 60deg 90deg, #e4007c 90deg 120deg)"
-        }}
-      >
-        <span className="absolute left-1/2 top-1/2 h-[14%] w-[14%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cream" />
-      </div>
-      {/* Light catching the grooves */}
-      <div className="absolute inset-0 rounded-full bg-[conic-gradient(from_200deg,transparent_0deg,rgba(255,255,255,0.10)_40deg,transparent_80deg,transparent_200deg,rgba(255,255,255,0.07)_240deg,transparent_280deg)]" />
     </div>
   );
 }
@@ -467,6 +443,7 @@ function RecordTile({ record }: { record: RecordItem }) {
             -{discount}%
           </span>
         ) : null}
+        <HeartButton recordId={record.id} title={record.title} className="absolute right-2 top-2 h-10 w-10" />
         {record.condition ? (
           <span className="absolute bottom-2.5 left-2.5 rounded-pill bg-white/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-navy shadow-sm">
             {record.condition}

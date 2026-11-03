@@ -11,6 +11,7 @@ import { Toast } from "./Toast";
 import { currency } from "../app/lib/format";
 import { getCartCode, persistCartCode } from "../app/lib/cartStorage";
 import { Img } from "./Img";
+import { HeartButton } from "./HeartButton";
 
 type CardProps = {
   record: Record;
@@ -119,11 +120,12 @@ export function Card({ record, priority = false }: CardProps): JSX.Element {
             const { discount, hasDiscount } = getEffectivePrice(record);
             if (!hasDiscount) return null;
             return (
-              <span className="absolute top-2.5 right-2.5 rounded-full bg-coral px-2.5 py-1 text-sm font-bold text-white shadow-lg">
+              <span className="absolute left-2.5 top-2.5 rounded-full bg-coral px-2.5 py-1 text-sm font-bold text-white shadow-lg">
                 -{discount}%
               </span>
             );
           })()}
+          <HeartButton recordId={record.id} title={record.title} className="absolute right-2.5 top-2.5" />
         </div>
 
         <div className="space-y-1">
