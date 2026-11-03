@@ -6,9 +6,12 @@ import type { ReactNode } from "react";
  * Loader stays for button / inline busy states.
  */
 
-/** One shimmering block; size and shape come from `className`. */
+/**
+ * One shimmering block; size and shape come from `className`. A block-level
+ * <span>, so it's valid anywhere text is (e.g. inside a <p>).
+ */
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div aria-hidden="true" className={`skeleton rounded-lg ${className}`} />;
+  return <span aria-hidden="true" className={`skeleton block rounded-lg ${className}`} />;
 }
 
 /** Screen-reader announcement + wrapper every preset uses. */

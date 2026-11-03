@@ -47,7 +47,8 @@ export function useServiceQuery<TData>(
 
   useEffect(() => {
     if (enabled) {
-      void refetch();
+      // The failure is already in `error`/`isError`; don't leave it unhandled.
+      refetch().catch(() => {});
     }
     return () => abortRef.current?.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps

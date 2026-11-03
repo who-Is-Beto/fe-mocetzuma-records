@@ -12,11 +12,15 @@ import { useAuth } from "../../app/providers/AuthProvider";
 import { createCartService } from "../../app/services/cartService";
 import { useSeo } from "../../app/hooks/useSeo";
 import { Img } from "../../components/Img";
+import { HeartButton } from "../../components/HeartButton";
 import { currency } from "../../app/lib/format";
 import { getCartCode, persistCartCode } from "../../app/lib/cartStorage";
 import { ConditionPicker } from "./ConditionPicker";
 import { canUseOptionalStorage } from "../../app/lib/consent";
 import { RecordDescription } from "./RecordDescription";
+import { LostPanel } from "../../components/LostPanel";
+import { StatusPanel } from "../../components/StatusPanel";
+import { primaryCta, secondaryCta } from "../../components/cta";
 
 type CarouselProps = { images: string[]; title: string };
 
@@ -280,13 +284,29 @@ export function RecordDetailPage() {
       : undefined
   });
 
-  if (!slug) {
-    return (
-      <div className="rounded-2xl border border-navy/10 bg-cream/80 p-6 text-sm text-navy shadow-panel">
-        Registro no encontrado.
-      </div>
-    );
-  }
+  // "kind-of-blue-2" → "kind of blue": prefills the order form.
+  const slugWords = (slug ?? "").replace(/-\d+$/, "").replace(/-/g, " ").trim();
+  const recordGone = (
+    <LostPanel
+      eyebrow="Disco no encontrado"
+      title="Este disco ya voló"
+      text="Puede que se haya vendido o que el enlace esté mal escrito. Échale un ojo al catálogo: seguro hay algo que te late."
+      requestTitle={slugWords || undefined}
+      actions={
+        <>
+          <Link to="/catalogo" className={primaryCta}>
+            Ver catálogo
+            <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+          </Link>
+          <button type="button" onClick={() => navigate(-1)} className={secondaryCta}>
+            ← Regresar
+          </button>
+        </>
+      }
+    />
+  );
+
+  if (!slug) return recordGone;
 
   if (isLoading) {
     return (
@@ -295,34 +315,21 @@ export function RecordDetailPage() {
   }
 
   if (isError || !data) {
-    const isNotFound = error instanceof HttpError && error.status === 404;
+    if (error instanceof HttpError && error.status === 404) return recordGone;
     return (
-      <div className="rounded-2xl border border-navy/10 bg-cream/80 p-6 text-sm text-navy shadow-panel">
-        <p className="font-semibold text-denim">
-          {isNotFound ? "Disco no encontrado" : "No pudimos cargar este disco."}
-        </p>
-        <p className="text-navy/70">
-          {isNotFound
-            ? "Revisa el enlace o regresa al catálogo."
-            : "Inténtalo de nuevo en unos segundos."}
-        </p>
-        <div className="mt-3 flex gap-3">
-          <Button
-            tone="outline"
-            className="px-4 py-2 text-sm"
-            onClick={() => navigate(-1)}
-          >
-            ← Regresar
-          </Button>
-          <Button
-            tone="navy"
-            className="px-4 py-2 text-sm"
-            onClick={() => navigate("/catalogo")}
-          >
-            Ir al catálogo
-          </Button>
-        </div>
-      </div>
+      <StatusPanel
+        icon="🔌"
+        title="No pudimos cargar este disco"
+        text="Puede ser tu conexión o un problema de nuestro lado. Intenta de nuevo en unos segundos."
+        actions={
+          <>
+            <Button tone="navy" className="min-h-[52px] px-7" onClick={() => window.location.reload()}>
+              Reintentar
+            </Button>
+            <Link to="/catalogo" className={secondaryCta}>Ir al catálogo</Link>
+          </>
+        }
+      />
     );
   }
 
@@ -476,6 +483,7 @@ export function RecordDetailPage() {
             </svg>
             Compartir
           </Button>
+          <HeartButton variant="inline" recordId={data.id} title={data.title} className="w-full sm:w-auto" />
           <Button
             tone="orange"
             className="w-full px-4 py-2.5 text-sm sm:w-auto"

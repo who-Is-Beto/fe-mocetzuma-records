@@ -21,6 +21,10 @@ type DropdownProps = {
   children: ReactNode;
   /** Which trigger edge the panel lines up with. */
   align?: "start" | "end";
+  /** Close after an item is picked (navigation menus); default stays open (multi-select). */
+  closeOnSelect?: boolean;
+  /** Replaces the default trigger styling. */
+  triggerClassName?: string;
 };
 
 const ITEM_SELECTOR = '[role^="menuitem"]';
@@ -37,7 +41,14 @@ const GAP = 8;
  * stacking context). It opens below the trigger, flips above when there's no
  * room, stays inside the viewport and follows the trigger on scroll/resize.
  */
-export function Dropdown({ label, ariaLabel, children, align = "start" }: DropdownProps) {
+export function Dropdown({
+  label,
+  ariaLabel,
+  children,
+  align = "start",
+  closeOnSelect = false,
+  triggerClassName = "-mx-2 flex items-center gap-1.5 rounded-xl border border-transparent px-2 py-1 text-left transition hover:border-navy/10 hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange/40 aria-expanded:border-orange/40 aria-expanded:bg-white"
+}: DropdownProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -141,7 +152,7 @@ export function Dropdown({ label, ariaLabel, children, align = "start" }: Dropdo
         aria-label={ariaLabel}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={onTriggerKeyDown}
-        className="-mx-2 flex items-center gap-1.5 rounded-xl border border-transparent px-2 py-1 text-left transition hover:border-navy/10 hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange/40 aria-expanded:border-orange/40 aria-expanded:bg-white"
+        className={triggerClassName}
       >
         {label}
         <span
@@ -159,6 +170,9 @@ export function Dropdown({ label, ariaLabel, children, align = "start" }: Dropdo
             role="menu"
             aria-label={ariaLabel}
             onKeyDown={onPanelKeyDown}
+            onClick={(event) => {
+              if (closeOnSelect && (event.target as HTMLElement).closest(ITEM_SELECTOR)) setOpen(false);
+            }}
             // invisible until place() measures it; z-40 stays under modals (z-50).
             className="invisible fixed left-0 top-0 z-40 max-h-[60vh] min-w-[13rem] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-navy/10 bg-cream p-1.5 shadow-card animate-modal-in"
           >

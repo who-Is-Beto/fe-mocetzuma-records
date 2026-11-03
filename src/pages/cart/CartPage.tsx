@@ -651,7 +651,6 @@ export function CartPage() {
 
               <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-navy/75">
                 <li className="flex items-center gap-1"><span aria-hidden="true">🔒</span> Pago seguro con Stripe</li>
-                <li className="flex items-center gap-1"><span aria-hidden="true">🎧</span> Graduación honesta</li>
               </ul>
             </div>
           </div>
