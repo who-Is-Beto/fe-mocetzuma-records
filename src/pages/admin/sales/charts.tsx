@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import { currency } from "../../../app/lib/format";
 import { useCountUp } from "../../../app/hooks/useCountUp";
+import { CHANNEL_FILL } from "./channelColors";
 
 /** Series fills in their fixed order (tailwind `chart` tokens). */
 export const SERIES = ["bg-chart-1", "bg-chart-2", "bg-chart-3"] as const;
@@ -105,7 +106,7 @@ export function Sparkline({ values, color }: { values: number[]; color: string }
 
 /* ── Timeline ─────────────────────────────────────────────────────────── */
 
-export type TimelinePoint = { period: string; pos: number; online: number; profit: number; count: number };
+export type TimelinePoint = { period: string; pos: number; online: number; presale: number; profit: number; count: number };
 
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
@@ -123,10 +124,17 @@ const periodLabel = (period: string) => {
 export function TimelineChart({ points, grain }: { points: TimelinePoint[]; grain: "day" | "month" }) {
   const [active, setActive] = useState<number | null>(null);
   const totals = points.reduce(
-    (acc, p) => ({ pos: acc.pos + p.pos, online: acc.online + p.online, profit: acc.profit + p.profit, count: acc.count + p.count }),
-    { pos: 0, online: 0, profit: 0, count: 0 }
+    (acc, p) => ({
+      pos: acc.pos + p.pos,
+      online: acc.online + p.online,
+      presale: acc.presale + p.presale,
+      profit: acc.profit + p.profit,
+      count: acc.count + p.count
+    }),
+    { pos: 0, online: 0, presale: 0, profit: 0, count: 0 }
   );
-  const top = niceMax(Math.max(...points.map((p) => Math.max(p.pos + p.online, p.profit)), 0));
+  const sum = (p: { pos: number; online: number; presale: number }) => p.pos + p.online + p.presale;
+  const top = niceMax(Math.max(...points.map((p) => Math.max(sum(p), p.profit)), 0));
   const bottom = Math.min(0, ...points.map((p) => p.profit));
   const range = top - bottom;
   const pct = (v: number) => ((v - bottom) / range) * 100; // % from the plot's bottom edge
@@ -148,12 +156,15 @@ export function TimelineChart({ points, grain }: { points: TimelinePoint[]; grai
           <p className="text-xs text-navy/70">
             {shown ? (grain === "month" ? `Mes: ${periodLabel(shown.period)}` : periodLabel(shown.period)) : "Todo el periodo"}
           </p>
-          <p className="text-2xl font-semibold text-navy">{currency((shown ?? totals).pos + (shown ?? totals).online)}</p>
+          <p className="text-2xl font-semibold text-navy">{currency(sum(shown ?? totals))}</p>
         </div>
         <dl className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
           {[
-            { label: "Punto de venta", value: currency((shown ?? totals).pos), swatch: SERIES[0] },
-            { label: "En línea", value: currency((shown ?? totals).online), swatch: SERIES[1] },
+            { label: "Punto de venta", value: currency((shown ?? totals).pos), swatch: CHANNEL_FILL.pos },
+            { label: "En línea", value: currency((shown ?? totals).online), swatch: CHANNEL_FILL.online },
+            ...(totals.presale > 0
+              ? [{ label: "Preventas", value: currency((shown ?? totals).presale), swatch: CHANNEL_FILL.presale }]
+              : []),
             { label: "Ganancia", value: currency((shown ?? totals).profit), swatch: "line" },
             { label: "Ventas", value: String((shown ?? totals).count) }
           ].map((item) => (
@@ -198,6 +209,7 @@ export function TimelineChart({ points, grain }: { points: TimelinePoint[]; grai
                 const zero = pct(0);
                 const posH = (p.pos / range) * 100;
                 const onlineH = (p.online / range) * 100;
+                const presaleH = (p.presale / range) * 100;
                 return (
                   <button
                     key={p.period}
@@ -206,7 +218,7 @@ export function TimelineChart({ points, grain }: { points: TimelinePoint[]; grai
                     onFocus={() => setActive(i)}
                     onBlur={() => setActive(null)}
                     onClick={() => setActive(active === i ? null : i)}
-                    aria-label={`${periodLabel(p.period)}: ${currency(p.pos + p.online)}, ${p.count} ventas`}
+                    aria-label={`${periodLabel(p.period)}: ${currency(sum(p))}, ${p.count} ventas`}
                     className="group relative h-full min-w-0 flex-1 outline-none"
                   >
                     <span
@@ -215,12 +227,17 @@ export function TimelineChart({ points, grain }: { points: TimelinePoint[]; grai
                     />
                     <span
                       className="grow-y absolute inset-x-0 mx-auto flex w-[70%] max-w-[24px] flex-col-reverse gap-[2px]"
-                      style={{ ...cascade(i), bottom: `${zero}%`, height: `${posH + onlineH}%` }}
+                      style={{ ...cascade(i), bottom: `${zero}%`, height: `${posH + onlineH + presaleH}%` }}
                     >
-                      {p.pos > 0 && (
-                        <span className={`${SERIES[0]} block w-full ${p.online > 0 ? "" : "rounded-t"}`} style={{ flexGrow: p.pos }} />
-                      )}
-                      {p.online > 0 && <span className={`${SERIES[1]} block w-full rounded-t`} style={{ flexGrow: p.online }} />}
+                      {(["pos", "online", "presale"] as const)
+                        .filter((channel) => p[channel] > 0)
+                        .map((channel, k, shownChannels) => (
+                          <span
+                            key={channel}
+                            className={`${CHANNEL_FILL[channel]} block w-full ${k === shownChannels.length - 1 ? "rounded-t" : ""}`}
+                            style={{ flexGrow: p[channel] }}
+                          />
+                        ))}
                     </span>
                   </button>
                 );
@@ -264,7 +281,7 @@ export function TimelineChart({ points, grain }: { points: TimelinePoint[]; grai
 
 /* ── Share of a whole ─────────────────────────────────────────────────── */
 
-export type Segment = { label: string; value: number; detail?: string };
+export type Segment = { label: string; value: number; detail?: string; /** Fixed fill when color follows an entity. */ fill?: string };
 
 /**
  * One 100 % bar split into parts (e.g. where each peso of gross goes), with a
@@ -283,7 +300,7 @@ export function StackedShare({ segments, label }: { segments: Segment[]; label: 
               key={segment.label}
               onMouseEnter={() => setActive(i)}
               onMouseLeave={() => setActive(null)}
-              className={`${SERIES[i % SERIES.length]} h-full transition-opacity duration-300 ${
+              className={`${segment.fill ?? SERIES[i % SERIES.length]} h-full transition-opacity duration-300 ${
                 active !== null && active !== i ? "opacity-30" : ""
               }`}
               style={{ width: `${(segment.value / total) * 100}%` }}
@@ -305,7 +322,7 @@ export function StackedShare({ segments, label }: { segments: Segment[]; label: 
               active === i ? "bg-white/80" : ""
             }`}
           >
-            <span aria-hidden="true" className={`mt-1 h-3 w-3 shrink-0 rounded-sm ${SERIES[i % SERIES.length]}`} />
+            <span aria-hidden="true" className={`mt-1 h-3 w-3 shrink-0 rounded-sm ${segment.fill ?? SERIES[i % SERIES.length]}`} />
             <span className="min-w-0">
               <span className="block text-xs text-navy/70">{segment.label}</span>
               <span className="block font-semibold text-navy">

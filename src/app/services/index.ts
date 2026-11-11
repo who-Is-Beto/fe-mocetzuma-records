@@ -7,3 +7,4 @@ export { createSalesService } from "./salesService";
 export { createUsersService } from "./usersService";
 export { createShippingService } from "./shippingService";
 export { createDiscogsService } from "./discogsService";
+export { createPresaleService, type PresaleService } from "./presaleService";

@@ -12,6 +12,7 @@ import {
 import { currency } from "../../../app/lib/format";
 import { Img } from "../../../components/Img";
 import { Skeleton } from "../../../components/Skeleton";
+import { CHANNEL_FILL } from "./channelColors";
 import { KpiCard, RankedBars, StackedShare, TimelineChart } from "./charts";
 
 type Props = {
@@ -20,7 +21,7 @@ type Props = {
   dateTo: string;
 };
 
-const CHANNEL_LABELS = { pos: "Punto de venta", online: "En línea" } as const;
+const CHANNEL_LABELS = { pos: "Punto de venta", online: "En línea", presale: "Preventas" } as const;
 
 const METHOD_LABELS: { [method in MetricsPaymentMethod]: string } = {
   cash: PAYMENT_METHOD_LABELS.cash,
@@ -125,10 +126,13 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
     period: p.period,
     pos: Number(p.pos),
     online: Number(p.online),
+    presale: Number(p.presale),
     profit: Number(p.profit),
     count: p.count
   }));
-  const gross = points.map((p) => p.pos + p.online);
+  const gross = points.map((p) => p.pos + p.online + p.presale);
+  // Preventas only shows up once there is one, so stores without presales keep two channels.
+  const channels = data.channels.filter((c) => c.channel !== "presale" || c.count > 0);
 
   return (
     <div className="mt-4 space-y-4">
@@ -206,17 +210,18 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
         </section>
         {/* ── By channel: one share bar + the numbers of each side ── */}
         <section className={panelClass} aria-labelledby="metrics-channels">
-          <h3 id="metrics-channels" className={eyebrowClass}>Punto de venta vs. en línea</h3>
+          <h3 id="metrics-channels" className={eyebrowClass}>Por canal</h3>
           <div className="mt-3">
             <StackedShare
-              label={data.channels
+              label={channels
                 .map((c) => `${CHANNEL_LABELS[c.channel]} ${currency(c.gross)}`)
                 .join(", ")}
-              segments={data.channels.map((c) => ({
+              segments={channels.map((c) => ({
                 label: CHANNEL_LABELS[c.channel],
+                fill: CHANNEL_FILL[c.channel],
                 value: Number(c.gross),
                 detail: `${sales(c.count)} · neto ${currency(c.net)} · ganancia ${currency(c.profit)}${
-                  c.channel === "online" ? " (comisión estimada)" : ""
+                  c.channel !== "pos" ? " (comisión estimada)" : ""
                 }`
               }))}
             />
@@ -226,7 +231,7 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
 
       <p className="text-xs text-navy/70">
         Bruto = lo que se cobró por los discos (sin envíos: {currency(summary.shipping)} cobrados
-        aparte en línea). La comisión en línea es una <strong>estimación</strong> de la tarifa de
+        aparte en línea y en preventas). Una preventa cuenta el día que se terminó de pagar. La comisión en línea es una <strong>estimación</strong> de la tarifa de
         Stripe; Stripe no nos la reporta. Ganancia = neto − costo de los discos vendidos (el costo
         guardado al momento de cada venta).
       </p>

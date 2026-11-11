@@ -145,12 +145,12 @@ export type MetricsPaymentMethod = PaymentMethod | "stripe" | "unknown";
 export type SalesMetrics = {
   /** `shipping`: charged on online orders, not part of gross. */
   summary: MetricsBucket & { shipping: string };
-  channels: (MetricsBucket & { channel: "pos" | "online" })[];
+  channels: (MetricsBucket & { channel: "pos" | "online" | "presale" })[];
   payment_methods: (MetricsBucket & { method: MetricsPaymentMethod })[];
   /** Gross per period and channel; `grain` is "month" for ranges over ~3 months. Every period is present. */
   timeline: {
     grain: "day" | "month";
-    points: { period: string; pos: string; online: string; profit: string; count: number }[];
+    points: { period: string; pos: string; online: string; presale: string; profit: string; count: number }[];
   };
   /** Summary of the same-length period right before the range; null without both dates. */
   previous: MetricsBucket | null;
