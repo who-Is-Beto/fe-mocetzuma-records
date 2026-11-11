@@ -1,5 +1,13 @@
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useSeo } from "../../app/hooks/useSeo";
+
 export function TerminosPage() {
+  const { hash } = useLocation();
+  // Links like /terminos-y-condiciones#preventas land on that section.
+  useEffect(() => {
+    if (hash) document.getElementById(hash.slice(1))?.scrollIntoView({ block: "start" });
+  }, [hash]);
   useSeo({
     title: "Términos y condiciones",
     description:
@@ -15,7 +23,7 @@ export function TerminosPage() {
           Términos y Condiciones
         </h1>
         <p className="text-sm text-navy/70">
-          Última actualización: julio 2025
+          Última actualización: noviembre 2026
         </p>
       </header>
 
@@ -102,9 +110,54 @@ export function TerminosPage() {
           </p>
         </section>
 
+        <section id="preventas" className="scroll-mt-28 space-y-2">
+          <h2 className="font-display text-lg text-denim">8. Preventas y apartados</h2>
+          <p>
+            Una preventa es un disco que todavía no llega a la tienda. Puedes apartar una copia pagando al
+            menos el apartado mínimo que indica cada preventa, o pagarla completa.
+          </p>
+          <ul className="list-disc space-y-1.5 pl-5">
+            <li>
+              <strong>Plazo para liquidar:</strong> tienes 120 días naturales desde el día en que apartas para pagar
+              el resto. Si el disco llega tarde, el plazo nunca termina antes de 15 días después de que llegue a
+              la tienda. Te avisamos por correo antes de que venza.
+            </li>
+            <li>
+              <strong>Si no liquidas a tiempo, pierdes tu apartado:</strong> el dinero que pagaste no se devuelve y
+              la copia vuelve a estar disponible. Al apartar aceptas esta condición de forma expresa.
+            </li>
+            <li>
+              <strong>Descuento por pago completo:</strong> solo aplica cuando pagas el 100&nbsp;% al apartar. Si
+              apartas y liquidas después, pagas el precio completo.
+            </li>
+            <li>
+              <strong>Pagos:</strong> puedes liquidar en línea desde Mis órdenes o en la tienda en efectivo,
+              tarjeta o transferencia. Cada pago queda registrado en tu preventa.
+            </li>
+            <li>
+              <strong>Envío:</strong> si elegiste envío a domicilio, el costo se cotiza con la paquetería cuando el
+              disco llega a la tienda y se paga junto con tu último pago. Si pagas completo al apartar, el envío se
+              cobra en ese momento al precio cotizado y ya no cambia.
+            </li>
+            <li>
+              <strong>Entrega:</strong> el disco se entrega únicamente al presentar tu código de preventa (por ejemplo
+              PV-7K3Q) o su código QR, y solo cuando la preventa está pagada por completo.
+            </li>
+            <li>
+              <strong>Una copia por orden:</strong> cada preventa que apartas es una copia; para más copias, aparta
+              otra vez.
+            </li>
+            <li>
+              <strong>Fechas de llegada:</strong> las fechas de llegada son estimadas y dependen del distribuidor. Si
+              una preventa se cancela por causas de la tienda o del distribuidor, te devolvemos todo lo que
+              pagaste.
+            </li>
+          </ul>
+        </section>
+
         <section className="space-y-2">
           <h2 className="font-display text-lg text-denim">
-            8. Cambios en los términos
+            9. Cambios en los términos
           </h2>
           <p>
             Nos reservamos el derecho de actualizar estos términos en cualquier
@@ -114,7 +167,7 @@ export function TerminosPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="font-display text-lg text-denim">9. Contacto</h2>
+          <h2 className="font-display text-lg text-denim">10. Contacto</h2>
           <p>
             Para dudas sobre estos términos, escríbenos a{" "}
             <a

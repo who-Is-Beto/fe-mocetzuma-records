@@ -8,12 +8,14 @@ import { primaryCta, secondaryCta } from "../../components/cta";
 import { Toast } from "../../components/Toast";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useOrders } from "../../app/hooks";
+import { usePresaleOrders } from "../../app/hooks/usePresaleOrders";
 import { isVerificationError } from "../../app/lib/httpClient";
 import { useSeo } from "../../app/hooks/useSeo";
 import { createCartService } from "../../app/services/cartService";
 import { currency } from "../../app/lib/format";
 import { statusLabel, DELIVERY_LABELS, type OrderItem, type OrderStatus } from "../../app/domain/orders";
 import { PickupBazarInfo } from "./PickupBazarInfo";
+import { PresaleOrderCard } from "./PresaleOrderCard";
 import { isHttpUrl } from "../../app/lib/url";
 import { Img } from "../../components/Img";
 
@@ -49,6 +51,8 @@ export function OrdersPage() {
     token,
     enabled: canFetchOrders
   });
+
+  const presales = usePresaleOrders({ token, enabled: canFetchOrders });
 
   useEffect(() => {
     if (isVerificationError(rawError)) setBlockedByApi(true);
@@ -129,7 +133,7 @@ export function OrdersPage() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading || presales.loading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-56" />
@@ -153,7 +157,7 @@ export function OrdersPage() {
     );
   }
 
-  if (orders.length === 0) {
+  if (orders.length === 0 && presales.orders.length === 0) {
     return (
       <StatusPanel
         icon="💿"
@@ -182,7 +186,7 @@ export function OrdersPage() {
         <dl className="flex gap-2 text-xs">
           <div className="rounded-pill border border-navy/10 bg-cream px-3.5 py-1.5 shadow-sm">
             <dt className="sr-only">Órdenes</dt>
-            <dd><strong className="text-navy">{orders.length}</strong> <span className="text-navy/75">{orders.length === 1 ? "orden" : "órdenes"}</span></dd>
+            <dd><strong className="text-navy">{orders.length + presales.orders.length}</strong> <span className="text-navy/75">{orders.length + presales.orders.length === 1 ? "orden" : "órdenes"}</span></dd>
           </div>
           {active > 0 ? (
             <div className="rounded-pill bg-sun/60 px-3.5 py-1.5">
@@ -208,6 +212,43 @@ export function OrdersPage() {
         </div>
       )}
 
+      {presales.justPaid && (
+        <div
+          role="status"
+          className="page-enter flex items-center gap-4 rounded-[24px] border border-green-200 bg-green-50 p-5 shadow-card sm:p-6"
+        >
+          <SuccessCheck className="h-14 w-14" />
+          <div>
+            <p className="font-display text-lg text-denim sm:text-xl">
+              {Number(presales.justPaid.balance) > 0 ? "¡Tu copia está apartada!" : "¡Pagaste tu preventa!"}
+            </p>
+            <p className="mt-0.5 text-sm text-green-900/80">
+              Guardamos tu pago de {currency(presales.justPaid.paid)}. Tu código {presales.justPaid.code} es lo que
+              muestras para recoger el disco.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {presales.orders.length > 0 && (
+        <div className="space-y-4">
+          {orders.length > 0 && (
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/70">Preventas</h2>
+          )}
+          {presales.orders.map((order) => (
+            <PresaleOrderCard
+              key={order.code}
+              order={order}
+              service={presales.service}
+              highlight={presales.justPaid?.code === order.code}
+            />
+          ))}
+        </div>
+      )}
+
+      {orders.length > 0 && presales.orders.length > 0 && (
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-navy/70">Compras</h2>
+      )}
       <ul className="space-y-4">
         {orders.map((order, index) => {
           const open = openOrderId === order.id;

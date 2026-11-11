@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { Button } from "../../components/Button";
 import { Toast } from "../../components/Toast";
+import { PresaleAlertsToggle } from "../../components/presales/PresaleAlertsToggle";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { useSeo } from "../../app/hooks/useSeo";
 
@@ -133,6 +134,8 @@ export function ProfilePage() {
           </div>
         </div>
       )}
+
+      <PresaleAlertsToggle />
 
       <div className="grid gap-4 md:grid-cols-[1.2fr,0.8fr]">
         <div className="rounded-2xl border border-navy/10 bg-white/90 p-4 shadow-card sm:p-5">
