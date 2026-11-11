@@ -28,6 +28,9 @@ const ManageBazaresTab = lazy(() =>
 const ManageRolesTab = lazy(() =>
   import("./ManageRolesTab").then((m) => ({ default: m.ManageRolesTab }))
 );
+const ManagePresalesTab = lazy(() =>
+  import("./ManagePresalesTab").then((m) => ({ default: m.ManagePresalesTab }))
+);
 const ManageSalesTab = lazy(() =>
   import("./ManageSalesTab").then((m) => ({ default: m.ManageSalesTab }))
 );
@@ -41,6 +44,7 @@ const TABS = [
   { id: "manage-records" as const, label: T.admin.tabs.manageRecords, icon: "🏪", perm: "apiApp.tab_manage_records" },
   { id: "manage-bazares" as const, label: T.admin.tabs.manageBazares, icon: "🎪", perm: "apiApp.tab_manage_bazares" },
   { id: "manage-orders" as const, label: T.admin.tabs.manageOrders, icon: "📦", perm: "apiApp.tab_manage_orders" },
+  { id: "presales" as const, label: T.admin.tabs.presales, icon: "📀", perm: "apiApp.tab_presales" },
   { id: "sales" as const, label: T.admin.tabs.sales, icon: "🧾", perm: "apiApp.tab_sales" },
   { id: "manage-users" as const, label: T.admin.tabs.manageUsers, icon: "👥", perm: "apiApp.tab_manage_users" },
   { id: "manage-roles" as const, label: T.admin.tabs.manageRoles, icon: "🔐" },
@@ -231,6 +235,7 @@ export function AdminPage() {
           )}
           {!editing && currentTab === "manage-bazares" && <ManageBazaresTab />}
           {!editing && currentTab === "manage-orders" && <ManageOrdersTab />}
+          {!editing && currentTab === "presales" && <ManagePresalesTab />}
           {!editing && currentTab === "sales" && <ManageSalesTab />}
           {!editing && currentTab === "manage-users" && <ManageUsersTab />}
           {!editing && currentTab === "manage-roles" && <ManageRolesTab />}

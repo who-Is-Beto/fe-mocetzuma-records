@@ -357,6 +357,7 @@ export const T = {
       manageBazares: "Manejo de bazares",
       manageUsers: "Gestionar usuarios",
       manageOrders: "Pedidos",
+      presales: "Preventas",
       sales: "Ventas",
       manageRoles: "Roles y permisos",
     },
