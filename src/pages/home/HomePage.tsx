@@ -17,6 +17,7 @@ import { HeartButton } from "../../components/HeartButton";
 import { Skeleton } from "../../components/Skeleton";
 import { Vinyl } from "../../components/Vinyl";
 import { primaryCta, secondaryCta } from "../../components/cta";
+import { PresalesSection } from "../../components/presales/PresalesSection";
 
 const INSTAGRAM_URL = "https://www.instagram.com/moctezuma_records/";
 
@@ -105,6 +106,8 @@ export const HomePage = () => {
       />
 
       <Promises />
+
+      {!maintenanceBlocked && <PresalesSection />}
 
       {maintenanceBlocked ? (
         <MaintenanceNotice message={maintenance.config?.maintenance_message} />

@@ -69,6 +69,12 @@ const RecordRequestPage = lazy(() =>
 const FavoritesPage = lazy(() =>
   import("../../pages/favorites/FavoritesPage").then((m) => ({ default: m.FavoritesPage }))
 );
+const PresalePage = lazy(() =>
+  import("../../pages/presales/PresalePage").then((m) => ({ default: m.PresalePage }))
+);
+const PresaleSubscriptionPage = lazy(() =>
+  import("../../pages/presales/SubscriptionPage").then((m) => ({ default: m.SubscriptionPage }))
+);
 const NotFoundPage = lazy(() =>
   import("../../pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage }))
 );
@@ -96,6 +102,9 @@ export const router = createBrowserRouter([
       { path: "carrito", element: <CartPage /> },
       { path: "favoritos", element: <FavoritesPage /> },
       { path: "encargar", element: <RecordRequestPage /> },
+      { path: "preventas/confirmar", element: <PresaleSubscriptionPage mode="confirm" /> },
+      { path: "preventas/baja", element: <PresaleSubscriptionPage mode="unsubscribe" /> },
+      { path: "preventas/:slug", element: <PresalePage /> },
       { path: "bazares", element: <BazaresPage /> },
       { path: "mis-ordenes", element: <OrdersPage /> },
       { path: "terminos-y-condiciones", element: <TerminosPage /> },

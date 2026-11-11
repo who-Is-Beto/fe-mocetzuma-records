@@ -122,6 +122,10 @@
   .bump {
     animation: bump 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
+  /* Presale cover: enters once on load, cross-fades when the version changes. */
+  .cover-in {
+    animation: cover-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
 }
 
 @keyframes skeleton-shimmer {
@@ -155,6 +159,9 @@
 }
 @keyframes vinyl-out {
   from { transform: translateX(-42%) rotate(-40deg); }
+}
+@keyframes cover-in {
+  from { opacity: 0; transform: scale(1.03); }
 }
 @keyframes bump {
   40% { transform: scale(1.25); }

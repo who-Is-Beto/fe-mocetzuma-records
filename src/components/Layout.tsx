@@ -7,6 +7,7 @@ import { PageSkeleton } from "./Skeleton";
 import { Navbar } from "./Navbar";
 import { AdminMaintenanceBar } from "./AdminMaintenanceBar";
 import { CookieBanner } from "./CookieBanner";
+import { SubscribeBox } from "./presales/SubscribeBox";
 import { resetConsent } from "../app/lib/consent";
 
 // Loaded only when the maintenance window is actually open.
@@ -107,6 +108,9 @@ export function Layout({ children }: LayoutProps) {
           </main>
 
           <footer className="relative mt-auto border-t border-navy/10 bg-cream/70 backdrop-blur">
+            <div className="mx-auto max-w-6xl border-b border-navy/10 px-6 py-6 md:px-10">
+              <SubscribeBox compact />
+            </div>
             <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-6 text-sm text-navy/70 md:flex-row md:items-center md:justify-between md:px-10">
               <div className="flex items-center gap-3">
                 <span className="text-lg">🎵</span>
