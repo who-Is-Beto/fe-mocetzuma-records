@@ -221,7 +221,7 @@ export function SalesMetricsView({ salesService, dateFrom, dateTo }: Props) {
                 fill: CHANNEL_FILL[c.channel],
                 value: Number(c.gross),
                 detail: `${sales(c.count)} · neto ${currency(c.net)} · ganancia ${currency(c.profit)}${
-                  c.channel !== "pos" ? " (comisión estimada)" : ""
+                  c.channel !== "pos" && Number(c.commission) > 0 ? " (comisión estimada)" : ""
                 }`
               }))}
             />
