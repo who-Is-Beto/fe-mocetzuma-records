@@ -23,7 +23,7 @@ const TONE: Record<string, string> = {
 /** Apartado → Pagado → Esperando que llegue → Listo para recoger / Enviado. */
 function steps(order: PresaleOrder) {
   const last = order.delivery === "shipping" ? "Enviado" : "Listo para recoger";
-  const waiting = order.arrived
+  const waiting = order.all_arrived
     ? order.delivery === "shipping"
       ? "Preparando envío"
       : "En tienda"
@@ -41,7 +41,7 @@ function steps(order: PresaleOrder) {
 }
 
 function statusLabel(order: PresaleOrder) {
-  if (order.status === "pagado" && !order.arrived) return "Pagado · esperando que llegue";
+  if (order.status === "pagado" && !order.all_arrived) return "Pagado · esperando que llegue";
   if (order.status === "pagado" && order.shipping_pending) return "Pagado · falta envío";
   return order.status_label;
 }
@@ -58,7 +58,7 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
   const closed = CLOSED.has(order.status);
   const { labels, reached } = steps(order);
   const progress = (reached / (labels.length - 1)) * 100;
-  const urgent = owes && order.arrived && order.days_left <= 7;
+  const urgent = owes && order.all_arrived && order.days_left <= 7;
   const showCode = !closed && order.status !== "entregado" && order.status !== "enviado";
 
   const settle = async () => {
@@ -106,8 +106,19 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
                 {order.presale.title}
               </h2>
               <p className="mt-0.5 line-clamp-2 text-xs text-navy/75">
-                {order.presale.artist} · {order.option.name} · {order.delivery_label}
+                {order.presale.artist} · {order.delivery_label}
               </p>
+              <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Versiones">
+                {order.items.map((item) => (
+                  <li key={item.id} className="inline-flex items-center gap-1.5 rounded-pill bg-white/80 py-0.5 pl-0.5 pr-2.5 text-xs font-semibold text-navy ring-1 ring-navy/10">
+                    {item.image && <Img src={item.image} alt="" width={20} className="h-5 w-5 rounded-full object-cover" />}
+                    {item.option_name} ×{item.quantity}
+                    <span className={item.delivered_at ? "text-denim" : item.arrived ? "text-orange" : "text-navy/50"}>
+                      {item.delivered_at ? "✓ entregado" : item.arrived ? "ya llegó" : "en camino"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
 
@@ -168,7 +179,7 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
           {owes && (
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className={`text-sm ${urgent ? "font-semibold text-coral" : "text-navy/75"}`}>
-                {order.arrived
+                {order.all_arrived
                   ? `Liquida antes del ${shortDate(order.deadline)} (${order.days_left === 1 ? "queda 1 día" : `quedan ${order.days_left} días`}).`
                   : `Tienes hasta el ${shortDate(order.deadline)}, y nunca menos de 15 días después de que llegue.`}
               </p>

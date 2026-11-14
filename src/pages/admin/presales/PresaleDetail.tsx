@@ -279,7 +279,7 @@ export function PresaleDetail({ service, presaleId, can, onBack, onDeleted }: Pr
                       </span>
                     </span>
                     <span className="text-sm text-navy/80">
-                      {o.option.name}
+                      {o.lines_label}
                       <span className="block text-xs text-navy/60">
                         {o.delivery_label}
                         {o.shipping_pending ? " · envío por cotizar" : o.shipping_cost ? ` · envío ${currency(o.shipping_cost)}` : ""}
@@ -288,7 +288,7 @@ export function PresaleDetail({ service, presaleId, can, onBack, onDeleted }: Pr
                     <span className="text-sm tabular-nums text-navy">
                       {currency(o.paid)} de {currency(o.total)}
                       <span className={`block text-xs ${owes ? "text-coral" : "text-green-800"}`}>
-                        {owes ? `Falta ${currency(o.balance)}${o.arrived ? ` · ${o.days_left} días` : ""}` : "Pagado completo"}
+                        {owes ? `Falta ${currency(o.balance)}${o.all_arrived ? ` · ${o.days_left} días` : ""}` : "Pagado completo"}
                       </span>
                     </span>
                     <span className={`justify-self-start rounded-pill px-2.5 py-1 text-[11px] font-semibold md:justify-self-end ${STATUS_TONE[o.status]}`}>

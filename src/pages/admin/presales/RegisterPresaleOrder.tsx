@@ -26,10 +26,14 @@ type Props = {
 };
 
 /** A buyer from Instagram or the counter: reserve their copy and record what they paid. */
+const stepButton =
+  "flex h-11 w-11 items-center justify-center rounded-full text-lg font-semibold text-navy ring-1 ring-navy/15 transition hover:bg-orange/15 hover:ring-orange active:scale-90 disabled:opacity-30 motion-reduce:active:scale-100";
+
 export function RegisterPresaleOrder({ service, presale, onClose, onSaved }: Props) {
   const ids = useId();
   const available = presale.options.filter((o) => o.is_active && o.copies_left > 0);
-  const [optionId, setOptionId] = useState(available[0]?.id ?? 0);
+  // Copies per version; staff can go over the per-person limit (it's for the website).
+  const [quantities, setQuantities] = useState<Record<number, number>>(available[0] ? { [available[0].id]: 1 } : {});
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -43,21 +47,24 @@ export function RegisterPresaleOrder({ service, presale, onClose, onSaved }: Pro
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const option = presale.options.find((o) => o.id === optionId);
-  const price = Number(option?.price ?? 0);
-  const full = price - Number(option?.full_payment_discount ?? 0);
+  const lines = available.filter((o) => (quantities[o.id] ?? 0) > 0).map((o) => ({ option: o, quantity: quantities[o.id] }));
+  const sum = (pick: (o: (typeof available)[number]) => string) =>
+    Math.round(lines.reduce((t, l) => t + Number(pick(l.option)) * l.quantity, 0) * 100) / 100;
+  const price = sum((o) => o.price);
+  const full = price - sum((o) => o.full_payment_discount);
+  const minimum = sum((o) => o.min_deposit);
   const value = Number(amount.replace(",", "."));
-  const amountOk = /^\d+([.,]\d{1,2})?$/.test(amount) && value >= Number(option?.min_deposit ?? 0) && value <= price;
-  const ready = option && name.trim() && amountOk && terms && !busy;
+  const amountOk = /^\d+([.,]\d{1,2})?$/.test(amount) && value >= minimum && value <= price;
+  const ready = lines.length > 0 && name.trim() && amountOk && terms && !busy;
 
   const save = async () => {
-    if (!ready || !option) return;
+    if (!ready) return;
     setBusy(true);
     setError("");
     try {
       onSaved(
         await service.admin.createOrder({
-          option_id: option.id,
+          items: lines.map((l) => ({ option_id: l.option.id, quantity: l.quantity })),
           buyer_name: name.trim(),
           buyer_email: email.trim(),
           buyer_phone: phone.trim(),
@@ -85,16 +92,31 @@ export function RegisterPresaleOrder({ service, presale, onClose, onSaved }: Pro
           <p className="mt-4 rounded-xl bg-coral/10 px-3 py-2 text-sm text-coral">No quedan copias en ninguna versión.</p>
         ) : (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="block sm:col-span-2">
-              <span className={label}>Versión</span>
-              <select className={input} value={optionId} onChange={(e) => setOptionId(Number(e.target.value))}>
-                {available.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name} · {currency(o.price)} · quedan {o.copies_left}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <fieldset className="sm:col-span-2">
+              <legend className={label}>Versiones y copias</legend>
+              <ul className="mt-1 divide-y divide-navy/10 rounded-xl bg-white/70 px-3 ring-1 ring-navy/10">
+                {available.map((o) => {
+                  const qty = quantities[o.id] ?? 0;
+                  const set = (next: number) =>
+                    setQuantities((q) => ({ ...q, [o.id]: Math.max(0, Math.min(next, o.copies_left)) }));
+                  return (
+                    <li key={o.id} className="flex items-center gap-3 py-2">
+                      <span className="min-w-0 flex-1 text-sm">
+                        <span className="block font-semibold text-navy">{o.name}</span>
+                        <span className="block text-xs text-navy/60">{currency(o.price)} · quedan {o.copies_left}</span>
+                      </span>
+                      <button type="button" className={stepButton} disabled={qty === 0} onClick={() => set(qty - 1)} aria-label={`Quitar una de ${o.name}`}>
+                        −
+                      </button>
+                      <span className="w-6 text-center font-semibold tabular-nums text-navy">{qty}</span>
+                      <button type="button" className={stepButton} disabled={qty >= o.copies_left} onClick={() => set(qty + 1)} aria-label={`Agregar una de ${o.name}`}>
+                        +
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </fieldset>
             <label className="block">
               <span className={label}>Nombre *</span>
               <input className={input} value={name} onChange={(e) => setName(e.target.value)} />
@@ -134,7 +156,7 @@ export function RegisterPresaleOrder({ service, presale, onClose, onSaved }: Pro
               <span className={label}>Pagó hoy *</span>
               <input inputMode="decimal" className={input} value={amount} onChange={(e) => setAmount(e.target.value)} />
               <span className="mt-1 block text-xs text-navy/60">
-                Mínimo {currency(option?.min_deposit ?? 0)} · completo {currency(full)}
+                Mínimo {currency(minimum)} · completo {currency(full)}
                 {full < price ? ` (con descuento)` : ""}
               </span>
             </label>

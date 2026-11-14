@@ -32,13 +32,22 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
   const [reason, setReason] = useState("");
   const [tracking, setTracking] = useState("");
   const [deadline, setDeadline] = useState(order.deadline_override ?? order.deadline);
+  // Lines the counter is NOT handing over now (everything arrived is ticked by default).
+  const [held, setHeld] = useState<Set<number>>(new Set());
 
   const balance = Number(order.balance);
   const closed = ["cancelado", "vencido", "entregado", "enviado"].includes(order.status);
   const canPay = can("add_presalepayment") && !closed && balance > 0;
   const canOrders = can("change_presaleorder");
   const readyPickup = order.status === "listo";
-  const readyShip = order.delivery === "shipping" && order.status === "pagado" && order.arrived && balance === 0 && !order.shipping_pending;
+  // Pickup hands over what arrived; the server checks it's paid for.
+  const deliverable =
+    order.delivery === "pickup" && !closed && order.status !== "pending_payment"
+      ? order.items.filter((i) => i.arrived && !i.delivered_at)
+      : [];
+  const chosen = deliverable.filter((i) => !held.has(i.id));
+  const copies = chosen.reduce((n, i) => n + i.quantity, 0);
+  const readyShip = order.delivery === "shipping" && order.status === "pagado" && order.all_arrived && balance === 0 && !order.shipping_pending;
 
   const act = async (fn: () => Promise<AdminPresaleOrder>) => {
     setBusy(true);
@@ -92,7 +101,7 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
         {order.delivery === "pickup" && !closed && (
           <div className={`mt-4 rounded-2xl p-4 text-center ${balance === 0 ? "bg-green-100 text-green-900" : "bg-coral/15 text-coral"}`}>
             <p className="text-lg font-bold">
-              {balance === 0 ? (order.arrived ? "Pagado completo · Entregar" : "Pagado completo · aún no llega") : `Falta ${currency(balance)}`}
+              {balance === 0 ? (order.all_arrived ? "Pagado completo · Entregar" : "Pagado completo · aún no llega") : `Falta ${currency(balance)}`}
             </p>
           </div>
         )}
@@ -103,8 +112,57 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
           </p>
         )}
 
+        <h4 className={`${label} mt-5`}>Versiones</h4>
+        <ul className="mt-1 divide-y divide-navy/10">
+          {order.items.map((item) => {
+            const canTick = deliverable.some((i) => i.id === item.id) && canOrders;
+            const body = (
+              <>
+                {item.image ? (
+                  <img src={item.image} alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+                ) : (
+                  <span className="h-10 w-10 shrink-0 rounded-lg bg-sand" aria-hidden="true" />
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-navy">
+                    {item.option_name} ×{item.quantity}
+                  </span>
+                  <span className={`block text-xs ${item.delivered_at ? "text-denim" : item.arrived ? "text-orange" : "text-navy/60"}`}>
+                    {item.delivered_at ? `✓ Entregado ${when(item.delivered_at)}` : item.arrived ? "Ya llegó" : "En camino"}
+                  </span>
+                </span>
+                <span className="text-sm font-semibold tabular-nums text-navy">{currency(item.line_total)}</span>
+              </>
+            );
+            return (
+              <li key={item.id}>
+                {canTick ? (
+                  <label className="flex min-h-[52px] cursor-pointer items-center gap-3 py-1.5">
+                    <input
+                      type="checkbox"
+                      checked={!held.has(item.id)}
+                      onChange={(e) =>
+                        setHeld((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.delete(item.id);
+                          else next.add(item.id);
+                          return next;
+                        })
+                      }
+                      className="h-5 w-5 shrink-0 accent-orange"
+                      aria-label={`Entregar ${item.option_name}`}
+                    />
+                    {body}
+                  </label>
+                ) : (
+                  <div className="flex min-h-[52px] items-center gap-3 py-1.5 pl-8">{body}</div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+
         <dl className="mt-4 divide-y divide-navy/10">
-          <Row k="Versión">{order.option.name}</Row>
           <Row k="Precio">
             {currency(order.item_price)}
             {Number(order.discount_applied) > 0 && <span className="ml-1 text-xs font-normal text-orange">(−{currency(order.discount_applied)})</span>}
@@ -121,7 +179,7 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
           {(balance > 0 || order.shipping_pending) && !closed && (
             <Row k="Plazo para liquidar">
               {order.deadline}
-              {order.arrived ? ` (${order.days_left} días)` : " · aún no llega"}
+              {order.all_arrived ? ` (${order.days_left} días)` : " · aún no llega"}
             </Row>
           )}
         </dl>
@@ -264,9 +322,14 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
         {error && <p role="alert" className="mt-3 text-sm text-coral">{error}</p>}
 
         <div className="mt-5 flex flex-wrap gap-2 border-t border-navy/10 pt-4">
-          {readyPickup && canOrders && (
-            <button type="button" className={btnPrimary} disabled={busy} onClick={() => act(() => service.admin.deliver(order.id))}>
-              Entregar disco
+          {deliverable.length > 0 && canOrders && (
+            <button
+              type="button"
+              className={btnPrimary}
+              disabled={busy || chosen.length === 0}
+              onClick={() => act(() => service.admin.deliver(order.id, chosen.map((i) => i.id)))}
+            >
+              {copies === 1 ? "Entregar 1 disco" : `Entregar ${copies} discos`}
             </button>
           )}
           {readyShip && canOrders && step !== "ship" && (
@@ -279,7 +342,7 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
               Registrar pago
             </button>
           )}
-          {canOrders && order.delivery === "shipping" && !closed && order.arrived && (
+          {canOrders && order.delivery === "shipping" && !closed && order.all_arrived && (
             <button type="button" className={btnGhost} disabled={busy} onClick={() => act(() => service.admin.requote(order.id))}>
               Cotizar envío
             </button>

@@ -19,6 +19,8 @@ type OptionRow = {
   min_deposit: string;
   full_payment_discount: string;
   copies: string;
+  /** Most copies one buyer can take online; "" = no limit. */
+  max_per_buyer: string;
   cost_price: string;
   owner: string;
   weight_grams: string;
@@ -38,6 +40,7 @@ const emptyRow = (): OptionRow => ({
   min_deposit: "",
   full_payment_discount: "0",
   copies: "",
+  max_per_buyer: "",
   cost_price: "",
   owner: "",
   weight_grams: "",
@@ -68,6 +71,7 @@ const toInput = (row: OptionRow): PresaleOptionInput => ({
   min_deposit: row.min_deposit,
   full_payment_discount: row.full_payment_discount || "0",
   copies: Number(row.copies),
+  max_per_buyer: row.max_per_buyer ? Number(row.max_per_buyer) : null,
   cost_price: row.cost_price || "0",
   owner: row.owner ? Number(row.owner) : null,
   category: row.category ? Number(row.category) : null,
@@ -109,6 +113,7 @@ export function PresaleForm({ service, presale, onCancel, onSaved }: Props) {
           min_deposit: o.min_deposit,
           full_payment_discount: o.full_payment_discount,
           copies: String(o.copies),
+          max_per_buyer: o.max_per_buyer ? String(o.max_per_buyer) : "",
           cost_price: o.cost_price,
           owner: o.owner ? String(o.owner) : "",
           weight_grams: o.weight_grams ? String(o.weight_grams) : "",
@@ -307,6 +312,16 @@ export function PresaleForm({ service, presale, onCancel, onSaved }: Props) {
                 <label className="block">
                   <span className={label}>Copias *</span>
                   <input inputMode="numeric" className={input} value={row.copies} onChange={(e) => update(row.key, { copies: e.target.value.replace(/\D/g, "") })} />
+                </label>
+                <label className="block">
+                  <span className={label}>Máx. por persona</span>
+                  <input
+                    inputMode="numeric"
+                    placeholder="Sin límite"
+                    className={input}
+                    value={row.max_per_buyer}
+                    onChange={(e) => update(row.key, { max_per_buyer: e.target.value.replace(/\D/g, "").replace(/^0+/, "") })}
+                  />
                 </label>
                 <label className="block">
                   <span className={label}>Precio *</span>
