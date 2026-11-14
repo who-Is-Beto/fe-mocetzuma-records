@@ -44,6 +44,11 @@ export function PresaleCard({ presale, featured = false, priority = false }: Pro
         <span className="absolute left-3 top-3 rounded-pill bg-navy px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-cream">
           Preventa
         </span>
+        {closesSoon && !soldOut ? (
+          <span className="absolute right-3 top-3 rounded-pill bg-coral px-3 py-1 text-[11px] font-bold text-white shadow">
+            {closingLabel(presale.purchase_deadline)}
+          </span>
+        ) : null}
         {discount > 0 && !soldOut ? (
           <span className="absolute bottom-3 left-3 rounded-pill bg-orange px-3 py-1 text-xs font-bold text-charcoal shadow">
             Paga completo y ahorra {currency(discount)}
@@ -62,18 +67,23 @@ export function PresaleCard({ presale, featured = false, priority = false }: Pro
         </h3>
 
         {options.length > 1 ? (
-          <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Versiones">
-            {options.map((o) => (
-              <li
-                key={o.id}
-                className={`rounded-pill border px-2.5 py-0.5 text-xs font-semibold ${
-                  o.copies_left > 0 ? "border-navy/15 text-navy" : "border-navy/10 text-navy/40 line-through"
-                }`}
-              >
-                {o.name}
-              </li>
-            ))}
-          </ul>
+          // Each version's photo, fanned out on hover: buyers see the choices before opening it.
+          <div className="mt-3 flex items-center gap-3">
+            <ul className="flex -space-x-3 transition-all duration-300 group-hover:-space-x-1 motion-reduce:transition-none">
+              {options.slice(0, 4).map((o) => {
+                const image = o.image ?? presale.cover;
+                return (
+                  <li
+                    key={o.id}
+                    className={`h-11 w-11 overflow-hidden rounded-lg bg-sand ring-2 ring-white ${o.copies_left > 0 ? "" : "opacity-40 grayscale"}`}
+                  >
+                    {image ? <Img src={image} alt={o.name} width={44} className="h-full w-full object-cover" /> : null}
+                  </li>
+                );
+              })}
+            </ul>
+            <span className="text-xs font-semibold text-navy/70">{options.length} versiones</span>
+          </div>
         ) : null}
 
         <dl className={`mt-4 grid grid-cols-2 gap-x-4 gap-y-3 ${featured ? "sm:mt-6" : ""}`}>

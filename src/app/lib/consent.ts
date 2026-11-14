@@ -118,6 +118,7 @@ const FIRST_PARTY_IMAGE_HOSTS = new Set([
   "moctezumarecords.com",
   "api.moctezumarecords.com",
   "pub-68b3bb8285924e24851b40086d6cc375.r2.dev",
+  "pub-d0cdff1171f54d0c8dce1d0c5d4309fd.r2.dev", // local dev bucket
 ]);
 
 /** Would loading this image let a third party set cookies? */

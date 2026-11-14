@@ -27,6 +27,7 @@ export function PresalesSection() {
     .sort((a, b) => Number(b.is_open) - Number(a.is_open));
   if (!isLoading && presales.length === 0) return null;
   const featured = presales.length === 1;
+  const columns = featured ? "" : presales.length === 2 ? "md:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3";
 
   return (
     <section aria-labelledby="presales-title">
@@ -41,7 +42,7 @@ export function PresalesSection() {
         </p>
       </Reveal>
 
-      <div className={`mt-8 grid gap-5 sm:gap-6 ${featured ? "" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
+      <div className={`mt-8 grid gap-5 sm:gap-6 ${columns}`}>
         {isLoading
           ? Array.from({ length: 3 }, (_, i) => (
               <div key={i} className="overflow-hidden rounded-[22px] ring-1 ring-navy/10">
