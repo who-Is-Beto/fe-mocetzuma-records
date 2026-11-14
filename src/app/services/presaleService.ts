@@ -16,13 +16,14 @@ import { http } from "../lib/httpClient";
 
 type Config = { baseUrl?: string; getToken?: () => string | null };
 
-const presaleForm = (input: Partial<PresaleInput>, options?: PresaleOptionInput[]) => {
+const presaleForm = (input: Partial<PresaleInput>, options?: PresaleOptionInput[], optionImages: (File | null)[] = []) => {
   const data = new FormData();
   for (const key of ["title", "artist", "description", "purchase_deadline", "estimated_arrival"] as const) {
     if (input[key] !== undefined) data.append(key, input[key] as string);
   }
   if (input.cover) data.append("cover", input.cover);
   if (options) data.append("options", JSON.stringify(options));
+  optionImages.forEach((file, i) => file && data.append(`option_image_${i}`, file));
   return data;
 };
 
@@ -61,8 +62,9 @@ export function createPresaleService(config: Config = {}) {
     admin: {
       list: () => http<AdminPresale[]>(`${admin}/`, auth()),
       get: (id: number) => http<AdminPresale>(`${admin}/${id}/`, auth()),
-      create: (input: PresaleInput, options: PresaleOptionInput[]) =>
-        http<AdminPresale>(`${admin}/`, { method: "POST", body: presaleForm(input, options), ...auth() }),
+      /** optionImages[i] is the optional photo of options[i]. */
+      create: (input: PresaleInput, options: PresaleOptionInput[], optionImages: (File | null)[] = []) =>
+        http<AdminPresale>(`${admin}/`, { method: "POST", body: presaleForm(input, options, optionImages), ...auth() }),
       update: (id: number, input: Partial<PresaleInput> & { status?: "draft" | "closed" }) => {
         const body = presaleForm(input);
         if (input.status) body.append("status", input.status);
@@ -73,6 +75,11 @@ export function createPresaleService(config: Config = {}) {
         http<AdminPresaleOption>(`${admin}/${id}/options/`, { method: "POST", body: input, ...auth() }),
       updateOption: (optionId: number, input: Partial<PresaleOptionInput>) =>
         http<AdminPresaleOption>(`${admin}/options/${optionId}/`, { method: "PATCH", body: input, ...auth() }),
+      setOptionImage: (optionId: number, image: File) => {
+        const body = new FormData();
+        body.append("image", image);
+        return http<AdminPresaleOption>(`${admin}/options/${optionId}/`, { method: "PATCH", body, ...auth() });
+      },
       removeOption: (optionId: number) =>
         http<void>(`${admin}/options/${optionId}/`, { method: "DELETE", ...auth() }),
       publishPreview: (id: number) =>

@@ -23,6 +23,9 @@ type OptionRow = {
   owner: string;
   weight_grams: string;
   is_active: boolean;
+  /** New photo picked for this version; preview falls back to the saved one. */
+  image: File | null;
+  preview: string | null;
 };
 
 const emptyRow = (): OptionRow => ({
@@ -38,7 +41,9 @@ const emptyRow = (): OptionRow => ({
   cost_price: "",
   owner: "",
   weight_grams: "",
-  is_active: true
+  is_active: true,
+  image: null,
+  preview: null
 });
 
 const num = (v: string) => Number(v.replace(",", "."));
@@ -107,7 +112,9 @@ export function PresaleForm({ service, presale, onCancel, onSaved }: Props) {
           cost_price: o.cost_price,
           owner: o.owner ? String(o.owner) : "",
           weight_grams: o.weight_grams ? String(o.weight_grams) : "",
-          is_active: o.is_active
+          is_active: o.is_active,
+          image: null,
+          preview: o.image_url
         }))
       : [emptyRow()]
   );
@@ -144,7 +151,7 @@ export function PresaleForm({ service, presale, onCancel, onSaved }: Props) {
     const fields = { title: title.trim(), artist: artist.trim(), description, purchase_deadline: deadline, estimated_arrival: arrival.trim(), cover };
     try {
       if (!presale) {
-        onSaved(await service.admin.create(fields, rows.map(toInput)));
+        onSaved(await service.admin.create(fields, rows.map(toInput), rows.map((r) => r.image)));
         return;
       }
       await service.admin.update(presale.id, fields);
@@ -152,10 +159,12 @@ export function PresaleForm({ service, presale, onCancel, onSaved }: Props) {
       for (const row of rows) {
         const data = toInput(row);
         if (!row.id) {
-          await service.admin.addOption(presale.id, data);
+          const added = await service.admin.addOption(presale.id, data);
+          if (row.image) await service.admin.setOptionImage(added.id, row.image);
         } else {
           const { price, min_deposit, full_payment_discount, ...rest } = data;
           await service.admin.updateOption(row.id, row.hasOrders ? rest : { ...rest, price, min_deposit, full_payment_discount });
+          if (row.image) await service.admin.setOptionImage(row.id, row.image);
         }
       }
       onSaved(await service.admin.get(presale.id));
@@ -263,7 +272,25 @@ export function PresaleForm({ service, presale, onCancel, onSaved }: Props) {
                   )}
                 </div>
               </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-3 grid gap-4 md:grid-cols-[7rem_minmax(0,1fr)]">
+              <label className="block">
+                <span className={label}>Foto (opcional)</span>
+                <span className="mt-1 flex aspect-square w-28 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-navy/20 bg-cream/60 px-2 text-center text-xs text-navy/60 transition hover:border-orange">
+                  {row.preview ? <img src={row.preview} alt={`Foto de ${row.name || `la versión ${i + 1}`}`} className="h-full w-full object-cover" /> : "Usa la portada"}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    if (row.preview?.startsWith("blob:")) URL.revokeObjectURL(row.preview);
+                    const saved = presale?.options.find((o) => o.id === row.id)?.image_url ?? null;
+                    update(row.key, { image: file, preview: file ? URL.createObjectURL(file) : saved });
+                  }}
+                />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <label className="block sm:col-span-2">
                   <span className={label}>Nombre *</span>
                   <input className={input} value={row.name} placeholder="Vinilo rojo 2LP" onChange={(e) => update(row.key, { name: e.target.value })} />
@@ -310,6 +337,7 @@ export function PresaleForm({ service, presale, onCancel, onSaved }: Props) {
                   <span className={label}>Peso en gramos (opcional, para box sets)</span>
                   <input inputMode="numeric" className={input} value={row.weight_grams} onChange={(e) => update(row.key, { weight_grams: e.target.value.replace(/\D/g, "") })} />
                 </label>
+              </div>
               </div>
               {price > 0 && (
                 <p className="mt-3 text-xs text-navy/70">
