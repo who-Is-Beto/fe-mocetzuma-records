@@ -15,7 +15,28 @@ export type PresaleOption = {
   copies_left: number;
   arrived: boolean;
   is_active: boolean;
+  /** Most copies one buyer can hold online; null = no limit. */
+  max_per_buyer: number | null;
+  /** Copies the signed-in buyer already holds (0 when logged out). */
+  bought: number;
 };
+
+/** A version × quantity inside an order. */
+export type PresaleOrderItem = {
+  id: number;
+  option_id: number;
+  option_name: string;
+  image: string | null;
+  quantity: number;
+  unit_price: string;
+  unit_discount: string;
+  line_total: string;
+  arrived: boolean;
+  delivered_at: string | null;
+};
+
+/** What the buyer picked: version id → copies. */
+export type PresaleLineInput = { option_id: number; quantity: number };
 
 export type Presale = {
   id: number;
@@ -63,7 +84,9 @@ export type PresaleOrder = {
   status: PresaleOrderStatus;
   status_label: string;
   presale: { slug: string; title: string; artist: string; cover: string | null; estimated_arrival: string };
-  option: { id: number; name: string };
+  items: PresaleOrderItem[];
+  /** "Rojo ×2, Negro ×1" */
+  lines_label: string;
   delivery: PresaleDelivery;
   delivery_label: string;
   item_price: string;
@@ -77,7 +100,8 @@ export type PresaleOrder = {
   balance: string;
   deadline: string;
   days_left: number;
-  arrived: boolean;
+  /** Every version of the order is at the store. */
+  all_arrived: boolean;
   payments: PresalePayment[];
   shipping_link: string;
   reserved_at: string;
@@ -121,7 +145,7 @@ export type PresaleTotals = {
   owed: string;
 };
 
-export type AdminPresaleOption = Omit<PresaleOption, "image" | "format"> & {
+export type AdminPresaleOption = Omit<PresaleOption, "image" | "format" | "bought"> & {
   image_url: string | null;
   category: number | null;
   weight_grams: number | null;
@@ -152,10 +176,11 @@ export type ShippingAddress = {
   city: string;
   state: string;
   zip: string;
+  reference?: string;
 };
 
 export type ReserveInput = {
-  option_id: number;
+  items: PresaleLineInput[];
   amount: string;
   delivery: PresaleDelivery;
   shipping_details?: ShippingAddress;
@@ -172,6 +197,7 @@ export type PresaleOptionInput = {
   category?: number | null;
   weight_grams?: number | null;
   copies: number;
+  max_per_buyer?: number | null;
   is_active?: boolean;
 };
 
@@ -186,7 +212,7 @@ export type PresaleInput = {
 };
 
 export type AdminOrderInput = {
-  option_id: number;
+  items: PresaleLineInput[];
   buyer_name: string;
   buyer_email?: string;
   buyer_phone?: string;

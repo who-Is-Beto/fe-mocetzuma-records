@@ -6,6 +6,7 @@ import type {
   AdminPresaleOrder,
   Presale,
   PresaleInput,
+  PresaleLineInput,
   PresaleOptionInput,
   PresaleOrder,
   PresaleOrderFilter,
@@ -36,10 +37,10 @@ export function createPresaleService(config: Config = {}) {
   return {
     list: () => http<Presale[]>(`${root}/`),
     get: (slug: string) => http<Presale>(`${root}/${encodeURIComponent(slug)}/`, auth()),
-    estimateShipping: (optionId: number, zip: string) =>
+    estimateShipping: (items: PresaleLineInput[], zip: string) =>
       http<{ shipping_estimate: string; courier: string; service: string }>(`${root}/shipping-estimate/`, {
         method: "POST",
-        body: { option_id: optionId, zip }
+        body: { items, zip }
       }),
     reserve: (input: ReserveInput) =>
       http<{ checkout_url: string; code: string }>(`${root}/reserve/`, { method: "POST", body: input, ...auth() }),
@@ -120,8 +121,13 @@ export function createPresaleService(config: Config = {}) {
           body: { reason },
           ...auth()
         }),
-      deliver: (orderId: number) =>
-        http<AdminPresaleOrder>(`${admin}/orders/${orderId}/deliver/`, { method: "POST", ...auth() }),
+      /** itemIds: the lines handed over; omitted = every arrived line. */
+      deliver: (orderId: number, itemIds?: number[]) =>
+        http<AdminPresaleOrder>(`${admin}/orders/${orderId}/deliver/`, {
+          method: "POST",
+          body: itemIds ? { item_ids: itemIds } : undefined,
+          ...auth()
+        }),
       ship: (orderId: number, tracking: string) =>
         http<AdminPresaleOrder>(`${admin}/orders/${orderId}/ship/`, { method: "POST", body: { tracking }, ...auth() }),
       cancel: (orderId: number, reason: string) =>

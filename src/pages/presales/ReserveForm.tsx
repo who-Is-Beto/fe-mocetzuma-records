@@ -1,27 +1,18 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import type { PresaleDelivery, PresaleOption, ShippingAddress } from "../../app/domain/presales";
+import type { PresaleDelivery, PresaleOption } from "../../app/domain/presales";
 import { currency } from "../../app/lib/format";
 import { extractErrorMessage, HttpError } from "../../app/lib/httpClient";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { createCartService, type ShippingLocation } from "../../app/services/cartService";
 import { createPresaleService } from "../../app/services/presaleService";
 import { shortDate } from "../../components/presales/presaleText";
+import { REQUIRED_ADDRESS_FIELDS } from "../cart/addressFields";
+import { ShippingAddressFields, type ShippingAddressValues } from "../cart/ShippingAddressFields";
 
 type AmountChoice = "min" | "half" | "full" | "custom";
 
-const ADDRESS_FIELDS: { id: keyof ShippingAddress; label: string; type?: string; auto: string; wide?: boolean }[] = [
-  { id: "fullName", label: "Nombre de quien recibe", auto: "name", wide: true },
-  { id: "phone", label: "Teléfono", type: "tel", auto: "tel" },
-  { id: "zip", label: "Código postal", auto: "postal-code" },
-  { id: "street", label: "Calle", auto: "address-line1", wide: true },
-  { id: "number", label: "Número", auto: "address-line2" },
-  { id: "neighborhood", label: "Colonia", auto: "address-level3" },
-  { id: "city", label: "Ciudad o alcaldía", auto: "address-level2" },
-  { id: "state", label: "Estado", auto: "address-level1" }
-];
-
-const EMPTY_ADDRESS: ShippingAddress = {
+const EMPTY_ADDRESS: ShippingAddressValues = {
   fullName: "",
   phone: "",
   street: "",
@@ -29,7 +20,8 @@ const EMPTY_ADDRESS: ShippingAddress = {
   neighborhood: "",
   city: "",
   state: "",
-  zip: ""
+  zip: "",
+  reference: ""
 };
 
 const TERMS_TEXT =
@@ -55,15 +47,16 @@ const inputClass =
   "mt-1 min-h-[44px] w-full rounded-xl border border-navy/15 bg-white px-3 text-sm text-navy focus:outline-none focus:ring-2 focus:ring-orange aria-[invalid=true]:border-coral";
 
 type Props = {
-  option: PresaleOption | null;
+  /** The versions picked on the page and how many of each. */
+  lines: { option: PresaleOption; quantity: number }[];
 };
 
 /**
- * Reserve the version picked on the page: how much to pay today, pickup or shipping,
+ * Reserve the versions picked on the page in one order: how much to pay today, pickup or shipping,
  * accept the 120-day rule, then pay in Stripe. Totals are re-checked by the
  * server; the summary here is what the buyer agrees to.
  */
-export function ReserveForm({ option }: Props) {
+export function ReserveForm({ lines }: Props) {
   const { token, isAuthenticated, emailVerified, user, resendVerification } = useAuth();
   const location = useLocation();
   const service = useMemo(() => createPresaleService({ getToken: () => token ?? null }), [token]);
@@ -73,7 +66,7 @@ export function ReserveForm({ option }: Props) {
   const [choice, setChoice] = useState<AmountChoice>("min");
   const [custom, setCustom] = useState("");
   const [delivery, setDelivery] = useState<PresaleDelivery>("pickup");
-  const [address, setAddress] = useState<ShippingAddress>(EMPTY_ADDRESS);
+  const [address, setAddress] = useState<ShippingAddressValues>(EMPTY_ADDRESS);
   const [accepted, setAccepted] = useState(false);
   const [colonias, setColonias] = useState<{ zip: string; list: ShippingLocation[] } | null>(null);
   const [quote, setQuote] = useState<{ zip: string; amount: number | null; error: string } | null>(null);
@@ -83,18 +76,23 @@ export function ReserveForm({ option }: Props) {
   const [verifySent, setVerifySent] = useState(false);
   const firstInvalid = useRef<HTMLElement | null>(null);
 
-  const price = option ? Number(option.price) : 0;
-  const discount = option ? Number(option.full_payment_discount) : 0;
+  // Every amount is the sum over the lines (each version × its copies).
+  const sum = (pick: (o: PresaleOption) => string) => money(lines.reduce((t, l) => t + Number(pick(l.option)) * l.quantity, 0));
+  const price = sum((o) => o.price);
+  const discount = sum((o) => o.full_payment_discount);
   const fullPrice = money(price - discount);
-  const minimum = option ? Number(option.min_deposit) : 0;
+  const minimum = sum((o) => o.min_deposit);
   const half = money(Math.max(minimum, price / 2));
 
   const amount =
     choice === "min" ? minimum : choice === "half" ? half : choice === "full" ? fullPrice : Number(custom.replace(",", "."));
-  const isFull = option !== null && amount >= fullPrice;
+  const isFull = lines.length > 0 && amount >= fullPrice;
   const payNow = isFull ? fullPrice : amount;
   const left = isFull ? 0 : money(price - amount);
   const zip = address.zip.replace(/\D/g, "");
+  const items = lines.map((l) => ({ option_id: l.option.id, quantity: l.quantity }));
+  // A quote is for these exact copies to this ZIP.
+  const quoteKey = `${items.map((i) => `${i.option_id}:${i.quantity}`).join(",")}@${zip}`;
 
   // Sepomex colonias for the ZIP, same as checkout: a dropdown that also fills city and state.
   useEffect(() => {
@@ -120,17 +118,17 @@ export function ReserveForm({ option }: Props) {
 
   // Shipping estimate as soon as there's a 5-digit ZIP.
   useEffect(() => {
-    if (delivery !== "shipping" || !option || zip.length !== 5) return;
-    if (quote?.zip === `${option.id}:${zip}`) return;
+    if (delivery !== "shipping" || lines.length === 0 || zip.length !== 5) return;
+    if (quote?.zip === quoteKey) return;
     let alive = true;
     service
-      .estimateShipping(option.id, zip)
-      .then((res) => alive && setQuote({ zip: `${option.id}:${zip}`, amount: Number(res.shipping_estimate), error: "" }))
+      .estimateShipping(items, zip)
+      .then((res) => alive && setQuote({ zip: quoteKey, amount: Number(res.shipping_estimate), error: "" }))
       .catch(
         (err) =>
           alive &&
           setQuote({
-            zip: `${option.id}:${zip}`,
+            zip: quoteKey,
             amount: null,
             error: extractErrorMessage(err, "No pudimos cotizar el envío a ese código postal.")
           })
@@ -138,20 +136,23 @@ export function ReserveForm({ option }: Props) {
     return () => {
       alive = false;
     };
-  }, [delivery, option, zip, quote?.zip, service]);
+    // items is derived from quoteKey: the key is the dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [delivery, quoteKey, quote?.zip, service]);
 
-  const shippingEstimate = delivery === "shipping" && quote?.zip === `${option?.id}:${zip}` ? quote.amount : null;
+  const shippingEstimate = delivery === "shipping" && quote?.zip === quoteKey ? quote.amount : null;
   const shippingNow = isFull && delivery === "shipping" ? shippingEstimate ?? 0 : 0;
 
   const problems: Record<string, string> = {};
-  if (!option) problems.option = "Elige una versión.";
-  else if (option.copies_left <= 0) problems.option = "Esa versión ya se agotó.";
+  const short = lines.find((l) => l.quantity > l.option.copies_left);
+  if (lines.length === 0) problems.option = "Elige al menos un disco.";
+  else if (short) problems.option = `Solo quedan ${short.option.copies_left} de ${short.option.name}.`;
   if (!Number.isFinite(amount) || amount <= 0) problems.amount = "Escribe cuánto quieres pagar hoy.";
   else if (!/^\d+([.,]\d{1,2})?$/.test(String(choice === "custom" ? custom : amount))) problems.amount = "Usa hasta 2 decimales.";
   else if (amount < minimum) problems.amount = `El apartado mínimo es ${currency(minimum)}.`;
   else if (amount > price) problems.amount = `El precio es ${currency(price)}.`;
   if (delivery === "shipping") {
-    for (const field of ADDRESS_FIELDS) {
+    for (const field of REQUIRED_ADDRESS_FIELDS) {
       if (!address[field.id].trim()) problems[field.id] = `Falta ${field.label.toLowerCase()}.`;
     }
     if (address.zip && zip.length !== 5) problems.zip = "El código postal tiene 5 dígitos.";
@@ -164,7 +165,7 @@ export function ReserveForm({ option }: Props) {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!canSend || !option) {
+    if (!canSend) {
       setTouched(Object.fromEntries(missing.map((k) => [k, true])));
       firstInvalid.current = document.querySelector<HTMLElement>(`[data-field="${missing[0]}"]`);
       firstInvalid.current?.focus();
@@ -174,7 +175,7 @@ export function ReserveForm({ option }: Props) {
     setError("");
     try {
       const { checkout_url } = await service.reserve({
-        option_id: option.id,
+        items,
         amount: payNow.toFixed(2),
         delivery,
         ...(delivery === "shipping" ? { shipping_details: { ...address, zip } } : {}),
@@ -184,9 +185,10 @@ export function ReserveForm({ option }: Props) {
     } catch (err) {
       setSending(false);
       setError(
-        err instanceof HttpError && err.status === 409
+        // 409: sold out or over the per-person limit; the server names the version.
+        extractErrorMessage(err, err instanceof HttpError && err.status === 409
           ? "Alguien apartó la última copia de esa versión hace un momento."
-          : extractErrorMessage(err, "No pudimos iniciar el pago. Intenta de nuevo.")
+          : "No pudimos iniciar el pago. Intenta de nuevo.")
       );
     }
   };
@@ -241,7 +243,7 @@ export function ReserveForm({ option }: Props) {
     <form onSubmit={submit} noValidate className="space-y-7">
 
       {/* 2. Amount */}
-      {option && (
+      {lines.length > 0 && (
         <fieldset>
           <legend className="text-sm font-semibold text-navy">¿Cuánto pagas hoy?</legend>
           <div className="mt-2 grid gap-2 min-[420px]:grid-cols-2" role="radiogroup" data-field="amount" tabIndex={-1}>
@@ -304,49 +306,17 @@ export function ReserveForm({ option }: Props) {
 
         {delivery === "shipping" && (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {ADDRESS_FIELDS.map((field) => (
-              <label key={field.id} className={`block ${field.wide ? "sm:col-span-2" : ""}`}>
-                <span className="text-xs font-semibold text-navy/80">{field.label}</span>
-                {field.id === "neighborhood" && coloniaOptions.length > 0 ? (
-                  <select
-                    data-field={field.id}
-                    autoComplete={field.auto}
-                    value={address.neighborhood}
-                    onChange={(e) => setAddress((a) => ({ ...a, neighborhood: e.target.value }))}
-                    onBlur={() => setTouched((t) => ({ ...t, neighborhood: true }))}
-                    aria-invalid={Boolean(shown(field.id)) || undefined}
-                    aria-describedby={shown(field.id) ? `${ids}-${field.id}` : undefined}
-                    className={inputClass}
-                  >
-                    <option value="">Selecciona tu colonia ({coloniaOptions.length})</option>
-                    {coloniaOptions.map((loc) => (
-                      <option key={loc.neighborhood} value={loc.neighborhood}>
-                        {loc.neighborhood}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    data-field={field.id}
-                    type={field.type ?? "text"}
-                    autoComplete={field.auto}
-                    inputMode={field.id === "zip" ? "numeric" : undefined}
-                    maxLength={field.id === "zip" ? 5 : 200}
-                    value={address[field.id]}
-                    onChange={(e) => setAddress((a) => ({ ...a, [field.id]: e.target.value }))}
-                    onBlur={() => setTouched((t) => ({ ...t, [field.id]: true }))}
-                    aria-invalid={Boolean(shown(field.id)) || undefined}
-                    aria-describedby={shown(field.id) ? `${ids}-${field.id}` : undefined}
-                    className={inputClass}
-                  />
-                )}
-                {shown(field.id) && (
-                  <span id={`${ids}-${field.id}`} className="mt-1 block text-xs text-coral">
-                    {problems[field.id]}
-                  </span>
-                )}
-              </label>
-            ))}
+            <div className="sm:col-span-2">
+              <ShippingAddressFields
+                idPrefix={ids}
+                values={address}
+                errors={Object.fromEntries(REQUIRED_ADDRESS_FIELDS.map((f) => [f.id, shown(f.id)]))}
+                locations={coloniaOptions}
+                locationsZip={zip}
+                onChange={(field, value) => setAddress((a) => ({ ...a, [field]: value }))}
+                onBlur={(field) => setTouched((t) => ({ ...t, [field]: true }))}
+              />
+            </div>
             <p className="text-sm text-navy/75 sm:col-span-2" aria-live="polite">
               {zip.length === 5 && shippingEstimate !== null
                 ? `Envío estimado: ${currency(shippingEstimate)} · ${isFull ? "se cobra hoy" : "se paga al liquidar, cotizado de nuevo cuando llegue el disco"}`
@@ -361,8 +331,18 @@ export function ReserveForm({ option }: Props) {
       </fieldset>
 
       {/* 4. Summary + terms */}
-      {option && (
+      {lines.length > 0 && (
         <div className="rounded-[22px] bg-navy p-5 text-cream sm:p-6">
+          <ul className="mb-4 space-y-1 border-b border-cream/15 pb-4 text-sm">
+            {lines.map((l) => (
+              <li key={l.option.id} className="flex items-baseline justify-between gap-4">
+                <span className="min-w-0 text-cream/85">
+                  {l.option.name} <span className="tabular-nums text-cream/60">×{l.quantity}</span>
+                </span>
+                <span className="shrink-0 tabular-nums">{currency(Number(l.option.price) * l.quantity)}</span>
+              </li>
+            ))}
+          </ul>
           <dl className="space-y-2 text-sm">
             <div className="flex items-baseline justify-between gap-4">
               <dt className="text-cream/75">Hoy pagas</dt>

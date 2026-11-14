@@ -578,15 +578,31 @@ export function CartPage() {
               {/* ── Home delivery address form ── */}
               {deliveryOption === "home" ? (
                 <div className="page-enter">
-                  <ShippingAddressFields
-                    formRef={shippingFormRef}
-                    values={shippingAddress}
-                    errors={shippingErrors}
-                    locations={locations}
-                    locationsZip={locationsZip}
-                    onChange={handleShippingChange}
-                    onSubmit={() => void handleCheckout()}
-                  />
+                  {/* A real <form>: Enter submits, and checkout reads its FormData. */}
+                  <form
+                    ref={shippingFormRef}
+                    id="shipping-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void handleCheckout();
+                    }}
+                    noValidate
+                    className="space-y-3 rounded-xl border border-navy/10 bg-white/80 p-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-orange">Dirección de envío</p>
+                      <span className="rounded-pill bg-sun px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-navy">
+                        Requerido
+                      </span>
+                    </div>
+                    <ShippingAddressFields
+                      values={shippingAddress}
+                      errors={shippingErrors}
+                      locations={locations}
+                      locationsZip={locationsZip}
+                      onChange={handleShippingChange}
+                    />
+                  </form>
                 </div>
               ) : null}
             </div>

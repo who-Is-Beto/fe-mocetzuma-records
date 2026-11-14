@@ -38,7 +38,9 @@ export function PresalePage() {
   const service = useMemo(() => createPresaleService({ getToken: () => token ?? null }), [token]);
   const fetchPresale = useCallback(() => service.get(slug), [service, slug]);
   const { data: presale, isLoading, error, refetch } = useServiceQuery<Presale>([service, slug], fetchPresale);
-  const [pickedId, setPickedId] = useState<number | null>(null);
+  // Copies per version id; null until the buyer touches a stepper (then the default below no longer applies).
+  const [picked, setPicked] = useState<Record<number, number> | null>(null);
+  const [focusId, setFocusId] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -86,8 +88,11 @@ export function PresalePage() {
 
   const options = presale.options.filter((o) => o.is_active);
   const firstAvailable = options.find((o) => o.copies_left > 0) ?? null;
+  // Opens with 1 copy of the first version that has stock: a single-version presale reads as before.
+  const quantities = picked ?? (firstAvailable ? { [firstAvailable.id]: 1 } : {});
+  const lines = options.filter((o) => (quantities[o.id] ?? 0) > 0).map((o) => ({ option: o, quantity: quantities[o.id] }));
   const option: PresaleOption | null =
-    options.find((o) => o.id === pickedId) ?? (options.length === 1 ? options[0] : firstAvailable);
+    options.find((o) => o.id === focusId) ?? lines[0]?.option ?? firstAvailable ?? options[0] ?? null;
   const { left, total } = copiesSummary(presale);
   const closed = daysUntil(presale.purchase_deadline) < 0 || presale.status !== "published";
   const soldOut = left <= 0;
@@ -161,9 +166,15 @@ export function PresalePage() {
               {presale.title}
             </h1>
 
-            {options.length > 1 && (
+            {!closed && !soldOut && (
               <div className="mt-6">
-                <VersionPicker options={options} selectedId={option?.id ?? null} fallbackImage={presale.cover} onPick={(o) => setPickedId(o.id)} />
+                <VersionPicker
+                  options={options}
+                  quantities={quantities}
+                  fallbackImage={presale.cover}
+                  onChange={(o, quantity) => setPicked({ ...quantities, [o.id]: quantity })}
+                  onFocus={(o) => setFocusId(o.id)}
+                />
               </div>
             )}
 
@@ -203,7 +214,7 @@ export function PresalePage() {
                   </div>
                 </div>
               ) : (
-                <ReserveForm option={option} />
+                <ReserveForm lines={lines} />
               )}
             </div>
             {presale.description && (
