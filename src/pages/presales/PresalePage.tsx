@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { Presale, PresaleOption } from "../../app/domain/presales";
 import { useServiceQuery } from "../../app/hooks";
 import { useSeo } from "../../app/hooks/useSeo";
@@ -20,6 +20,10 @@ import {
 } from "../../components/presales/presaleText";
 import { SubscribeBox } from "../../components/presales/SubscribeBox";
 import { ReserveForm } from "./ReserveForm";
+import { VersionPicker } from "./VersionPicker";
+
+const barButton =
+  "group inline-flex min-h-[44px] items-center gap-2 rounded-pill border border-navy/15 bg-white/70 px-4 text-sm font-semibold text-navy transition hover:-translate-y-0.5 hover:border-orange hover:text-orange active:translate-y-0 active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange";
 
 const STEPS = [
   { n: "1", title: "Aparta tu copia", text: "Paga el mínimo, la mitad o lo que quieras. Si pagas completo te cuesta menos." },
@@ -35,6 +39,9 @@ export function PresalePage() {
   const fetchPresale = useCallback(() => service.get(slug), [service, slug]);
   const { data: presale, isLoading, error, refetch } = useServiceQuery<Presale>([service, slug], fetchPresale);
   const [pickedId, setPickedId] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useSeo({
     title: presale ? `Preventa: ${presale.title} — ${presale.artist}` : "Preventa",
@@ -42,7 +49,8 @@ export function PresalePage() {
       ? `Aparta ${presale.title} de ${presale.artist} desde ${currency(
           Math.min(...presale.options.map((o) => Number(o.min_deposit)))
         )}. Preventa en Moctezuma Records.`
-      : undefined
+      : undefined,
+    image: presale?.cover ?? undefined
   });
 
   if (isLoading && !presale) return <PresaleSkeleton />;
@@ -85,80 +93,121 @@ export function PresalePage() {
   const soldOut = left <= 0;
   const image = option?.image ?? presale.cover;
 
+  // Opened from a shared link there's no history to go back to: land on the home page.
+  const goBack = () => (location.key === "default" ? navigate("/") : navigate(-1));
+  const share = async () => {
+    const url = `${window.location.origin}/preventas/${presale.slug}`;
+    try {
+      if (typeof navigator.share === "function") {
+        await navigator.share({ title: `${presale.title} — ${presale.artist}`, text: `Preventa de ${presale.title} en Moctezuma Records`, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Closing the share sheet is not an error.
+    }
+  };
+
   return (
     <div className="space-y-16 sm:space-y-20">
-      <div className="grid gap-8 lg:grid-cols-12 lg:gap-12">
-        {/* Cover: sticks beside the form on desktop, swaps with the version */}
-        <div className="lg:col-span-6">
-          <div className="lg:sticky lg:top-28">
-            <div className="relative aspect-square overflow-hidden rounded-[26px] bg-sand shadow-panel ring-1 ring-navy/10">
-              {image ? (
-                <Img
-                  key={image}
-                  src={image}
-                  alt={`${presale.title} — ${presale.artist}${option ? ` (${option.name})` : ""}`}
-                  width={640}
-                  sizes="(min-width: 1024px) 46vw, 92vw"
-                  priority
-                  className="cover-in h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-7xl" aria-hidden="true">💿</div>
-              )}
-              <span className="absolute left-4 top-4 rounded-pill bg-navy px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-cream">
-                Preventa
-              </span>
+      <div className="space-y-5 sm:space-y-6">
+        <div className="flex items-center justify-between gap-3">
+          <button type="button" onClick={goBack} className={barButton}>
+            <span aria-hidden="true" className="transition group-hover:-translate-x-0.5">←</span> Regresar
+          </button>
+          <button type="button" onClick={() => void share()} className={barButton} aria-live="polite">
+            {copied ? (
+              "Enlace copiado"
+            ) : (
+              <>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M16 6l-4-4-4 4M12 2v13" />
+                </svg>
+                Compartir
+              </>
+            )}
+          </button>
+        </div>
+        <div className="grid gap-8 lg:grid-cols-12 lg:gap-12">
+          {/* Cover: sticks beside the form on desktop, swaps with the version */}
+          <div className="lg:col-span-6">
+            <div className="lg:sticky lg:top-28">
+              <div className="relative aspect-square overflow-hidden rounded-[26px] bg-sand shadow-panel ring-1 ring-navy/10">
+                {image ? (
+                  <Img
+                    key={image}
+                    src={image}
+                    alt={`${presale.title} — ${presale.artist}${option ? ` (${option.name})` : ""}`}
+                    width={640}
+                    sizes="(min-width: 1024px) 46vw, 92vw"
+                    priority
+                    className="cover-in h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-7xl" aria-hidden="true">💿</div>
+                )}
+                <span className="absolute left-4 top-4 rounded-pill bg-navy px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-cream">
+                  Preventa
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="min-w-0 lg:col-span-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-orange">{presale.artist}</p>
-          <h1 className="mt-2 font-display text-[1.9rem] leading-[1.1] text-denim sm:text-4xl lg:text-[2.6rem]">
-            {presale.title}
-          </h1>
+          <div className="min-w-0 lg:col-span-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-orange">{presale.artist}</p>
+            <h1 className="mt-2 font-display text-[1.9rem] leading-[1.1] text-denim sm:text-4xl lg:text-[2.6rem]">
+              {presale.title}
+            </h1>
 
-          <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 border-y border-navy/10 py-5 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
-            <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/60">Precio</dt>
-              <dd className="mt-0.5 text-lg font-semibold tabular-nums text-navy">{currency(option?.price ?? presale.price_from ?? 0)}</dd>
-            </div>
-            <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/60">Apártalo con</dt>
-              <dd className="mt-0.5 text-lg font-semibold tabular-nums text-navy">{currency(option?.min_deposit ?? 0)}</dd>
-            </div>
-            <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/60">Copias</dt>
-              <dd className={`mt-0.5 text-lg font-semibold ${soldOut ? "text-coral" : "text-navy"}`}>
-                {(option ? option.copies_left : left) <= 0 ? "Agotado" : `${option ? option.copies_left : left} de ${option ? option.copies : total}`}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/60">Llega</dt>
-              <dd className="mt-0.5 text-lg font-semibold text-navy">{presale.estimated_arrival || "Por confirmar"}</dd>
-            </div>
-          </dl>
-
-          <p className={`mt-4 text-sm font-semibold ${daysUntil(presale.purchase_deadline) <= 3 ? "text-coral" : "text-navy/75"}`}>
-            {closingLabel(presale.purchase_deadline)}
-            {daysUntil(presale.purchase_deadline) >= 0 ? ` · último día ${shortDate(presale.purchase_deadline)}` : ""}
-          </p>
-
-          {presale.description && (
-            <p className="mt-5 whitespace-pre-line text-[15px] leading-relaxed text-navy/80">{presale.description}</p>
-          )}
-
-          <div className="mt-8">
-            {closed || soldOut ? (
-              <div className="rounded-[22px] border border-navy/10 bg-white/70 p-6">
-                <p className="font-semibold text-denim">{closed ? "Esta preventa ya cerró" : "Se apartaron todas las copias"}</p>
-                <p className="mt-1 text-sm text-navy/70">Te avisamos de la próxima preventa por correo.</p>
-                <div className="mt-4">
-                  <SubscribeBox compact />
-                </div>
+            {options.length > 1 && (
+              <div className="mt-6">
+                <VersionPicker options={options} selectedId={option?.id ?? null} fallbackImage={presale.cover} onPick={(o) => setPickedId(o.id)} />
               </div>
-            ) : (
-              <ReserveForm presale={presale} option={option} onPickOption={(o) => setPickedId(o.id)} />
+            )}
+
+            <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 border-y border-navy/10 py-5 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/60">Precio</dt>
+                <dd className="mt-0.5 text-lg font-semibold tabular-nums text-navy">{currency(option?.price ?? presale.price_from ?? 0)}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/60">Apártalo con</dt>
+                <dd className="mt-0.5 text-lg font-semibold tabular-nums text-navy">{currency(option?.min_deposit ?? 0)}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/60">Copias</dt>
+                <dd className={`mt-0.5 text-lg font-semibold ${soldOut ? "text-coral" : "text-navy"}`}>
+                  {(option ? option.copies_left : left) <= 0 ? "Agotado" : `${option ? option.copies_left : left} de ${option ? option.copies : total}`}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/60">Llega</dt>
+                <dd className="mt-0.5 text-lg font-semibold text-navy">{presale.estimated_arrival || "Por confirmar"}</dd>
+              </div>
+            </dl>
+
+            <p className={`mt-4 text-sm font-semibold ${daysUntil(presale.purchase_deadline) <= 3 ? "text-coral" : "text-navy/75"}`}>
+              {closingLabel(presale.purchase_deadline)}
+              {daysUntil(presale.purchase_deadline) >= 0 ? ` · último día ${shortDate(presale.purchase_deadline)}` : ""}
+            </p>
+
+            <div className="mt-8">
+              {closed || soldOut ? (
+                <div className="rounded-[22px] border border-navy/10 bg-white/70 p-6">
+                  <p className="font-semibold text-denim">{closed ? "Esta preventa ya cerró" : "Se apartaron todas las copias"}</p>
+                  <p className="mt-1 text-sm text-navy/70">Te avisamos de la próxima preventa por correo.</p>
+                  <div className="mt-4">
+                    <SubscribeBox compact />
+                  </div>
+                </div>
+              ) : (
+                <ReserveForm option={option} />
+              )}
+            </div>
+            {presale.description && (
+              <p className="mt-8 whitespace-pre-line text-[15px] leading-relaxed text-navy/80">{presale.description}</p>
             )}
           </div>
         </div>

@@ -11,7 +11,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const API_URL = (
+export const API_URL = (
   process.env.API_URL ||
   process.env.VITE_API_URL ||
   "https://api.moctezumarecords.com"
@@ -35,11 +35,11 @@ const CONDITION_LABELS: { [code: string]: string } = {
   VG: "Very Good", G: "Good", F: "Fair", P: "Poor",
 };
 
-const escapeHtml = (value: string) =>
+export const escapeHtml = (value: string) =>
   value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 let indexHtmlCache: string | null = null;
-async function loadIndexHtml(origin: string): Promise<string> {
+export async function loadIndexHtml(origin: string): Promise<string> {
   if (indexHtmlCache) return indexHtmlCache;
   try {
     // Bundled with the function via vercel.json `functions.includeFiles`.

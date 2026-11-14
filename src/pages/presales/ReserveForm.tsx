@@ -1,9 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import type { Presale, PresaleDelivery, PresaleOption, ShippingAddress } from "../../app/domain/presales";
+import type { PresaleDelivery, PresaleOption, ShippingAddress } from "../../app/domain/presales";
 import { currency } from "../../app/lib/format";
 import { extractErrorMessage, HttpError } from "../../app/lib/httpClient";
 import { useAuth } from "../../app/providers/AuthProvider";
+import { createCartService, type ShippingLocation } from "../../app/services/cartService";
 import { createPresaleService } from "../../app/services/presaleService";
 import { shortDate } from "../../components/presales/presaleText";
 
@@ -54,20 +55,19 @@ const inputClass =
   "mt-1 min-h-[44px] w-full rounded-xl border border-navy/15 bg-white px-3 text-sm text-navy focus:outline-none focus:ring-2 focus:ring-orange aria-[invalid=true]:border-coral";
 
 type Props = {
-  presale: Presale;
   option: PresaleOption | null;
-  onPickOption: (option: PresaleOption) => void;
 };
 
 /**
- * Reserve a copy: pick the version, how much to pay today, pickup or shipping,
+ * Reserve the version picked on the page: how much to pay today, pickup or shipping,
  * accept the 120-day rule, then pay in Stripe. Totals are re-checked by the
  * server; the summary here is what the buyer agrees to.
  */
-export function ReserveForm({ presale, option, onPickOption }: Props) {
+export function ReserveForm({ option }: Props) {
   const { token, isAuthenticated, emailVerified, user, resendVerification } = useAuth();
   const location = useLocation();
   const service = useMemo(() => createPresaleService({ getToken: () => token ?? null }), [token]);
+  const cartService = useMemo(() => createCartService({ getToken: () => token ?? null }), [token]);
   const ids = useId();
 
   const [choice, setChoice] = useState<AmountChoice>("min");
@@ -75,6 +75,7 @@ export function ReserveForm({ presale, option, onPickOption }: Props) {
   const [delivery, setDelivery] = useState<PresaleDelivery>("pickup");
   const [address, setAddress] = useState<ShippingAddress>(EMPTY_ADDRESS);
   const [accepted, setAccepted] = useState(false);
+  const [colonias, setColonias] = useState<{ zip: string; list: ShippingLocation[] } | null>(null);
   const [quote, setQuote] = useState<{ zip: string; amount: number | null; error: string } | null>(null);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [sending, setSending] = useState(false);
@@ -82,7 +83,6 @@ export function ReserveForm({ presale, option, onPickOption }: Props) {
   const [verifySent, setVerifySent] = useState(false);
   const firstInvalid = useRef<HTMLElement | null>(null);
 
-  const options = presale.options.filter((o) => o.is_active);
   const price = option ? Number(option.price) : 0;
   const discount = option ? Number(option.full_payment_discount) : 0;
   const fullPrice = money(price - discount);
@@ -95,6 +95,28 @@ export function ReserveForm({ presale, option, onPickOption }: Props) {
   const payNow = isFull ? fullPrice : amount;
   const left = isFull ? 0 : money(price - amount);
   const zip = address.zip.replace(/\D/g, "");
+
+  // Sepomex colonias for the ZIP, same as checkout: a dropdown that also fills city and state.
+  useEffect(() => {
+    if (delivery !== "shipping" || zip.length !== 5 || colonias?.zip === zip) return;
+    let alive = true;
+    cartService
+      .fetchLocations(zip)
+      .then(({ locations }) => {
+        if (!alive) return;
+        setColonias({ zip, list: locations });
+        setAddress((a) => ({
+          ...a,
+          neighborhood: "",
+          ...(locations.length > 0 ? { city: locations[0].city, state: locations[0].state } : {})
+        }));
+      })
+      .catch(() => alive && setColonias({ zip, list: [] })); // lookup down: type it instead
+    return () => {
+      alive = false;
+    };
+  }, [delivery, zip, colonias?.zip, cartService]);
+  const coloniaOptions = colonias?.zip === zip ? colonias.list : [];
 
   // Shipping estimate as soon as there's a 5-digit ZIP.
   useEffect(() => {
@@ -169,39 +191,8 @@ export function ReserveForm({ presale, option, onPickOption }: Props) {
     }
   };
 
-  const versionPicker = options.length > 1 && (
-
-        <fieldset>
-          <legend className="text-sm font-semibold text-navy">Elige tu versión</legend>
-          <div className="mt-2 grid gap-2 min-[420px]:grid-cols-2" role="radiogroup" data-field="option" tabIndex={-1}>
-            {options.map((o) => {
-              const out = o.copies_left <= 0;
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={option?.id === o.id}
-                  disabled={out}
-                  onClick={() => onPickOption(o)}
-                  className={chipClass(option?.id === o.id, out)}
-                >
-                  <span className="block font-semibold">{o.name}</span>
-                  <span className="mt-0.5 block text-xs text-navy/70">
-                    {out ? "Agotado" : `${currency(o.price)} · quedan ${o.copies_left}`}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          {shown("option") && <p className="mt-1.5 text-sm text-coral">{problems.option}</p>}
-        </fieldset>
-  );
-
   if (!isAuthenticated) {
     return (
-      <div className="space-y-7">
-      {versionPicker}
       <div className="rounded-[22px] border border-navy/10 bg-white/80 p-6">
         <p className="font-semibold text-denim">Para apartar necesitas una cuenta</p>
         <p className="mt-1 text-sm text-navy/70">Así guardamos tus pagos y tu código de entrega en un solo lugar.</p>
@@ -221,7 +212,6 @@ export function ReserveForm({ presale, option, onPickOption }: Props) {
             Crear cuenta
           </Link>
         </div>
-      </div>
       </div>
     );
   }
@@ -249,7 +239,6 @@ export function ReserveForm({ presale, option, onPickOption }: Props) {
 
   return (
     <form onSubmit={submit} noValidate className="space-y-7">
-      {versionPicker}
 
       {/* 2. Amount */}
       {option && (
@@ -318,19 +307,39 @@ export function ReserveForm({ presale, option, onPickOption }: Props) {
             {ADDRESS_FIELDS.map((field) => (
               <label key={field.id} className={`block ${field.wide ? "sm:col-span-2" : ""}`}>
                 <span className="text-xs font-semibold text-navy/80">{field.label}</span>
-                <input
-                  data-field={field.id}
-                  type={field.type ?? "text"}
-                  autoComplete={field.auto}
-                  inputMode={field.id === "zip" ? "numeric" : undefined}
-                  maxLength={field.id === "zip" ? 5 : 200}
-                  value={address[field.id]}
-                  onChange={(e) => setAddress((a) => ({ ...a, [field.id]: e.target.value }))}
-                  onBlur={() => setTouched((t) => ({ ...t, [field.id]: true }))}
-                  aria-invalid={Boolean(shown(field.id)) || undefined}
-                  aria-describedby={shown(field.id) ? `${ids}-${field.id}` : undefined}
-                  className={inputClass}
-                />
+                {field.id === "neighborhood" && coloniaOptions.length > 0 ? (
+                  <select
+                    data-field={field.id}
+                    autoComplete={field.auto}
+                    value={address.neighborhood}
+                    onChange={(e) => setAddress((a) => ({ ...a, neighborhood: e.target.value }))}
+                    onBlur={() => setTouched((t) => ({ ...t, neighborhood: true }))}
+                    aria-invalid={Boolean(shown(field.id)) || undefined}
+                    aria-describedby={shown(field.id) ? `${ids}-${field.id}` : undefined}
+                    className={inputClass}
+                  >
+                    <option value="">Selecciona tu colonia ({coloniaOptions.length})</option>
+                    {coloniaOptions.map((loc) => (
+                      <option key={loc.neighborhood} value={loc.neighborhood}>
+                        {loc.neighborhood}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    data-field={field.id}
+                    type={field.type ?? "text"}
+                    autoComplete={field.auto}
+                    inputMode={field.id === "zip" ? "numeric" : undefined}
+                    maxLength={field.id === "zip" ? 5 : 200}
+                    value={address[field.id]}
+                    onChange={(e) => setAddress((a) => ({ ...a, [field.id]: e.target.value }))}
+                    onBlur={() => setTouched((t) => ({ ...t, [field.id]: true }))}
+                    aria-invalid={Boolean(shown(field.id)) || undefined}
+                    aria-describedby={shown(field.id) ? `${ids}-${field.id}` : undefined}
+                    className={inputClass}
+                  />
+                )}
                 {shown(field.id) && (
                   <span id={`${ids}-${field.id}`} className="mt-1 block text-xs text-coral">
                     {problems[field.id]}
