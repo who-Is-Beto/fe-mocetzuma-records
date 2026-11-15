@@ -271,7 +271,7 @@ function PresaleCard({ presale, ownerId }: { presale: PresaleSale; ownerId: stri
         </div>
         {Number(presale.commission) > 0 && (
           <div className="flex gap-2">
-            <dt className="text-navy/60">Comisión Stripe (estimada)</dt>
+            <dt className="text-navy/60">Comisión (tarjeta / Stripe)</dt>
             <dd className="text-coral">−{currency(presale.commission)}</dd>
           </div>
         )}

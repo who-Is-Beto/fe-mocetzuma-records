@@ -44,8 +44,13 @@ export function createPresaleService(config: Config = {}) {
       }),
     reserve: (input: ReserveInput) =>
       http<{ checkout_url: string; code: string }>(`${root}/reserve/`, { method: "POST", body: input, ...auth() }),
-    settle: (code: string) =>
-      http<{ checkout_url: string }>(`${root}/orders/${code}/settle/`, { method: "POST", ...auth() }),
+    /** No amount settles the whole balance; an amount is an abono (≥ 100, multiple of 50). */
+    settle: (code: string, amount?: number) =>
+      http<{ checkout_url: string }>(`${root}/orders/${code}/settle/`, {
+        method: "POST",
+        body: amount ? { amount: String(amount) } : undefined,
+        ...auth()
+      }),
     complete: (sessionId: string) =>
       http<PresaleOrder>(`${root}/checkout/complete/`, { method: "POST", body: { session_id: sessionId }, ...auth() }),
     mine: () => http<PresaleOrder[]>(`${root}/orders/mine/`, auth()),

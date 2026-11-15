@@ -95,6 +95,8 @@ export type PresaleOrder = {
   shipping_cost: string | null;
   /** Shipping order whose shipping isn't quoted yet (paid when the record arrives). */
   shipping_pending: boolean;
+  /** Part of the balance that is shipping (an abono can't cover it). */
+  shipping_due: string;
   total: string;
   paid: string;
   balance: string;

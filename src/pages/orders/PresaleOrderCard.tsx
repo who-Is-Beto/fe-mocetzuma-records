@@ -62,11 +62,18 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
   // The QR is for picking up at the store; shipped orders never use it.
   const showCode = !closed && order.delivery === "pickup" && order.status !== "entregado";
 
-  const settle = async () => {
+  // Abono: from $100 in steps of $50, records only (shipping goes with the last payment).
+  const maxAbono = Math.floor((balance - Number(order.shipping_due)) / 50) * 50;
+  const canAbonar = owes && maxAbono >= 100;
+  const [abono, setAbono] = useState("");
+  const abonoValue = Number(abono);
+  const abonoOk = abonoValue >= 100 && abonoValue <= maxAbono && abonoValue % 50 === 0;
+
+  const settle = async (amount?: number) => {
     setPaying(true);
     setError("");
     try {
-      const { checkout_url } = await service.settle(order.code);
+      const { checkout_url } = await service.settle(order.code, amount);
       window.location.assign(checkout_url);
     } catch (err) {
       setPaying(false);
@@ -186,13 +193,49 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
               </p>
               <button
                 type="button"
-                onClick={settle}
+                onClick={() => settle()}
                 disabled={paying}
                 className="min-h-[48px] shrink-0 rounded-pill bg-orange px-6 text-sm font-semibold text-charcoal transition duration-300 hover:-translate-y-0.5 hover:bg-amber active:translate-y-0 disabled:opacity-60"
               >
                 {paying ? "Abriendo el pago…" : `Liquidar ${currency(balance)}`}
               </button>
             </div>
+          )}
+          {canAbonar && (
+            <form
+              className="mt-3 flex flex-wrap items-end gap-2 rounded-2xl bg-white/70 p-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (abonoOk) void settle(abonoValue);
+              }}
+            >
+              <label className="min-w-0 flex-1">
+                <span className="block text-xs font-semibold text-navy/70">¿Prefieres abonar? Desde $100, en múltiplos de $50</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={100}
+                  max={maxAbono}
+                  step={50}
+                  placeholder="100"
+                  value={abono}
+                  onChange={(e) => setAbono(e.target.value)}
+                  className="mt-1 min-h-[44px] w-full rounded-xl border border-navy/15 bg-white px-3 text-sm tabular-nums text-navy focus:border-orange focus:outline-none"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={paying || !abonoOk}
+                className="min-h-[44px] shrink-0 rounded-pill px-5 text-sm font-semibold text-navy ring-1 ring-navy/20 transition hover:bg-orange/15 hover:ring-orange disabled:opacity-50"
+              >
+                {abonoOk ? `Abonar ${currency(abonoValue)}` : "Abonar"}
+              </button>
+              {abono !== "" && !abonoOk && (
+                <p className="w-full text-xs text-coral">
+                  Elige entre $100 y {currency(maxAbono)}, en múltiplos de $50.
+                </p>
+              )}
+            </form>
           )}
           {order.status === "pagado" && order.shipping_pending && (
             <p className="mt-4 text-sm text-navy/75">El envío se cotiza cuando llegue el disco; te avisamos por correo.</p>
