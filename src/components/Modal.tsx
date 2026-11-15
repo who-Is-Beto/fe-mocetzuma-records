@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 /** Sheet slide duration (enter, exit, snap back). */
 const SHEET_MS = 280;
@@ -152,7 +153,8 @@ export function Modal({
         }
     : undefined;
 
-  return (
+  // Portal to <body>: a transformed/filtered ancestor would otherwise trap this fixed overlay.
+  return createPortal(
     <div
       className={`fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/40 backdrop-blur-sm ${
         isSheet ? "items-end sm:items-center sm:p-4" : "items-center p-4 animate-overlay-in"
@@ -189,6 +191,7 @@ export function Modal({
         )}
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

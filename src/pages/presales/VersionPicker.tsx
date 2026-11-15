@@ -77,9 +77,9 @@ export function VersionPicker({ options, quantities, fallbackImage, onChange, on
                 )}
               </button>
 
-              <div className={`flex min-w-0 flex-1 items-center gap-2 ${options.length > 1 ? "sm:mt-2 sm:flex-col sm:items-stretch sm:px-1 sm:pb-1" : ""}`}>
-                <div className="min-w-0 flex-1 px-1">
-                  <p className="text-sm font-semibold leading-snug text-navy">{o.name}</p>
+              <div className={`flex min-w-0 flex-1 flex-col items-start gap-1 min-[400px]:flex-row min-[400px]:items-center min-[400px]:gap-2 ${options.length > 1 ? "sm:mt-2 sm:flex-col sm:items-stretch sm:px-1 sm:pb-1" : ""}`}>
+                <div className="min-w-0 max-w-full flex-1 px-1">
+                  <p className="break-words text-sm font-semibold leading-snug text-navy">{o.name}</p>
                   <p className={`text-xs tabular-nums ${out ? "text-coral" : "text-navy/70"}`}>
                     {out ? "Agotado" : `${currency(o.price)} · quedan ${o.copies_left}`}
                   </p>

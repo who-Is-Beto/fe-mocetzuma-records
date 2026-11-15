@@ -101,7 +101,7 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
                 <span className="flex h-full items-center justify-center text-3xl" aria-hidden="true">💿</span>
               )}
             </Link>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="rounded-pill bg-navy px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-cream">
                   Preventa
@@ -118,10 +118,10 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
               </p>
               <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Versiones">
                 {order.items.map((item) => (
-                  <li key={item.id} className="inline-flex items-center gap-1.5 rounded-pill bg-white/80 py-0.5 pl-0.5 pr-2.5 text-xs font-semibold text-navy ring-1 ring-navy/10">
-                    {item.image && <Img src={item.image} alt="" width={20} className="h-5 w-5 rounded-full object-cover" />}
-                    {item.option_name} ×{item.quantity}
-                    <span className={item.delivered_at ? "text-denim" : item.arrived ? "text-orange" : "text-navy/50"}>
+                  <li key={item.id} title={`${item.option_name} ×${item.quantity}`} className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-pill bg-white/80 py-0.5 pl-0.5 pr-2.5 text-xs font-semibold text-navy ring-1 ring-navy/10">
+                    {item.image && <Img src={item.image} alt="" width={20} className="h-5 w-5 shrink-0 rounded-full object-cover" />}
+                    <span className="min-w-0 truncate">{item.option_name} ×{item.quantity}</span>
+                    <span className={`shrink-0 ${item.delivered_at ? "text-denim" : item.arrived ? "text-orange" : "text-navy/50"}`}>
                       {item.delivered_at ? "✓ entregado" : item.arrived ? "ya llegó" : "en camino"}
                     </span>
                   </li>
@@ -131,7 +131,7 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
           </div>
 
           {!closed && (
-            <div role="img" aria-label={`Estado: ${labels[reached]}`} className="relative mt-6 h-[4.5rem] max-w-lg">
+            <div role="img" aria-label={`Estado: ${labels[reached]}`} className="relative mt-6 h-14 max-w-lg">
               <div className="absolute left-3.5 right-3.5 top-3 h-1 rounded-full bg-navy/10" aria-hidden="true">
                 <div className="grow-x h-full rounded-full bg-gradient-to-r from-orange to-amber" style={{ width: `${progress}%` }} />
               </div>
@@ -144,7 +144,8 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
                   return (
                     <li
                       key={label}
-                      className={`absolute top-0 flex w-[5.5rem] flex-col gap-1.5 ${edge}`}
+                      title={label}
+                      className={`absolute top-0 flex w-[min(5.5rem,25%)] flex-col gap-1.5 ${edge}`}
                       style={{ left: `calc(0.875rem + (100% - 1.75rem) * ${i / (labels.length - 1)})`, transform: `translateX(calc(${shift} ${i === 0 ? "- 0.875rem" : i === labels.length - 1 ? "+ 0.875rem" : ""}))` }}
                     >
                       <span
@@ -154,7 +155,7 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
                       >
                         {done ? "✓" : i + 1}
                       </span>
-                      <span className={`text-[10px] font-semibold leading-tight sm:text-[11px] ${i <= reached ? "text-navy" : "text-navy/60"}`}>
+                      <span className={`max-w-full truncate text-[10px] font-semibold leading-tight sm:text-[11px] ${i <= reached ? "text-navy" : "text-navy/60"}`}>
                         {label}
                       </span>
                     </li>
