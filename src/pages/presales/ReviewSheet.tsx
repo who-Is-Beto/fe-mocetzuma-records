@@ -4,12 +4,13 @@ import type { Presale, PresaleDelivery, PresaleOption } from "../../app/domain/p
 import { currency } from "../../app/lib/format";
 import { Img } from "../../components/Img";
 import { Modal } from "../../components/Modal";
+import type { BagPresale } from "../../app/lib/presaleBag";
 import type { ShippingAddressValues } from "../cart/ShippingAddressFields";
 
 type Props = {
   open: boolean;
   presale: Pick<Presale, "title" | "artist" | "cover">;
-  lines: { option: PresaleOption; quantity: number }[];
+  lines: { option: PresaleOption; quantity: number; presale?: BagPresale }[];
   delivery: PresaleDelivery;
   address: ShippingAddressValues;
   shippingEstimate: number | null;
@@ -41,6 +42,11 @@ export function ReviewSheet(props: Props) {
   const ids = useId();
   const [accepted, setAccepted] = useState(false);
   const copies = lines.reduce((n, l) => n + l.quantity, 0);
+  // One order can hold several presales: the header names them all, each line says which.
+  const presales = [...new Map(lines.map((l) => [l.presale?.slug ?? "", l.presale ?? presale])).values()];
+  const multi = presales.length > 1;
+  const heading = multi ? presales.map((p) => p.title).join(" + ") : presale.title;
+  const artists = multi ? [...new Set(presales.map((p) => p.artist))].join(" · ") : presale.artist;
   const place = [`${address.street} ${address.number}`.trim(), address.neighborhood, `CP ${address.zip}`, address.city]
     .filter(Boolean)
     .join(", ");
@@ -53,11 +59,13 @@ export function ReviewSheet(props: Props) {
             <Img src={presale.cover} alt="" width={56} className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-navy/10" />
           ) : null}
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-orange">Revisa tu preventa</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-orange">
+              {multi ? `Revisa tu pedido · ${presales.length} preventas` : "Revisa tu preventa"}
+            </p>
             <h2 id={`${ids}-title`} className="truncate font-display text-lg leading-tight text-denim">
-              {presale.title}
+              {heading}
             </h2>
-            <p className="truncate text-xs text-navy/70">{presale.artist}</p>
+            <p className="truncate text-xs text-navy/70">{artists}</p>
           </div>
         </div>
 
@@ -70,21 +78,24 @@ export function ReviewSheet(props: Props) {
             </button>
           </div>
           <ul className="divide-y divide-navy/10 rounded-2xl bg-white/80 px-3 ring-1 ring-navy/10">
-            {lines.map(({ option, quantity }, i) => (
+            {lines.map(({ option, quantity, presale: linePresale }, i) => (
               <li
                 key={option.id}
                 style={{ animationDelay: `${80 + i * 60}ms` }}
                 className="flex animate-toast-in items-center gap-3 py-2.5 motion-reduce:animate-none"
               >
                 <span className="relative h-12 w-12 shrink-0 rounded-lg bg-sand">
-                  {(option.image ?? presale.cover) && (
-                    <Img src={option.image ?? presale.cover ?? ""} alt="" width={48} className="h-12 w-12 rounded-lg object-cover" />
+                  {(option.image ?? linePresale?.cover ?? presale.cover) && (
+                    <Img src={option.image ?? linePresale?.cover ?? presale.cover ?? ""} alt="" width={48} className="h-12 w-12 rounded-lg object-cover" />
                   )}
                   <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-orange px-1 text-[11px] font-bold tabular-nums text-charcoal">
                     {quantity}
                   </span>
                 </span>
-                <span className="min-w-0 flex-1 text-sm font-semibold leading-snug text-navy">{option.name}</span>
+                <span className="min-w-0 flex-1 text-sm font-semibold leading-snug text-navy">
+                  {multi && linePresale ? <span className="block truncate text-xs font-normal text-navy/70">{linePresale.title}</span> : null}
+                  {option.name}
+                </span>
                 <span className="shrink-0 text-sm font-semibold tabular-nums text-navy">{currency(Number(option.price) * quantity)}</span>
               </li>
             ))}

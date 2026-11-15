@@ -61,6 +61,8 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
   const urgent = owes && order.all_arrived && order.days_left <= 7;
   // The QR is for picking up at the store; shipped orders never use it.
   const showCode = !closed && order.delivery === "pickup" && order.status !== "entregado";
+  const multi = order.presales.length > 1;
+  const lineName = (item: PresaleOrder["items"][number]) => (multi ? `${item.presale_title} · ${item.option_name}` : item.option_name);
 
   // Abono: from $100 in steps of $50, records only (shipping goes with the last payment).
   const maxAbono = Math.floor((balance - Number(order.shipping_due)) / 50) * 50;
@@ -111,16 +113,16 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
                 </span>
               </div>
               <h2 id={`presale-${order.code}`} className="mt-1.5 line-clamp-2 font-display text-[15px] leading-snug text-denim sm:text-base">
-                {order.presale.title}
+                {order.presales.map((p) => p.title).join(" + ")}
               </h2>
               <p className="mt-0.5 line-clamp-2 text-xs text-navy/75">
-                {order.presale.artist} · {order.delivery_label}
+                {[...new Set(order.presales.map((p) => p.artist))].join(" · ")} · {order.delivery_label}
               </p>
               <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Versiones">
                 {order.items.map((item) => (
-                  <li key={item.id} title={`${item.option_name} ×${item.quantity}`} className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-pill bg-white/80 py-0.5 pl-0.5 pr-2.5 text-xs font-semibold text-navy ring-1 ring-navy/10">
+                  <li key={item.id} title={`${lineName(item)} ×${item.quantity}`} className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-pill bg-white/80 py-0.5 pl-0.5 pr-2.5 text-xs font-semibold text-navy ring-1 ring-navy/10">
                     {item.image && <Img src={item.image} alt="" width={20} className="h-5 w-5 shrink-0 rounded-full object-cover" />}
-                    <span className="min-w-0 truncate">{item.option_name} ×{item.quantity}</span>
+                    <span className="min-w-0 truncate">{lineName(item)} ×{item.quantity}</span>
                     <span className={`shrink-0 ${item.delivered_at ? "text-denim" : item.arrived ? "text-orange" : "text-navy/50"}`}>
                       {item.delivered_at ? "✓ entregado" : item.arrived ? "ya llegó" : "en camino"}
                     </span>

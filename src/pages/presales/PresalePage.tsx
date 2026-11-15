@@ -5,6 +5,7 @@ import { useServiceQuery } from "../../app/hooks";
 import { useSeo } from "../../app/hooks/useSeo";
 import { currency } from "../../app/lib/format";
 import { HttpError } from "../../app/lib/httpClient";
+import { removePresale, setPresaleLines, usePresaleBag } from "../../app/lib/presaleBag";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { createPresaleService } from "../../app/services/presaleService";
 import { Img } from "../../components/Img";
@@ -44,6 +45,7 @@ export function PresalePage() {
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const bag = usePresaleBag();
 
   useSeo({
     title: presale ? `Preventa: ${presale.title} — ${presale.artist}` : "Preventa",
@@ -88,9 +90,20 @@ export function PresalePage() {
 
   const options = presale.options.filter((o) => o.is_active);
   const firstAvailable = options.find((o) => o.copies_left > 0) ?? null;
+  const here = { slug: presale.slug, title: presale.title, artist: presale.artist, cover: presale.cover };
+  // Other presales already in the bag go in the same order; this one's saved picks come back.
+  const others = bag.filter((l) => l.presale.slug !== presale.slug);
+  const saved = Object.fromEntries(bag.filter((l) => l.presale.slug === presale.slug).map((l) => [l.option.id, l.quantity]));
   // Opens with 1 copy of the first version that has stock: a single-version presale reads as before.
-  const quantities = picked ?? (firstAvailable ? { [firstAvailable.id]: 1 } : {});
-  const lines = options.filter((o) => (quantities[o.id] ?? 0) > 0).map((o) => ({ option: o, quantity: quantities[o.id] }));
+  const quantities =
+    picked ?? (Object.keys(saved).length ? saved : firstAvailable && others.length === 0 ? { [firstAvailable.id]: 1 } : {});
+  const lines = options
+    .filter((o) => (quantities[o.id] ?? 0) > 0)
+    .map((o) => ({ option: o, quantity: quantities[o.id], presale: here }));
+  const addAnother = () => {
+    setPresaleLines(here, lines);
+    navigate("/#preventas");
+  };
   const option: PresaleOption | null =
     options.find((o) => o.id === focusId) ?? lines[0]?.option ?? firstAvailable ?? options[0] ?? null;
   const { left, total } = copiesSummary(presale);
@@ -175,6 +188,15 @@ export function PresalePage() {
                   onChange={(o, quantity) => setPicked({ ...quantities, [o.id]: quantity })}
                   onFocus={(o) => setFocusId(o.id)}
                 />
+                {lines.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={addAnother}
+                    className="mt-3 min-h-[44px] text-sm font-semibold text-denim underline decoration-orange/60 underline-offset-4 hover:text-orange"
+                  >
+                    + Agregar otra preventa al mismo pedido
+                  </button>
+                )}
               </div>
             )}
 
@@ -214,7 +236,10 @@ export function PresalePage() {
                   </div>
                 </div>
               ) : (
-                <ReserveForm presale={presale} lines={lines} />
+                <>
+                  {others.length > 0 && <BagSummary lines={others} />}
+                  <ReserveForm presale={presale} lines={[...lines, ...others]} />
+                </>
               )}
             </div>
             {presale.description && (
@@ -244,6 +269,42 @@ export function PresalePage() {
         </p>
       </section>
     </div>
+  );
+}
+
+/** Versions from other presales already in this order (one box, one payment). */
+function BagSummary({ lines }: { lines: ReturnType<typeof usePresaleBag> }) {
+  const presales = [...new Map(lines.map((l) => [l.presale.slug, l.presale])).values()];
+  return (
+    <section aria-label="También en tu pedido" className="mb-5 rounded-[22px] bg-white/70 p-4 ring-1 ring-navy/10">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-orange">También en tu pedido</p>
+      <ul className="mt-2 divide-y divide-navy/10">
+        {presales.map((p) => (
+          <li key={p.slug} className="flex items-center gap-3 py-2.5">
+            <span className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-sand">
+              {p.cover ? <Img src={p.cover} alt="" width={44} className="h-full w-full object-cover" /> : null}
+            </span>
+            <Link to={`/preventas/${p.slug}`} className="min-w-0 flex-1 hover:text-orange">
+              <span className="block truncate text-sm font-semibold text-navy">{p.title}</span>
+              <span className="block truncate text-xs text-navy/70">
+                {lines
+                  .filter((l) => l.presale.slug === p.slug)
+                  .map((l) => `${l.option.name} ×${l.quantity}`)
+                  .join(", ")}
+              </span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => removePresale(p.slug)}
+              className="min-h-[44px] shrink-0 px-2 text-xs font-semibold text-coral hover:underline"
+              aria-label={`Quitar ${p.title} del pedido`}
+            >
+              Quitar
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -125,6 +125,7 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-navy">
+                    {order.presales.length > 1 ? `${item.presale_title} · ` : ""}
                     {item.option_name} ×{item.quantity}
                   </span>
                   <span className={`block text-xs ${item.delivered_at ? "text-denim" : item.arrived ? "text-orange" : "text-navy/60"}`}>

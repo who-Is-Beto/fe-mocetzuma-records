@@ -1,4 +1,5 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import type { Presale } from "../../app/domain/presales";
 import { useServiceQuery } from "../../app/hooks";
 import { createPresaleService } from "../../app/services/presaleService";
@@ -25,12 +26,17 @@ export function PresalesSection() {
   const presales = (data ?? [])
     .filter((p) => daysUntil(p.purchase_deadline) >= 0)
     .sort((a, b) => Number(b.is_open) - Number(a.is_open));
+  // "Agregar otra preventa" lands here (/#preventas) once the list has loaded.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash === "#preventas" && !isLoading) document.getElementById("preventas")?.scrollIntoView({ behavior: "smooth" });
+  }, [hash, isLoading]);
   if (!isLoading && presales.length === 0) return null;
   const featured = presales.length === 1;
   const columns = featured ? "" : presales.length === 2 ? "md:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3";
 
   return (
-    <section aria-labelledby="presales-title">
+    <section id="preventas" aria-labelledby="presales-title" className="scroll-mt-28">
       <Reveal className="max-w-2xl">
         <p className={eyebrow}>Preventas</p>
         <h2 id="presales-title" className={`mt-2 ${sectionTitle}`}>

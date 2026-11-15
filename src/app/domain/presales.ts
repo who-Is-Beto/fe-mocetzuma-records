@@ -26,6 +26,9 @@ export type PresaleOrderItem = {
   id: number;
   option_id: number;
   option_name: string;
+  /** Which presale the line is from (an order can hold several). */
+  presale_slug: string;
+  presale_title: string;
   image: string | null;
   quantity: number;
   unit_price: string;
@@ -83,7 +86,9 @@ export type PresaleOrder = {
   code: string;
   status: PresaleOrderStatus;
   status_label: string;
+  /** First presale of the order; `presales` lists every one (one box, one payment). */
   presale: { slug: string; title: string; artist: string; cover: string | null; estimated_arrival: string };
+  presales: { slug: string; title: string; artist: string; cover: string | null; estimated_arrival: string }[];
   items: PresaleOrderItem[];
   /** "Rojo ×2, Negro ×1" */
   lines_label: string;

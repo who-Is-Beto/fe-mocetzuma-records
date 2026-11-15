@@ -6,6 +6,7 @@ import { extractErrorMessage, HttpError } from "../../app/lib/httpClient";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { createCartService, type ShippingLocation } from "../../app/services/cartService";
 import { createPresaleService } from "../../app/services/presaleService";
+import { clearBag, type BagPresale } from "../../app/lib/presaleBag";
 import { shortDate } from "../../components/presales/presaleText";
 import { REQUIRED_ADDRESS_FIELDS } from "../cart/addressFields";
 import { ShippingAddressFields, type ShippingAddressValues } from "../cart/ShippingAddressFields";
@@ -49,8 +50,8 @@ const inputClass =
 
 type Props = {
   presale: Pick<Presale, "title" | "artist" | "cover">;
-  /** The versions picked on the page and how many of each. */
-  lines: { option: PresaleOption; quantity: number }[];
+  /** The versions picked (this page's and any other presale in the bag) and how many of each. */
+  lines: { option: PresaleOption; quantity: number; presale?: BagPresale }[];
 };
 
 /**
@@ -187,6 +188,7 @@ export function ReserveForm({ presale, lines }: Props) {
         ...(delivery === "shipping" ? { shipping_details: { ...address, zip } } : {}),
         accept_terms: true
       });
+      clearBag(); // the order now holds every line
       window.location.assign(checkout_url);
     } catch (err) {
       setSending(false);
