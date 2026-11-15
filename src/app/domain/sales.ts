@@ -108,9 +108,27 @@ export type SalesFilters = {
   owner?: number | string;
 };
 
+/** A fully paid presale order in Registro, shaped like a ticket (lines = versions). */
+export type PresaleSale = {
+  code: string;
+  /** When the record price got fully covered: the day it counts. */
+  paid_at: string;
+  buyer: string;
+  /** "Efectivo + Tarjeta en línea" */
+  method_label: string;
+  subtotal: string;
+  commission: string;
+  final_sale_price: string;
+  cost: string;
+  profit: string;
+  items: (Omit<SaleItem, "id" | "record" | "commission_amount" | "email_sent"> & { id: string })[];
+};
+
 export type SalesReport = {
   /** Tickets newest first, each with all its items. */
   results: Sale[];
+  /** Paid presales in the same range (counted in totals). */
+  presales: PresaleSale[];
   /** Over the filtered lines (only the owner's lines when filtering by owner). */
   totals: {
     subtotal: string;

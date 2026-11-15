@@ -35,6 +35,10 @@ module.exports = {
           'linear-gradient(120deg, rgba(248,209,90,.8) 0%, rgba(244,176,60,.92) 22%, rgba(232,95,60,.9) 48%, rgba(244,176,60,.86) 74%, rgba(248,209,90,.82) 100%)',
       },
       keyframes: {
+        bannerIn: {
+          '0%': { opacity: '0', transform: 'translateY(-100%)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
         qtyPop: {
           '0%': { opacity: '0.4', transform: 'scale(0.7)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
@@ -78,6 +82,7 @@ module.exports = {
         },
       },
       animation: {
+        'banner-in': 'bannerIn 0.45s cubic-bezier(0.16,1,0.3,1)',
         'qty-pop': 'qtyPop 0.18s cubic-bezier(0.16,1,0.3,1)',
         'toast-in': 'toastIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards',
         'toast-out': 'toastOut 0.25s ease-in forwards',

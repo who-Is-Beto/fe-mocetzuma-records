@@ -214,7 +214,7 @@ export function PresalePage() {
                   </div>
                 </div>
               ) : (
-                <ReserveForm lines={lines} />
+                <ReserveForm presale={presale} lines={lines} />
               )}
             </div>
             {presale.description && (

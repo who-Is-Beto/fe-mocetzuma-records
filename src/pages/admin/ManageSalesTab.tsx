@@ -92,7 +92,7 @@ export function ManageSalesTab() {
           <h2 className="font-display text-xl sm:text-2xl text-denim">Ventas</h2>
           <p className="mt-1 text-xs sm:text-sm text-navy/70">
             {view === "history"
-              ? "Ventas registradas en el Punto de venta, por fecha y dueño."
+              ? "Ventas del Punto de venta y preventas pagadas, por fecha y dueño."
               : "Punto de venta y compras en línea del periodo."}
           </p>
         </div>

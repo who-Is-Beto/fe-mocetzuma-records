@@ -59,7 +59,8 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
   const { labels, reached } = steps(order);
   const progress = (reached / (labels.length - 1)) * 100;
   const urgent = owes && order.all_arrived && order.days_left <= 7;
-  const showCode = !closed && order.status !== "entregado" && order.status !== "enviado";
+  // The QR is for picking up at the store; shipped orders never use it.
+  const showCode = !closed && order.delivery === "pickup" && order.status !== "entregado";
 
   const settle = async () => {
     setPaying(true);

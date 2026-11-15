@@ -1,11 +1,11 @@
 import { useEffect, useId, useMemo, useState, type FormEvent } from "react";
 import type { Category, Owner } from "../../../app/domain/album";
 import type { AdminPresale, PresaleOptionInput } from "../../../app/domain/presales";
-import { currency } from "../../../app/lib/format";
 import { extractErrorMessage } from "../../../app/lib/httpClient";
 import { useAuth } from "../../../app/providers/AuthProvider";
 import type { PresaleService } from "../../../app/services/presaleService";
 import { createRecordService } from "../../../app/services/recordService";
+import { ProfitPreview } from "../ProfitPreview";
 import { btnGhost, btnPrimary, errorBox, input, label, panel } from "./ui";
 
 type OptionRow = {
@@ -355,10 +355,8 @@ export function PresaleForm({ service, presale, onCancel, onSaved }: Props) {
               </div>
               </div>
               {price > 0 && (
-                <p className="mt-3 text-xs text-navy/70">
-                  Pago completo: <strong className="text-navy">{currency(price - (disc || 0))}</strong>
-                  {num(row.min_deposit) > 0 ? ` · apartado desde ${currency(num(row.min_deposit))}` : ""}
-                </p>
+                // Same calculator as Agregar disco, plus the profit when the buyer pays in full.
+                <ProfitPreview className="mt-3" price={price} cost={num(row.cost_price) || 0} fullPaymentDiscount={disc || 0} />
               )}
               {rp.length > 0 && <p className="mt-2 text-xs text-coral">Revisa: {rp.join(", ")}.</p>}
             </fieldset>

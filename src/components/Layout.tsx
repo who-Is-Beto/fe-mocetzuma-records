@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import { lazy, Suspense, useLayoutEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType } from "react-router-dom";
 import { useMaintenanceStatus } from "../app/hooks/useMaintenanceStatus";
 import { MaintenanceStatusContext } from "../app/providers/MaintenanceStatusContext";
@@ -7,6 +7,7 @@ import { PageSkeleton } from "./Skeleton";
 import { Navbar } from "./Navbar";
 import { AdminMaintenanceBar } from "./AdminMaintenanceBar";
 import { CookieBanner } from "./CookieBanner";
+import { PresaleBanner } from "./presales/PresaleBanner";
 import { SubscribeBox } from "./presales/SubscribeBox";
 import { resetConsent } from "../app/lib/consent";
 
@@ -56,6 +57,11 @@ export function Layout({ children }: LayoutProps) {
   // Render-time sync with the path (no effect needed).
   if (!navigated && pathname !== firstPath) setNavigated(true);
   const pageMotion = !navigated ? "" : navigationType === "POP" ? "page-back" : "page-enter";
+  // A new page opens at its top; back/forward (POP) keeps the browser's own restore.
+  // Only the path counts: filter and tab changes (?query) keep their scroll.
+  useLayoutEffect(() => {
+    if (navigationType !== "POP") window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [pathname, navigationType]);
   const { config, isLoading, refetch } = useMaintenanceStatus({ enabled: true });
   const maintenanceActive = config?.maintenance_mode === true;
 
@@ -97,6 +103,7 @@ export function Layout({ children }: LayoutProps) {
             <AdminMaintenanceBar />
           ) : null}
 
+          {!maintenanceActive && <PresaleBanner />}
           <Navbar />
 
           <main className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 pb-28 pt-6 md:px-10 lg:pb-20 lg:pt-0">

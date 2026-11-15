@@ -3,7 +3,7 @@ import { Button } from "../../../components/Button";
 import { extractErrorMessage } from "../../../app/lib/httpClient";
 import { useServiceQuery } from "../../../app/hooks/useServiceQuery";
 import type { createSalesService } from "../../../app/services/salesService";
-import { PAYMENT_METHOD_LABELS, salePlace, type Sale } from "../../../app/domain/sales";
+import { PAYMENT_METHOD_LABELS, salePlace, type PresaleSale, type Sale } from "../../../app/domain/sales";
 import { currency, formatStoreDateTime } from "../../../app/lib/format";
 import { Img } from "../../../components/Img";
 
@@ -37,6 +37,12 @@ export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props)
   const report = useServiceQuery([salesService], fetchSales);
 
   const sales = report.data?.results ?? [];
+  const presales = report.data?.presales ?? [];
+  // One list, newest first: point-of-sale tickets and paid presales.
+  const entries = [
+    ...sales.map((sale) => ({ at: sale.created_at, sale, presale: null })),
+    ...presales.map((presale) => ({ at: presale.paid_at, sale: null, presale }))
+  ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)); // offsets differ (UTC vs store time): compare instants
   const totals = report.data?.totals;
   const error = report.isError
     ? extractErrorMessage(report.error, "No se pudieron cargar las ventas.")
@@ -67,19 +73,19 @@ export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props)
       )}
 
       {/* ── Empty state ── */}
-      {report.isSuccess && sales.length === 0 && (
+      {report.isSuccess && entries.length === 0 && (
         <div className="mt-12 text-center">
           <p className="text-lg text-navy/40">🧾</p>
           <p className="mt-2 text-sm text-navy/50">No hay ventas con estos filtros.</p>
         </div>
       )}
 
-      {report.isSuccess && sales.length > 0 && totals && (
+      {report.isSuccess && entries.length > 0 && totals && (
         <>
           {/* ── Totals ── */}
           <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {[
-              { label: "Ventas", value: String(sales.length) },
+              { label: "Ventas", value: String(entries.length) },
               { label: `Subtotal${ownerSuffix}`, value: currency(totals.subtotal) },
               { label: `Comisiones${ownerSuffix}`, value: currency(totals.commission) },
               { label: `Total neto${ownerSuffix}`, value: currency(totals.net), strong: true },
@@ -117,7 +123,10 @@ export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props)
 
           {/* ── Tickets ── */}
           <ul className="mt-4 space-y-3">
-            {sales.map((sale) => (
+            {entries.map(({ sale, presale }) =>
+              presale ? (
+                <PresaleCard key={presale.code} presale={presale} ownerId={ownerId} />
+              ) : sale ? (
               <li
                 key={sale.id}
                 className="rounded-2xl border border-navy/10 bg-cream/80 p-4 shadow-card backdrop-blur sm:p-5"
@@ -145,66 +154,9 @@ export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props)
                 </div>
 
                 <ul className="mt-3 divide-y divide-navy/5 rounded-xl border border-navy/10 bg-white/60">
-                  {sale.items.map((item) => {
-                    const otherOwner = Boolean(ownerId) && String(item.owner?.id ?? "") !== ownerId;
-                    return (
-                      <li
-                        key={item.id}
-                        className={`flex items-center gap-3 px-3 py-2.5 ${otherOwner ? "opacity-40" : ""}`}
-                      >
-                        {item.cover_image_url ? (
-                          <Img
-                            src={item.cover_image_url}
-                            alt=""
-                            width={48}
-                            className="h-12 w-12 shrink-0 rounded-lg object-cover"
-                          />
-                        ) : (
-                          <span
-                            aria-hidden="true"
-                            className="h-12 w-12 shrink-0 rounded-lg bg-gradient-to-br from-denim/10 via-cream to-sand/80"
-                          />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-navy">
-                            {item.title || "(disco eliminado)"}
-                          </p>
-                          <p className="truncate text-xs text-navy/50">
-                            {[item.artist, item.owner ? `Dueño: ${item.owner.name}` : "Sin dueño"]
-                              .filter(Boolean)
-                              .join(" · ")}
-                            {item.owner &&
-                              (item.email_sent ? (
-                                <span className="ml-1 font-bold text-green-700" title="Correo enviado" aria-label="Correo enviado">✓</span>
-                              ) : (
-                                <span className="ml-1 font-bold text-coral" title="El correo no se pudo enviar" aria-label="Correo no enviado">✗</span>
-                              ))}
-                          </p>
-                        </div>
-                        <div className="shrink-0 text-right text-sm">
-                          <p className="font-medium text-navy">
-                            {currency(Number(item.price) * item.quantity)}
-                          </p>
-                          <p className="text-xs text-navy/50">
-                            {item.quantity} × {currency(item.price)}
-                          </p>
-                          {/* Line profit; "sin costo" says it's the full net because no cost was saved */}
-                          {Number(item.cost_price) > 0 ? (
-                            <p
-                              className={`text-xs font-semibold ${
-                                Number(item.profit) < 0 ? "text-coral" : "text-green-800"
-                              }`}
-                              title={`Costo: ${item.quantity} × ${currency(item.cost_price)}`}
-                            >
-                              {Number(item.profit) < 0 ? "Pérdida" : "Ganancia"} {currency(item.profit)}
-                            </p>
-                          ) : (
-                            <p className="text-[11px] text-navy/40">Sin costo registrado</p>
-                          )}
-                        </div>
-                      </li>
-                    );
-                  })}
+                  {sale.items.map((item) => (
+                    <LineRow key={item.id} item={item} dimmed={Boolean(ownerId) && String(item.owner?.id ?? "") !== ownerId} />
+                  ))}
                 </ul>
 
                 <dl className="mt-3 flex flex-wrap justify-end gap-x-6 gap-y-1 text-sm">
@@ -234,10 +186,108 @@ export function SalesHistory({ salesService, dateFrom, dateTo, ownerId }: Props)
                   </div>
                 </dl>
               </li>
-            ))}
+              ) : null
+            )}
           </ul>
         </>
       )}
     </>
+  );
+}
+
+type Line = Pick<Sale["items"][number], "title" | "artist" | "cover_image_url" | "owner" | "quantity" | "price" | "cost_price" | "profit"> & {
+  email_sent?: boolean;
+};
+
+/** One sold line: cover, title, owner, money and its profit. */
+function LineRow({ item, dimmed }: { item: Line; dimmed: boolean }) {
+  return (
+    <li className={`flex items-center gap-3 px-3 py-2.5 ${dimmed ? "opacity-40" : ""}`}>
+      {item.cover_image_url ? (
+        <Img src={item.cover_image_url} alt="" width={48} className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+      ) : (
+        <span aria-hidden="true" className="h-12 w-12 shrink-0 rounded-lg bg-gradient-to-br from-denim/10 via-cream to-sand/80" />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-navy">{item.title || "(disco eliminado)"}</p>
+        <p className="truncate text-xs text-navy/50">
+          {[item.artist, item.owner ? `Dueño: ${item.owner.name}` : "Sin dueño"].filter(Boolean).join(" · ")}
+          {item.owner &&
+            item.email_sent !== undefined &&
+            (item.email_sent ? (
+              <span className="ml-1 font-bold text-green-700" title="Correo enviado" aria-label="Correo enviado">✓</span>
+            ) : (
+              <span className="ml-1 font-bold text-coral" title="El correo no se pudo enviar" aria-label="Correo no enviado">✗</span>
+            ))}
+        </p>
+      </div>
+      <div className="shrink-0 text-right text-sm">
+        <p className="font-medium text-navy">{currency(Number(item.price) * item.quantity)}</p>
+        <p className="text-xs text-navy/50">
+          {item.quantity} × {currency(item.price)}
+        </p>
+        {/* Line profit; "sin costo" says it's the full net because no cost was saved */}
+        {Number(item.cost_price) > 0 ? (
+          <p
+            className={`text-xs font-semibold ${Number(item.profit) < 0 ? "text-coral" : "text-green-800"}`}
+            title={`Costo: ${item.quantity} × ${currency(item.cost_price)}`}
+          >
+            {Number(item.profit) < 0 ? "Pérdida" : "Ganancia"} {currency(item.profit)}
+          </p>
+        ) : (
+          <p className="text-[11px] text-navy/40">Sin costo registrado</p>
+        )}
+      </div>
+    </li>
+  );
+}
+
+/** A paid presale order: counted on the day it got fully paid. */
+function PresaleCard({ presale, ownerId }: { presale: PresaleSale; ownerId: string }) {
+  const loss = Number(presale.profit) < 0;
+  return (
+    <li className="rounded-2xl border border-navy/10 bg-cream/80 p-4 shadow-card backdrop-blur sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.16em] text-orange">Preventa {presale.code}</p>
+          <p className="mt-0.5 text-sm text-navy/60">
+            {formatStoreDateTime(presale.paid_at)} · {presale.buyer}
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <span className="rounded-full bg-chart-4 px-2.5 py-0.5 text-[11px] font-semibold text-white">Preventa</span>
+          <span className="rounded-full bg-navy/5 px-2.5 py-0.5 text-[11px] font-semibold text-navy">{presale.method_label}</span>
+        </div>
+      </div>
+      <ul className="mt-3 divide-y divide-navy/5 rounded-xl border border-navy/10 bg-white/60">
+        {presale.items.map((item) => (
+          <LineRow key={item.id} item={item} dimmed={Boolean(ownerId) && String(item.owner?.id ?? "") !== ownerId} />
+        ))}
+      </ul>
+      <dl className="mt-3 flex flex-wrap justify-end gap-x-6 gap-y-1 text-sm">
+        <div className="flex gap-2">
+          <dt className="text-navy/60">Subtotal</dt>
+          <dd className="text-navy">{currency(presale.subtotal)}</dd>
+        </div>
+        {Number(presale.commission) > 0 && (
+          <div className="flex gap-2">
+            <dt className="text-navy/60">Comisión Stripe (estimada)</dt>
+            <dd className="text-coral">−{currency(presale.commission)}</dd>
+          </div>
+        )}
+        <div className="flex gap-2 font-semibold">
+          <dt className="text-navy">Total final</dt>
+          <dd className="text-denim">{currency(presale.final_sale_price)}</dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="text-navy/60">Costo</dt>
+          <dd className="text-navy">−{currency(presale.cost)}</dd>
+        </div>
+        <div className="flex gap-2 font-semibold">
+          <dt className="text-navy">{loss ? "Pérdida" : "Ganancia"}</dt>
+          <dd className={loss ? "text-coral" : "text-green-800"}>{currency(presale.profit)}</dd>
+        </div>
+      </dl>
+    </li>
   );
 }

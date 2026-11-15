@@ -12,6 +12,7 @@ import { Img } from "../../components/Img";
 import { DeleteArtistDialog } from "./DeleteArtistDialog";
 import { CatalogPicker, DeleteCatalogTermDialog, type CatalogTerm } from "./CatalogPicker";
 import { normName } from "../../app/lib/text";
+import { ProfitPreview } from "./ProfitPreview";
 
 /* ── Types ── */
 
@@ -1271,50 +1272,12 @@ export function AddRecordPage({ editingRecord, onEditDone }: AddRecordPageProps 
         </div>
 
         {/* Live sell price preview + Ganancia */}
-        {(() => {
-          const basePrice = Number(form.price) || 0;
-          const discountPct = Number(form.discount) || 0;
-          const cost = Number(form.cost_price) || 0;
-          const computedSell = discountPct > 0
-            ? basePrice * (1 - discountPct / 100)
-            : basePrice;
-          const profit = computedSell - cost;
-          const hasDiscount = discountPct > 0 && basePrice > 0;
-
-          return (
-            <div className="mt-3 rounded-xl border border-navy/10 bg-white/60 backdrop-blur p-4">
-              {/* Sell price preview */}
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-navy/60">Precio de venta:</span>
-                {hasDiscount ? (
-                  <>
-                    <span className="text-sm text-navy/40 line-through">
-                      ${basePrice.toFixed(2)}
-                    </span>
-                    <span className="rounded-full bg-orange/10 px-2.5 py-0.5 text-sm font-bold text-orange">
-                      ${computedSell.toFixed(2)}
-                    </span>
-                    <span className="rounded-full bg-coral/10 px-2 py-0.5 text-[11px] font-bold text-coral">
-                      -{discountPct}%
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-sm font-bold text-navy">
-                    ${basePrice.toFixed(2)}
-                  </span>
-                )}
-              </div>
-
-              {/* Ganancia */}
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-sm font-semibold text-green-800">Ganancia:</span>
-                <span className={`text-sm font-bold ${profit >= 0 ? "text-green-900" : "text-coral"}`}>
-                  {profit >= 0 ? "+" : ""}${profit.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          );
-        })()}
+        <ProfitPreview
+          className="mt-3"
+          price={Number(form.price) || 0}
+          cost={Number(form.cost_price) || 0}
+          discountPercent={Number(form.discount) || 0}
+        />
 
         {/* Discount + Stock */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

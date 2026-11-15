@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import type { PresaleDelivery, PresaleOption } from "../../app/domain/presales";
+import type { Presale, PresaleDelivery, PresaleOption } from "../../app/domain/presales";
 import { currency } from "../../app/lib/format";
 import { extractErrorMessage, HttpError } from "../../app/lib/httpClient";
 import { useAuth } from "../../app/providers/AuthProvider";
@@ -9,6 +9,7 @@ import { createPresaleService } from "../../app/services/presaleService";
 import { shortDate } from "../../components/presales/presaleText";
 import { REQUIRED_ADDRESS_FIELDS } from "../cart/addressFields";
 import { ShippingAddressFields, type ShippingAddressValues } from "../cart/ShippingAddressFields";
+import { ReviewSheet } from "./ReviewSheet";
 
 type AmountChoice = "min" | "half" | "full" | "custom";
 
@@ -47,16 +48,17 @@ const inputClass =
   "mt-1 min-h-[44px] w-full rounded-xl border border-navy/15 bg-white px-3 text-sm text-navy focus:outline-none focus:ring-2 focus:ring-orange aria-[invalid=true]:border-coral";
 
 type Props = {
+  presale: Pick<Presale, "title" | "artist" | "cover">;
   /** The versions picked on the page and how many of each. */
   lines: { option: PresaleOption; quantity: number }[];
 };
 
 /**
  * Reserve the versions picked on the page in one order: how much to pay today, pickup or shipping,
- * accept the 120-day rule, then pay in Stripe. Totals are re-checked by the
+ * then a review sheet (the order, delivery, money and the 120-day rule) before Stripe. Totals are re-checked by the
  * server; the summary here is what the buyer agrees to.
  */
-export function ReserveForm({ lines }: Props) {
+export function ReserveForm({ presale, lines }: Props) {
   const { token, isAuthenticated, emailVerified, user, resendVerification } = useAuth();
   const location = useLocation();
   const service = useMemo(() => createPresaleService({ getToken: () => token ?? null }), [token]);
@@ -67,7 +69,7 @@ export function ReserveForm({ lines }: Props) {
   const [custom, setCustom] = useState("");
   const [delivery, setDelivery] = useState<PresaleDelivery>("pickup");
   const [address, setAddress] = useState<ShippingAddressValues>(EMPTY_ADDRESS);
-  const [accepted, setAccepted] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const [colonias, setColonias] = useState<{ zip: string; list: ShippingLocation[] } | null>(null);
   const [quote, setQuote] = useState<{ zip: string; amount: number | null; error: string } | null>(null);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -158,7 +160,6 @@ export function ReserveForm({ lines }: Props) {
     if (address.zip && zip.length !== 5) problems.zip = "El código postal tiene 5 dígitos.";
     else if (isFull && zip.length === 5 && shippingEstimate === null) problems.zip = quote?.error || "Cotizando envío…";
   }
-  if (!accepted) problems.terms = "Acepta las condiciones de la preventa.";
   const missing = Object.keys(problems);
   const canSend = missing.length === 0 && !sending;
   const shown = (key: string) => (touched[key] ? problems[key] : undefined);
@@ -171,6 +172,11 @@ export function ReserveForm({ lines }: Props) {
       firstInvalid.current?.focus();
       return;
     }
+    setError("");
+    setReviewing(true);
+  };
+
+  const confirm = async () => {
     setSending(true);
     setError("");
     try {
@@ -372,22 +378,6 @@ export function ReserveForm({ lines }: Props) {
             )}
           </dl>
 
-          <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl bg-cream/10 p-3">
-            <input
-              data-field="terms"
-              type="checkbox"
-              checked={accepted}
-              onChange={(e) => setAccepted(e.target.checked)}
-              className="mt-0.5 h-5 w-5 shrink-0 accent-orange"
-            />
-            <span className="text-sm leading-relaxed">
-              {TERMS_TEXT}{" "}
-              <Link to="/terminos-y-condiciones#preventas" target="_blank" className="font-semibold text-sun underline underline-offset-2">
-                Ver condiciones
-              </Link>
-            </span>
-          </label>
-
           <button
             type="submit"
             aria-disabled={!canSend}
@@ -398,7 +388,7 @@ export function ReserveForm({ lines }: Props) {
                 : "cursor-not-allowed bg-cream/20 text-cream/70"
             }`}
           >
-            {sending ? "Abriendo el pago…" : isFull ? "Pagar mi preventa" : "Apartar mi copia"}
+            Revisar y pagar <span aria-hidden="true">→</span>
           </button>
           {!canSend && !sending && missing.length > 0 && (
             <p id={`${ids}-missing`} className="mt-2 text-center text-xs text-cream/75">
@@ -412,9 +402,28 @@ export function ReserveForm({ lines }: Props) {
               {error}
             </p>
           )}
-          <p className="mt-3 text-center text-xs text-cream/60">Pagas con tarjeta en Stripe. Tu copia queda guardada 30 minutos mientras pagas.</p>
+          <p className="mt-3 text-center text-xs text-cream/60">Antes de pagar ves todo tu pedido.</p>
         </div>
       )}
+      <ReviewSheet
+        open={reviewing}
+        presale={presale}
+        lines={lines}
+        delivery={delivery}
+        address={{ ...address, zip }}
+        shippingEstimate={shippingEstimate}
+        payNow={payNow}
+        shippingNow={shippingNow}
+        left={left}
+        isFull={isFull}
+        discount={discount}
+        deadline={shortDate(addDays(120))}
+        termsText={TERMS_TEXT}
+        sending={sending}
+        error={error}
+        onConfirm={() => void confirm()}
+        onClose={() => setReviewing(false)}
+      />
     </form>
   );
 }

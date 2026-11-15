@@ -481,8 +481,9 @@ const PRINCIPLES = [
 
 function AboutStore({ nextBazar }: { nextBazar?: Bazar }) {
   return (
-    <section aria-labelledby="about-title" className="grid gap-10 lg:grid-cols-12 lg:gap-14">
-      <Reveal className="lg:col-span-7">
+    // grid-cols-1 = minmax(0,1fr): the bazar card's one-line truncation can't widen the column past the screen.
+    <section aria-labelledby="about-title" className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-14">
+      <Reveal className="min-w-0 lg:col-span-7">
         <p className={eyebrow}>Sobre la tienda</p>
         <h2 id="about-title" className={`mt-2 ${sectionTitle}`}>
           De coleccionista para coleccionista
@@ -505,7 +506,7 @@ function AboutStore({ nextBazar }: { nextBazar?: Bazar }) {
         </div>
       </Reveal>
 
-      <Reveal className="space-y-4 lg:col-span-5" delay={100}>
+      <Reveal className="min-w-0 space-y-4 lg:col-span-5" delay={100}>
         <ol className="divide-y divide-navy/10 rounded-[24px] border border-navy/10 bg-cream shadow-card">
           {PRINCIPLES.map((item, index) => (
             <li key={item.title} className="flex gap-4 p-5">
@@ -555,7 +556,7 @@ function NextBazar({ bazar }: { bazar: Bazar }) {
       ) : null}
       <span className="min-w-0">
         <span className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-orange">Próximo bazar</span>
-        <span className="mt-0.5 block truncate text-sm font-semibold text-denim">{bazar.name}</span>
+        <span className="mt-0.5 line-clamp-2 text-sm font-semibold text-denim">{bazar.name}</span>
         <span className="block truncate text-[13px] text-navy/75">
           {formatEventDate(bazar.date)}
           {bazar.schedule ? ` · ${bazar.schedule}` : ""}
