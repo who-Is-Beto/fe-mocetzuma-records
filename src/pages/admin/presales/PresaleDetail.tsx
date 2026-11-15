@@ -29,7 +29,7 @@ type Props = {
 };
 
 type Confirm =
-  | { kind: "arrived"; optionId: number | null; name: string }
+  | { kind: "arrived"; optionId: number | null; name: string; missing?: number }
   | { kind: "close" }
   | { kind: "delete" }
   | null;
@@ -41,6 +41,7 @@ export function PresaleDetail({ service, presaleId, can, onBack, onDeleted }: Pr
   const [orders, setOrders] = useState<AdminPresaleOrder[]>([]);
   const [totals, setTotals] = useState<PresaleTotals | null>(null);
   const [filter, setFilter] = useState<PresaleOrderFilter>("all");
+  const [arriving, setArriving] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
@@ -215,12 +216,28 @@ export function PresaleDetail({ service, presaleId, can, onBack, onDeleted }: Pr
                 <span className="rounded-pill bg-green-100 px-3 py-1 text-xs font-semibold text-green-900">
                   En tienda desde {new Date(o.arrived_at).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}
                 </span>
-              ) : canEdit && presale.status !== "draft" ? (
-                <button type="button" className={btnGhost} onClick={() => setConfirm({ kind: "arrived", optionId: o.id, name: o.name })}>
-                  Marcar que llegó
-                </button>
               ) : (
-                <span className="text-xs text-navy/60">Aún no llega</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {o.arrived_copies > 0 && (
+                    <span className="rounded-pill bg-sun/60 px-3 py-1 text-xs font-semibold text-navy">
+                      {o.arrived_copies} de {o.copies} en tienda
+                    </span>
+                  )}
+                  {canEdit && presale.status !== "draft" ? (
+                    <button
+                      type="button"
+                      className={btnGhost}
+                      onClick={() => {
+                        setArriving(String(o.copies - o.arrived_copies));
+                        setConfirm({ kind: "arrived", optionId: o.id, name: o.name, missing: o.copies - o.arrived_copies });
+                      }}
+                    >
+                      Registrar llegada
+                    </button>
+                  ) : o.arrived_copies === 0 ? (
+                    <span className="text-xs text-navy/60">Aún no llega</span>
+                  ) : null}
+                </div>
               )}
             </li>
           ))}
@@ -334,18 +351,35 @@ export function PresaleDetail({ service, presaleId, can, onBack, onDeleted }: Pr
         title="¿Ya llegó a la tienda?"
         message={
           <>
-            Marcaremos <strong>{confirm?.kind === "arrived" ? confirm.name : ""}</strong> como en tienda, cotizaremos los envíos
-            pendientes y escribiremos a cada comprador: a quien pagó, que pase o que va en camino; a quien debe, cuánto le falta.
+            {confirm?.kind === "arrived" && confirm.optionId ? (
+              <label className="mb-3 block">
+                <span className={label}>¿Cuántas copias de {confirm.name} llegaron? (faltaban {confirm.missing})</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={confirm.missing}
+                  className={input}
+                  value={arriving}
+                  onChange={(e) => setArriving(e.target.value.replace(/\D/g, ""))}
+                />
+              </label>
+            ) : null}
+            Las copias se reparten primero a quien pagó completo (por quién terminó de pagar antes) y luego por quién pagó primero.
+            Escribiremos a cada comprador que reciba copia: a quien pagó, que pase o que va en camino; a quien debe, cuánto le falta.
           </>
         }
-        confirmLabel="Sí, ya llegó"
+        confirmLabel={confirm?.kind === "arrived" && confirm.optionId ? `Registrar ${arriving || 0} copias` : "Sí, ya llegó"}
         busy={busy}
         error={actionError}
         onCancel={() => setConfirm(null)}
         onConfirm={() =>
           confirm?.kind === "arrived" &&
           run(
-            () => (confirm.optionId ? service.admin.arrivedOption(confirm.optionId) : service.admin.arrivedAll(presale.id)),
+            () =>
+              confirm.optionId
+                ? service.admin.arrivedOption(confirm.optionId, Math.min(Number(arriving) || 0, confirm.missing ?? 0))
+                : service.admin.arrivedAll(presale.id),
             "Listo: avisamos a los compradores."
           )
         }

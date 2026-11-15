@@ -96,8 +96,13 @@ export function createPresaleService(config: Config = {}) {
           body: { announce },
           ...auth()
         }),
-      arrivedOption: (optionId: number) =>
-        http<AdminPresale>(`${admin}/options/${optionId}/arrived/`, { method: "POST", ...auth() }),
+      /** copies: how many arrived in this batch (omitted = all the rest). */
+      arrivedOption: (optionId: number, copies?: number) =>
+        http<AdminPresale>(`${admin}/options/${optionId}/arrived/`, {
+          method: "POST",
+          body: copies === undefined ? undefined : { copies },
+          ...auth()
+        }),
       arrivedAll: (id: number) => http<AdminPresale>(`${admin}/${id}/arrived/`, { method: "POST", ...auth() }),
       extend: (id: number, until: string) =>
         http<{ updated: number }>(`${admin}/${id}/extend/`, { method: "POST", body: { until }, ...auth() }),

@@ -222,7 +222,7 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
                         setStep("void");
                       }}
                     >
-                      Anular
+                      {p.method === "stripe" ? "Reembolsar y anular" : "Anular"}
                     </button>
                   )}
                 </span>
@@ -270,6 +270,12 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
         )}
         {step === "void" && (
           <div className="mt-4 space-y-3 rounded-2xl bg-coral/10 p-4">
+            {order.payments.find((p) => p.id === voidId)?.method === "stripe" && (
+              <p className="text-sm text-navy">
+                Este pago se hizo con tarjeta en línea: <strong>le regresaremos el dinero por Stripe</strong> y después lo anularemos.
+                El reembolso tarda de 5 a 10 días en verse en su tarjeta.
+              </p>
+            )}
             <label className="block">
               <span className={label}>¿Por qué se anula? (queda registrado)</span>
               <input autoFocus className={input} value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} />
@@ -280,7 +286,7 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
               disabled={!reason.trim() || busy || voidId === null}
               onClick={() => voidId !== null && act(() => service.admin.voidPayment(voidId, reason))}
             >
-              Anular pago
+              {order.payments.find((p) => p.id === voidId)?.method === "stripe" ? "Reembolsar y anular" : "Anular pago"}
             </button>
           </div>
         )}

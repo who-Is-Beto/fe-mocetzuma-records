@@ -154,7 +154,10 @@ export type AdminPresaleOption = Omit<PresaleOption, "image" | "format" | "bough
   cost_price: string;
   owner: number | null;
   position: number;
+  /** Set once every copy is at the store. */
   arrived_at: string | null;
+  /** Copies at the store so far (they can arrive in batches). */
+  arrived_copies: number;
   taken: number;
   has_orders: boolean;
 };
