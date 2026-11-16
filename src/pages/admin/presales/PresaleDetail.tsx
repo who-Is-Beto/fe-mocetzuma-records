@@ -110,6 +110,9 @@ export function PresaleDetail({ service, presaleId, can, onBack, onDeleted }: Pr
   }
 
   const canEdit = can("change_presale");
+  const canPublish = can("publish_presale");
+  const canArrive = can("change_presaleoption");
+  const canDelete = can("delete_presale");
   const pending = presale.options.filter((o) => !o.arrived_at && o.is_active);
 
   return (
@@ -132,9 +135,9 @@ export function PresaleDetail({ service, presaleId, can, onBack, onDeleted }: Pr
             {presale.estimated_arrival ? ` · llega aprox. ${presale.estimated_arrival}` : ""}
             {presale.announced_at ? " · anunciada por correo" : ""}
           </p>
-          {canEdit && (
+          {(canEdit || canPublish || canArrive || canDelete || can("change_presaleorder")) && (
             <div className="mt-3 flex flex-wrap gap-2">
-              {presale.status !== "published" && (
+              {canPublish && presale.status !== "published" && (
                 <button
                   type="button"
                   className={btnPrimary}
@@ -147,15 +150,17 @@ export function PresaleDetail({ service, presaleId, can, onBack, onDeleted }: Pr
                   Publicar preventa
                 </button>
               )}
-              <button type="button" className={btnGhost} onClick={() => setEditing(true)}>
-                Editar
-              </button>
-              {presale.status === "published" && (
+              {canEdit && (
+                <button type="button" className={btnGhost} onClick={() => setEditing(true)}>
+                  Editar
+                </button>
+              )}
+              {canEdit && presale.status === "published" && (
                 <button type="button" className={btnGhost} onClick={() => setConfirm({ kind: "close" })}>
                   Cerrar preventa
                 </button>
               )}
-              {pending.length > 0 && presale.status !== "draft" && (
+              {canArrive && pending.length > 0 && presale.status !== "draft" && (
                 <button type="button" className={btnNavy} onClick={() => setConfirm({ kind: "arrived", optionId: null, name: "todas las versiones" })}>
                   Llegó a tienda
                 </button>
@@ -165,7 +170,7 @@ export function PresaleDetail({ service, presaleId, can, onBack, onDeleted }: Pr
                   Extender plazo
                 </button>
               )}
-              {(totals?.reserved ?? 0) === 0 && (totals?.expired ?? 0) === 0 && (
+              {canDelete && (totals?.reserved ?? 0) === 0 && (totals?.expired ?? 0) === 0 && (
                 <button type="button" className="min-h-[44px] px-3 text-sm font-semibold text-coral hover:underline" onClick={() => setConfirm({ kind: "delete" })}>
                   Eliminar
                 </button>
@@ -207,6 +212,12 @@ export function PresaleDetail({ service, presaleId, can, onBack, onDeleted }: Pr
                 <p className={`font-semibold ${o.is_active ? "text-navy" : "text-navy/50"}`}>
                   {o.name} {!o.is_active && <span className="text-xs font-normal">(oculta)</span>}
                 </p>
+                {(o.description || o.items_inside > 1) && (
+                  <p className="text-xs text-navy/70">
+                    {o.items_inside} {o.items_inside === 1 ? "pieza" : "piezas"}
+                    {o.description ? ` · ${o.description}` : ""}
+                  </p>
+                )}
                 <p className="text-xs text-navy/70">
                   {currency(o.price)} · apartado {currency(o.min_deposit)}
                   {Number(o.full_payment_discount) > 0 ? ` · −${currency(o.full_payment_discount)} pagando completo` : ""} · {o.taken} de {o.copies} apartadas
@@ -223,7 +234,7 @@ export function PresaleDetail({ service, presaleId, can, onBack, onDeleted }: Pr
                       {o.arrived_copies} de {o.copies} en tienda
                     </span>
                   )}
-                  {canEdit && presale.status !== "draft" ? (
+                  {canArrive && presale.status !== "draft" ? (
                     <button
                       type="button"
                       className={btnGhost}

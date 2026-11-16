@@ -1,16 +1,23 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useState, type FormEvent } from "react";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { createPresaleService } from "../../app/services/presaleService";
+import { SuccessCheck } from "../SuccessCheck";
 
-type Props = { compact?: boolean };
+type Props = {
+  /** "band": the footer invitation on every page. "compact": inside another card (closed presale). */
+  variant?: "band" | "compact";
+};
+
+const PERKS = ["Te avisamos el día que abre", "Apartas antes de que se acaben", "Un correo por preventa, sin spam"];
 
 /**
  * "Avísame de nuevas preventas". Visitors leave an email and confirm it from
- * their inbox; logged-in users switch it on directly (their email is verified).
- * Nothing is stored in the browser.
+ * their inbox; logged-in users switch it on with one tap (their email is
+ * verified). Nothing is stored in the browser.
  */
-export function SubscribeBox({ compact = false }: Props) {
+export function SubscribeBox({ variant = "band" }: Props) {
   const { token, user } = useAuth();
+  const ids = useId();
   const service = useMemo(() => createPresaleService({ getToken: () => token ?? null }), [token]);
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState("");
@@ -33,7 +40,7 @@ export function SubscribeBox({ compact = false }: Props) {
     event.preventDefault();
     setError("");
     if (!token && !/^\S+@\S+\.\S+$/.test(email.trim())) {
-      setError("Escribe un correo válido.");
+      setError("Escribe un correo válido, como tu@correo.com.");
       return;
     }
     setStatus("sending");
@@ -52,66 +59,122 @@ export function SubscribeBox({ compact = false }: Props) {
   };
 
   const done = status === "sent" || status === "on";
+  const band = variant === "band";
+  const doneText =
+    status === "on"
+      ? `Listo: te escribimos a ${user?.email ?? "tu correo"} cuando abra una preventa.`
+      : "Revisa tu correo y confirma con un clic. Si no lo ves, busca en spam o promociones.";
+
+  const form = (
+    <form onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-2 min-[480px]:flex-row">
+      {!token && (
+        <label className="min-w-0 flex-1">
+          <span className="sr-only">Tu correo</span>
+          <input
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="tu@correo.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={error ? `${ids}-error` : undefined}
+            className={`min-h-[52px] w-full rounded-pill border px-5 text-base text-navy placeholder:text-navy/45 focus:outline-none focus:ring-2 focus:ring-orange ${
+              band ? "border-transparent bg-cream" : "border-navy/15 bg-white"
+            }`}
+          />
+        </label>
+      )}
+      {/* Honeypot: hidden from people, filled by bots. */}
+      <input
+        type="text"
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        value={website}
+        onChange={(e) => setWebsite(e.target.value)}
+        className="hidden"
+      />
+      <button
+        type="submit"
+        disabled={status === "sending"}
+        className="inline-flex min-h-[52px] shrink-0 items-center justify-center gap-2 rounded-pill bg-orange px-6 text-sm font-semibold text-charcoal transition duration-300 hover:-translate-y-0.5 hover:bg-amber active:translate-y-0 disabled:opacity-60 motion-reduce:hover:translate-y-0"
+      >
+        <span aria-hidden="true">🔔</span>
+        {status === "sending" ? "Guardando…" : token ? "Activar avisos" : "Avísame"}
+      </button>
+    </form>
+  );
+
+  const errorLine = error ? (
+    <p id={`${ids}-error`} role="alert" className={`mt-2 text-sm ${band ? "text-sun" : "text-coral"}`}>
+      {error}
+    </p>
+  ) : null;
+
+  if (!band) {
+    return done ? (
+      <p role="status" className="flex items-center gap-3 text-sm text-navy">
+        <SuccessCheck className="h-8 w-8" />
+        {doneText}
+      </p>
+    ) : (
+      <div>
+        <p className="mb-2 text-sm text-navy/75">Déjanos tu correo y te avisamos de la próxima.</p>
+        {form}
+        {errorLine}
+      </div>
+    );
+  }
 
   return (
-    <div className={compact ? "" : "rounded-[22px] border border-navy/10 bg-white/70 p-5 sm:p-7"}>
-      <div className={`flex flex-col md:flex-row md:items-center md:justify-between ${compact ? "gap-3 md:gap-8" : "gap-5"}`}>
+    <section
+      aria-labelledby={`${ids}-title`}
+      className="relative overflow-hidden rounded-[26px] bg-navy px-5 py-6 text-cream shadow-panel sm:px-8 sm:py-8"
+    >
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-stripes" />
+      {/* A record peeking from the corner: decoration only */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[repeating-radial-gradient(circle,#1b1f2a_0_2px,#22303f_2px_5px)] opacity-60 sm:-right-10 sm:h-56 sm:w-56"
+      >
+        <span className="absolute inset-[38%] rounded-full bg-orange" />
+      </div>
+
+      <div className="relative grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] md:items-center md:gap-10">
         <div className="min-w-0">
-          <p className={`font-semibold text-denim ${compact ? "text-sm" : "text-base sm:text-lg"}`}>
-            Avísame de nuevas preventas
+          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-orange">Preventas</p>
+          <h2 id={`${ids}-title`} className="mt-2 font-display text-xl leading-tight text-cream sm:text-2xl">
+            Sé el primero en apartar
+          </h2>
+          <p className="mt-2 max-w-md text-sm leading-relaxed text-cream/80">
+            Las copias de preventa son pocas y se van rápido. Déjanos tu correo y te escribimos en cuanto abra una.
           </p>
-          <p className="mt-1 text-sm text-navy/70">
-            {status === "on"
-              ? `Te escribiremos a ${user?.email ?? "tu correo"} cuando abramos una.`
-              : status === "sent"
-                ? "Listo: revisa tu correo y confirma con un clic."
-                : "Un correo por preventa, con precio y fecha límite. Te das de baja con un clic."}
-          </p>
+          <ul className="mt-4 flex flex-wrap gap-2">
+            {PERKS.map((perk) => (
+              <li key={perk} className="flex items-center gap-1.5 rounded-pill bg-cream/10 px-3 py-1 text-xs text-cream/90 ring-1 ring-cream/15">
+                <span aria-hidden="true" className="text-sun">✓</span>
+                {perk}
+              </li>
+            ))}
+          </ul>
         </div>
 
-        {!done && (
-          <form onSubmit={submit} className={`flex min-w-0 flex-col gap-2 sm:flex-row md:w-[26rem] md:shrink-0`} noValidate>
-            {!token && (
-              <label className="min-w-0 flex-1">
-                <span className="sr-only">Tu correo</span>
-                <input
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  placeholder="tu@correo.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  aria-invalid={Boolean(error) || undefined}
-                  aria-describedby={error ? "subscribe-error" : undefined}
-                  className="min-h-[48px] w-full rounded-pill border border-navy/15 bg-white px-5 text-sm text-navy placeholder:text-navy/45 focus:outline-none focus:ring-2 focus:ring-orange"
-                />
-              </label>
-            )}
-            {/* Honeypot: hidden from people, filled by bots. */}
-            <input
-              type="text"
-              tabIndex={-1}
-              autoComplete="off"
-              aria-hidden="true"
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
-              className="hidden"
-            />
-            <button
-              type="submit"
-              disabled={status === "sending"}
-              className="min-h-[48px] shrink-0 rounded-pill bg-navy px-6 text-sm font-semibold text-cream transition duration-300 hover:-translate-y-0.5 hover:bg-denim active:translate-y-0 disabled:opacity-60 motion-reduce:hover:translate-y-0"
-            >
-              {status === "sending" ? "Guardando…" : token ? "Avisarme por correo" : "Recibir avisos"}
-            </button>
-          </form>
-        )}
+        <div className="min-w-0">
+          {done ? (
+            <div role="status" className="flex items-center gap-4 rounded-2xl bg-cream/10 p-4 ring-1 ring-cream/15">
+              <SuccessCheck className="h-12 w-12" />
+              <p className="text-sm leading-relaxed text-cream">{doneText}</p>
+            </div>
+          ) : (
+            <>
+              {form}
+              {errorLine}
+              <p className="mt-2 text-xs text-cream/60">Te das de baja con un clic desde cualquier correo.</p>
+            </>
+          )}
+        </div>
       </div>
-      {error ? (
-        <p id="subscribe-error" role="alert" className="mt-2 text-sm text-coral">
-          {error}
-        </p>
-      ) : null}
-    </div>
+    </section>
   );
 }

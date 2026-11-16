@@ -158,7 +158,7 @@ export function ReviewSheet(props: Props) {
                     {delivery === "shipping" ? " + envío" : ""}
                   </dd>
                 </div>
-                <p className="text-xs text-cream/60">Liquida antes del {deadline}, o 15 días después de que llegue el disco.</p>
+                <p className="text-xs text-cream/60">Tienes 120 días para liquidar: hasta el {deadline}.</p>
               </>
             )}
           </dl>
@@ -195,7 +195,11 @@ export function ReviewSheet(props: Props) {
           {!props.sending && <span aria-hidden="true">→</span>}
         </button>
         <p className="mt-2 text-center text-xs text-navy/60">
-          {accepted ? "Pagas con tarjeta en Stripe. Tus copias quedan guardadas 30 minutos." : "Acepta las condiciones para continuar."}
+          {accepted
+            ? "Pagas con tarjeta en Stripe. Tus copias quedan guardadas 30 minutos."
+            : isFull
+              ? "Confirma que entiendes cómo llega tu disco para continuar."
+              : "Acepta las condiciones para continuar."}
         </p>
       </div>
     </Modal>

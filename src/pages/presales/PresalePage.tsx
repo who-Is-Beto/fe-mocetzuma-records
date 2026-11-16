@@ -9,6 +9,7 @@ import { removePresale, setPresaleLines, usePresaleBag } from "../../app/lib/pre
 import { useAuth } from "../../app/providers/AuthProvider";
 import { createPresaleService } from "../../app/services/presaleService";
 import { Img } from "../../components/Img";
+import { RelatedPicks } from "../../components/FreshPicks";
 import { LostPanel } from "../../components/LostPanel";
 import { Skeleton } from "../../components/Skeleton";
 import { StatusPanel } from "../../components/StatusPanel";
@@ -232,7 +233,7 @@ export function PresalePage() {
                   <p className="font-semibold text-denim">{closed ? "Esta preventa ya cerró" : "Se apartaron todas las copias"}</p>
                   <p className="mt-1 text-sm text-navy/70">Te avisamos de la próxima preventa por correo.</p>
                   <div className="mt-4">
-                    <SubscribeBox compact />
+                    <SubscribeBox variant="compact" />
                   </div>
                 </div>
               ) : (
@@ -268,6 +269,8 @@ export function PresalePage() {
           .
         </p>
       </section>
+
+      <RelatedPicks key={presale.slug} search={presale.artist} title="Mientras llega, otros discos para ti" />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { useAdminOrders } from "../../app/hooks/useAdminOrders";
 import type { Order, OrderStatus } from "../../app/domain/orders";
 import { ORDER_STATUSES, DELIVERY_LABELS } from "../../app/domain/orders";
 import { currency } from "../../app/lib/format";
+import { PresaleShipments } from "./PresaleShipments";
 
 const STATUS_BADGE: Record<OrderStatus, string> = {
   pending: "bg-amber-100 text-amber-700",
@@ -119,6 +120,8 @@ export function ManageOrdersTab() {
       <p className="mt-1 text-xs sm:text-sm text-navy/60">
         Consulta y actualiza el estado y el número de rastreo de cada pedido.
       </p>
+
+      <PresaleShipments />
 
       {/* ── Search + status filter ── */}
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">

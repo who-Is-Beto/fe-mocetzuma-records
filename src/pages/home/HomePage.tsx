@@ -266,7 +266,7 @@ function SleeveArt({ featured, loading }: { featured?: RecordItem; loading: bool
 /* ── Promises strip ───────────────────────────────────────────────────── */
 
 const PROMISES = [
-  { icon: "🎧", title: "Graduación honesta", text: "Cada disco revisado y calificado de Mint a Good." },
+  { icon: "🔍", title: "Sabes cómo llega", text: "Revisamos cada disco a mano y te decimos su estado real, de Mint a Good. Sin sorpresas al abrirlo." },
   { icon: "📦", title: "Envíos a todo México", text: "Tarifa real de Estafeta, cotizada antes de pagar." },
   { icon: "🔒", title: "Pago seguro", text: "Procesado con Stripe; nunca vemos tu tarjeta." },
   { icon: "🎪", title: "Bazares en la CDMX", text: "Aparta en línea y recoge en el próximo bazar." }

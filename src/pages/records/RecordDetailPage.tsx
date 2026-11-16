@@ -19,6 +19,8 @@ import { ConditionPicker } from "./ConditionPicker";
 import { canUseOptionalStorage } from "../../app/lib/consent";
 import { RecordDescription } from "./RecordDescription";
 import { LostPanel } from "../../components/LostPanel";
+import { RelatedPicks } from "../../components/FreshPicks";
+import { PresaleSpotlight } from "../../components/presales/PresaleSpotlight";
 import { StatusPanel } from "../../components/StatusPanel";
 import { primaryCta, secondaryCta } from "../../components/cta";
 
@@ -416,7 +418,11 @@ export function RecordDetailPage() {
     }
   };
 
+  const artistName = typeof data.artist === "string" ? data.artist : data.artist?.name ?? "";
+  const artistSlug = typeof data.artist === "object" ? data.artist?.slug ?? undefined : undefined;
+
   return (
+    <>
     <section className="grid gap-4 rounded-[28px] border border-navy/10 bg-cream/80 p-4 shadow-panel backdrop-blur sm:p-5 lg:grid-cols-[1.05fr,0.95fr] lg:gap-5 lg:p-6">
       <div className="space-y-4">
         <div className="relative aspect-square overflow-hidden rounded-[24px] border border-navy/10 bg-gradient-to-br from-denim/10 via-cream to-sand/80 shadow-inner">
@@ -671,6 +677,15 @@ export function RecordDetailPage() {
         />
       ) : null}
     </section>
+    {/* A presale by the same artist first, then records to keep browsing. */}
+    {artistName && <PresaleSpotlight query={artistName} className="mt-8" />}
+    <RelatedPicks
+      key={String(data.id)}
+      artist={artistSlug}
+      genre={data.generes?.[0]?.slug}
+      excludeId={String(data.id)}
+    />
+    </>
   );
 }
 

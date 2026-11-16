@@ -14,7 +14,7 @@ type Props = {
   onChanged: (order: AdminPresaleOrder) => void;
 };
 
-type Step = null | "pay" | "void" | "ship" | "cancel" | "deadline";
+type Step = null | "pay" | "void" | "ship" | "cancel" | "deadline" | "pickup";
 
 const when = (iso: string) =>
   new Date(iso).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -31,6 +31,7 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
   const [voidId, setVoidId] = useState<number | null>(null);
   const [reason, setReason] = useState("");
   const [tracking, setTracking] = useState("");
+  const [shippingBack, setShippingBack] = useState(false);
   const [deadline, setDeadline] = useState(order.deadline_override ?? order.deadline);
   // Lines the counter is NOT handing over now (everything arrived is ticked by default).
   const [held, setHeld] = useState<Set<number>>(new Set());
@@ -47,6 +48,9 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
       : [];
   const chosen = deliverable.filter((i) => !held.has(i.id));
   const copies = chosen.reduce((n, i) => n + i.quantity, 0);
+  const shippingPaid = Number(order.shipping_paid ?? 0);
+  // A shipping buyer who comes to the store: the order turns into a pickup (shipping paid goes back in cash).
+  const canPickup = canOrders && order.delivery === "shipping" && !closed && order.status !== "pending_payment";
   const readyShip = order.delivery === "shipping" && order.status === "pagado" && order.all_arrived && balance === 0 && !order.shipping_pending;
 
   const act = async (fn: () => Promise<AdminPresaleOrder>) => {
@@ -214,7 +218,7 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
                 </span>
                 <span className="flex items-center gap-3">
                   <span className={`tabular-nums font-semibold ${p.voided ? "text-navy/50 line-through" : "text-navy"}`}>{currency(p.amount)}</span>
-                  {!p.voided && can("add_presalepayment") && !closed && (
+                  {!p.voided && can("change_presalepayment") && !closed && Number(p.amount) > 0 && (
                     <button
                       type="button"
                       className="min-h-[36px] text-xs font-semibold text-coral hover:underline"
@@ -302,6 +306,36 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
             </button>
           </div>
         )}
+        {step === "pickup" && (
+          <div className="mt-4 space-y-3 rounded-2xl bg-cream p-4">
+            <p className="text-sm text-navy">
+              Vino a la tienda: el pedido pasa a <strong>recoger en tienda</strong> y ya no se cobra envío.
+              {balance > 0 || order.shipping_pending ? " Después registra lo que falte de los discos y entrégalo." : " Después entrégalo."}
+            </p>
+            {shippingPaid > 0 && (
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-white p-3 text-sm text-navy ring-1 ring-navy/10">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-orange"
+                  checked={shippingBack}
+                  onChange={(e) => setShippingBack(e.target.checked)}
+                />
+                <span>
+                  Ya había pagado <strong>{currency(shippingPaid)}</strong> de envío. Se los devolví en efectivo.
+                  <span className="block text-xs text-navy/60">Queda como devolución en sus pagos: Ventas no cuenta ese envío.</span>
+                </span>
+              </label>
+            )}
+            <button
+              type="button"
+              className={btnPrimary}
+              disabled={busy || (shippingPaid > 0 && !shippingBack)}
+              onClick={() => act(() => service.admin.toPickup(order.id, shippingBack))}
+            >
+              Cambiar a recoger en tienda
+            </button>
+          </div>
+        )}
         {step === "cancel" && (
           <div className="mt-4 space-y-3 rounded-2xl bg-coral/10 p-4">
             <label className="block">
@@ -342,6 +376,11 @@ export function PresaleOrderPanel({ service, order, can, onClose, onChanged }: P
           {readyShip && canOrders && step !== "ship" && (
             <button type="button" className={btnPrimary} onClick={() => setStep("ship")}>
               Marcar enviado
+            </button>
+          )}
+          {canPickup && step !== "pickup" && (
+            <button type="button" className={btnGhost} onClick={() => setStep("pickup")}>
+              Recoge en tienda
             </button>
           )}
           {canPay && step !== "pay" && (

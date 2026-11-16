@@ -5,6 +5,7 @@ import type { Record } from "../app/domain/album";
 import { useAuth } from "../app/providers/AuthProvider";
 import { useOnClickOutside } from "../app/hooks/useOnClickOutside";
 import { useRecordSuggestions } from "../app/hooks/useRecordSuggestions";
+import { PresaleSuggestion } from "./presales/PresaleSpotlight";
 
 type SearchBarProps = {
   value: string;
@@ -112,6 +113,7 @@ export function SearchBar({
 
       {showPanel && (
         <div className="absolute inset-x-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-navy/10 bg-cream shadow-panel">
+          <PresaleSuggestion query={value} onPick={close} />
           {suggestions.loading && results.length === 0 ? (
             <p className="flex items-center gap-2 px-4 py-3 text-sm text-navy/60" role="status">
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-navy/20 border-t-orange" aria-hidden="true" />

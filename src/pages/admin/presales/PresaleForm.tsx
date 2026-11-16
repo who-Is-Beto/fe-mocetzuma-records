@@ -14,6 +14,10 @@ type OptionRow = {
   hasOrders: boolean;
   taken: number;
   name: string;
+  /** What comes in it: "2 LP + póster". */
+  description: string;
+  /** Pieces per copy (records, CDs, extras). */
+  items_inside: string;
   category: string;
   price: string;
   min_deposit: string;
@@ -35,6 +39,8 @@ const emptyRow = (): OptionRow => ({
   hasOrders: false,
   taken: 0,
   name: "",
+  description: "",
+  items_inside: "1",
   category: "",
   price: "",
   min_deposit: "",
@@ -54,6 +60,7 @@ const num = (v: string) => Number(v.replace(",", "."));
 function rowProblems(row: OptionRow): string[] {
   const out: string[] = [];
   if (!row.name.trim()) out.push("nombre");
+  if (!(Number(row.items_inside) >= 1)) out.push("piezas (mínimo 1)");
   const price = num(row.price);
   if (!(price > 0)) out.push("precio");
   const dep = num(row.min_deposit);
@@ -67,6 +74,8 @@ function rowProblems(row: OptionRow): string[] {
 
 const toInput = (row: OptionRow): PresaleOptionInput => ({
   name: row.name.trim(),
+  description: row.description.trim(),
+  items_inside: Number(row.items_inside) || 1,
   price: row.price,
   min_deposit: row.min_deposit,
   full_payment_discount: row.full_payment_discount || "0",
@@ -108,6 +117,8 @@ export function PresaleForm({ service, presale, onCancel, onSaved }: Props) {
           hasOrders: o.has_orders,
           taken: o.taken,
           name: o.name,
+          description: o.description ?? "",
+          items_inside: String(o.items_inside ?? 1),
           category: o.category ? String(o.category) : "",
           price: o.price,
           min_deposit: o.min_deposit,
@@ -299,6 +310,25 @@ export function PresaleForm({ service, presale, onCancel, onSaved }: Props) {
                 <label className="block sm:col-span-2">
                   <span className={label}>Nombre *</span>
                   <input className={input} value={row.name} placeholder="Vinilo rojo 2LP" onChange={(e) => update(row.key, { name: e.target.value })} />
+                </label>
+                <label className="block sm:col-span-2 lg:col-span-3">
+                  <span className={label}>Qué incluye (lo ve el comprador)</span>
+                  <input
+                    className={input}
+                    value={row.description}
+                    maxLength={200}
+                    placeholder="2 LP de 180 g + póster firmado"
+                    onChange={(e) => update(row.key, { description: e.target.value })}
+                  />
+                </label>
+                <label className="block">
+                  <span className={label}>Piezas *</span>
+                  <input
+                    inputMode="numeric"
+                    className={input}
+                    value={row.items_inside}
+                    onChange={(e) => update(row.key, { items_inside: e.target.value.replace(/\D/g, "").replace(/^0+/, "") })}
+                  />
                 </label>
                 <label className="block">
                   <span className={label}>Formato</span>

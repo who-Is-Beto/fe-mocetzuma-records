@@ -7,14 +7,13 @@ import { Reveal } from "../Reveal";
 import { Skeleton } from "../Skeleton";
 import { PresaleCard } from "./PresaleCard";
 import { daysUntil } from "./presaleText";
-import { SubscribeBox } from "./SubscribeBox";
 
 const eyebrow = "text-[11px] font-semibold uppercase tracking-[0.22em] text-orange";
 const sectionTitle = "font-display text-[1.6rem] leading-[1.15] text-denim sm:text-3xl lg:text-[2.1rem]";
 
 /**
  * Home → Preventas: published presales still before their deadline (open ones
- * first), plus the announcement sign-up. Renders nothing when there's none.
+ * first). The sign-up lives in the footer. Renders nothing when there's none.
  */
 export function PresalesSection() {
   const service = useMemo(() => createPresaleService(), []);
@@ -65,10 +64,6 @@ export function PresalesSection() {
                 <PresaleCard presale={presale} featured={featured} />
               </Reveal>
             ))}
-      </div>
-
-      <div className="mt-8">
-        <SubscribeBox />
       </div>
     </section>
   );

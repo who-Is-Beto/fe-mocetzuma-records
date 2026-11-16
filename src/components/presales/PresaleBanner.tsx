@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import type { Presale } from "../../app/domain/presales";
 import { useServiceQuery } from "../../app/hooks";
@@ -47,6 +47,53 @@ function PresalePill({ presale, index, wide }: { presale: Presale; index: number
         </span>
       </span>
       <span aria-hidden="true" className="ml-1 shrink-0 text-sun transition-transform duration-300 group-hover:translate-x-0.5">
+        →
+      </span>
+    </Link>
+  );
+}
+
+/**
+ * Phones with several presales: a sideways scroller only ever shows the first,
+ * so instead their covers stack up, the titles take turns, and the whole bar
+ * opens the list on the home page.
+ */
+function MobileStack({ presales }: { presales: Presale[] }) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => setIndex((n) => (n + 1) % presales.length), 3200);
+    return () => window.clearInterval(timer);
+  }, [presales.length]);
+  const current = presales[index % presales.length];
+  return (
+    <Link
+      to="/#preventas"
+      aria-label={`Ver las ${presales.length} preventas abiertas`}
+      className="group flex min-h-[44px] min-w-0 flex-1 items-center gap-2.5 rounded-pill py-1 pr-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange sm:hidden"
+    >
+      <span className="flex shrink-0 -space-x-3" aria-hidden="true">
+        {presales.slice(0, 3).map((p, i) => (
+          <span
+            key={p.id}
+            style={{ zIndex: 3 - i }}
+            className={`relative h-9 w-9 overflow-hidden rounded-full bg-cream/20 ring-2 transition duration-300 ${
+              p.id === current.id ? "ring-orange" : "ring-navy"
+            }`}
+          >
+            {p.cover ? <Img src={p.cover} alt="" width={36} placeholder={false} className="h-full w-full object-cover" /> : null}
+          </span>
+        ))}
+      </span>
+      <span className="min-w-0 flex-1 leading-tight">
+        <span key={current.id} className="block animate-toast-in truncate text-[13px] font-semibold text-cream motion-reduce:animate-none">
+          {current.title}
+        </span>
+        <span className="block truncate text-[11px] text-cream/75">
+          {presales.length} abiertas · <span className="font-semibold text-sun">ver todas</span>
+        </span>
+      </span>
+      <span aria-hidden="true" className="shrink-0 text-sun transition-transform duration-300 group-hover:translate-x-0.5">
         →
       </span>
     </Link>
@@ -105,9 +152,11 @@ export function PresaleBanner() {
           </span>
         </p>
 
+        {!single && <MobileStack presales={open} />}
+
         {/* Scrolls sideways when the pills don't fit; the fade says there's more */}
         <ul
-          className="flex min-w-0 flex-1 snap-x gap-2 overflow-x-auto py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className={`${single ? "flex" : "hidden sm:flex"} min-w-0 flex-1 snap-x gap-2 overflow-x-auto py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
           style={{ maskImage: single ? undefined : "linear-gradient(90deg, #000 85%, transparent)" }}
         >
           {open.map((presale, index) => (

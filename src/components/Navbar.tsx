@@ -164,6 +164,7 @@ export function Navbar(): ReactNode {
               }`
             }
           >
+            <span aria-hidden="true" className="mr-1.5">🛍️</span>
             Bazares
           </NavLink>
           <div className="min-w-[180px] max-w-md flex-1">

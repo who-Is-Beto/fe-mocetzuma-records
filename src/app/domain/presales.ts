@@ -6,6 +6,10 @@
 export type PresaleOption = {
   id: number;
   name: string;
+  /** What comes in it: "2 LP + póster" ("" when not set). */
+  description: string;
+  /** Pieces in the package (records, CDs, extras). */
+  items_inside: number;
   image: string | null;
   format: string;
   price: string;
@@ -135,6 +139,8 @@ export type AdminPresaleOrder = Omit<PresaleOrder, "payments"> & {
   source_label: string;
   shipping_details: Record<string, string>;
   shipping_courier: string;
+  /** Shipping already charged (given back when the buyer picks up at the store instead). */
+  shipping_paid: string;
   deadline_override: string | null;
   is_expirable: boolean;
   oversold: boolean;
@@ -199,6 +205,8 @@ export type ReserveInput = {
 
 export type PresaleOptionInput = {
   name: string;
+  description?: string;
+  items_inside?: number;
   price: string;
   min_deposit: string;
   full_payment_discount?: string;

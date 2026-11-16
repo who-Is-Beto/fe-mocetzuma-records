@@ -11,6 +11,7 @@ import { useAuth } from "../../app/providers/AuthProvider";
 import { useSeo } from "../../app/hooks/useSeo";
 import { CatalogEmpty, type EmptyReason } from "./CatalogEmpty";
 import { StatusPanel } from "../../components/StatusPanel";
+import { PresaleSpotlight } from "../../components/presales/PresaleSpotlight";
 import { HttpError } from "../../app/lib/httpClient";
 import { ActiveFilterChips, AvailabilitySwitch, CatalogFilterPanel, SortSelect } from "./CatalogFilters";
 import {
@@ -155,6 +156,8 @@ export const CatalogoPage = () => {
           {params.search ? `Resultados para “${params.search}”` : "Catálogo"}
         </h1>
       )}
+
+      {(params.search || (params.artist && artistName)) && <PresaleSpotlight query={params.search || artistName} />}
 
       <div className="lg:grid lg:grid-cols-[260px,1fr] lg:items-start lg:gap-6">
         {/* Desktop sidebar */}

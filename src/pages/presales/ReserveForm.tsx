@@ -26,8 +26,11 @@ const EMPTY_ADDRESS: ShippingAddressValues = {
   reference: ""
 };
 
-const TERMS_TEXT =
-  "Acepto que si no liquido mi preventa en 120 días (o 15 días después de que el disco llegue a tienda, lo que pase después) pierdo mi apartado.";
+// Paying in full there's nothing left to settle: what they agree to is the arrival.
+const ARRIVAL_TEXT =
+  "Entiendo que la fecha de llegada es estimada y que las copias pueden llegar a la tienda en varios envíos. Me avisan en cuanto llegue la mía.";
+const DEPOSIT_TEXT =
+  "Acepto que tengo 120 días desde hoy para liquidar mi preventa; si no, pierdo mi apartado. La fecha de llegada es estimada.";
 
 const money = (n: number) => Math.round(n * 100) / 100;
 const addDays = (days: number) => {
@@ -373,8 +376,7 @@ export function ReserveForm({ presale, lines }: Props) {
                   </dd>
                 </div>
                 <p className="text-cream/80">
-                  Tienes hasta el {shortDate(addDays(120))} para liquidar, y nunca menos de 15 días después de que llegue
-                  el disco.
+                  Tienes 120 días para liquidar: hasta el {shortDate(addDays(120))}.
                 </p>
               </>
             )}
@@ -420,7 +422,7 @@ export function ReserveForm({ presale, lines }: Props) {
         isFull={isFull}
         discount={discount}
         deadline={shortDate(addDays(120))}
-        termsText={TERMS_TEXT}
+        termsText={isFull ? ARRIVAL_TEXT : DEPOSIT_TEXT}
         sending={sending}
         error={error}
         onConfirm={() => void confirm()}

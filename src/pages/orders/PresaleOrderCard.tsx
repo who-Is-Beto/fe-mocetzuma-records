@@ -192,7 +192,7 @@ export function PresaleOrderCard({ order, service, highlight = false }: Props) {
               <p className={`text-sm ${urgent ? "font-semibold text-coral" : "text-navy/75"}`}>
                 {order.all_arrived
                   ? `Liquida antes del ${shortDate(order.deadline)} (${order.days_left === 1 ? "queda 1 día" : `quedan ${order.days_left} días`}).`
-                  : `Tienes hasta el ${shortDate(order.deadline)}, y nunca menos de 15 días después de que llegue.`}
+                  : `Tienes hasta el ${shortDate(order.deadline)} para liquidar (120 días desde tu apartado).`}
               </p>
               <button
                 type="button"

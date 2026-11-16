@@ -50,3 +50,23 @@ export const copiesLabel = (left: number, total: number): string => {
   if (left === 1) return "Última copia";
   return `Quedan ${left} de ${total}`;
 };
+
+/** "1 pieza" / "3 piezas": what comes in one copy of a version. */
+export const piecesLabel = (n: number): string => `${n || 1} ${(n || 1) === 1 ? "pieza" : "piezas"}`;
+
+const fold = (text: string) =>
+  text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+/** Presales whose title or artist matches a search ("miles" finds Miles Davis), open ones first. */
+export const matchPresales = (presales: Presale[], query: string): Presale[] => {
+  const q = fold(query);
+  if (q.length < 2) return [];
+  return presales
+    .filter((p) => daysUntil(p.purchase_deadline) >= 0)
+    .filter((p) => {
+      const title = fold(p.title);
+      const artist = fold(p.artist);
+      return title.includes(q) || artist.includes(q) || (artist.length > 2 && q.includes(artist)) || (title.length > 2 && q.includes(title));
+    })
+    .sort((a, b) => Number(b.is_open) - Number(a.is_open));
+};

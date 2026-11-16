@@ -174,7 +174,7 @@ export function RegisterPresaleOrder({ service, presale, onClose, onSaved }: Pro
             </label>
             <label className="flex items-start gap-3 rounded-xl bg-cream p-3 text-sm text-navy sm:col-span-2">
               <input type="checkbox" className="mt-0.5 h-5 w-5 accent-orange" checked={terms} onChange={(e) => setTerms(e.target.checked)} />
-              <span>El cliente aceptó que si no liquida en 120 días (o 15 días después de que llegue el disco) pierde su apartado.</span>
+              <span>El cliente aceptó que tiene 120 días para liquidar o pierde su apartado, y que la fecha de llegada es estimada.</span>
             </label>
           </div>
         )}

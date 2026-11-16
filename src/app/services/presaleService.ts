@@ -96,6 +96,22 @@ export function createPresaleService(config: Config = {}) {
           body: { announce },
           ...auth()
         }),
+      /** Several presales at once: they appear together and subscribers get one email. */
+      publishMany: (ids: number[], announce: boolean) =>
+        http<{ published: number; recipients: number }>(`${admin}/publish/`, {
+          method: "POST",
+          body: { ids, announce },
+          ...auth()
+        }),
+      /** Pedidos: paid presale orders going by mail (to ship, then shipped). */
+      shipments: () => http<AdminPresaleOrder[]>(`${admin}/shipments/`, auth()),
+      /** A shipping buyer picks up at the store; paid shipping must be handed back (shippingRefunded). */
+      toPickup: (orderId: number, shippingRefunded: boolean) =>
+        http<AdminPresaleOrder>(`${admin}/orders/${orderId}/to-pickup/`, {
+          method: "POST",
+          body: { shipping_refunded: shippingRefunded },
+          ...auth()
+        }),
       /** copies: how many arrived in this batch (omitted = all the rest). */
       arrivedOption: (optionId: number, copies?: number) =>
         http<AdminPresale>(`${admin}/options/${optionId}/arrived/`, {

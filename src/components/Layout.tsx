@@ -115,8 +115,8 @@ export function Layout({ children }: LayoutProps) {
           </main>
 
           <footer className="relative mt-auto border-t border-navy/10 bg-cream/70 backdrop-blur">
-            <div className="mx-auto max-w-6xl border-b border-navy/10 px-6 py-6 md:px-10">
-              <SubscribeBox compact />
+            <div className="mx-auto max-w-6xl px-4 pt-8 sm:px-6 md:px-10">
+              <SubscribeBox />
             </div>
             <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-6 text-sm text-navy/70 md:flex-row md:items-center md:justify-between md:px-10">
               <div className="flex items-center gap-3">
