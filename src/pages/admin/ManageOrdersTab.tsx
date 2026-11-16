@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { Button } from "../../components/Button";
 import { extractErrorMessage } from "../../app/lib/httpClient";
@@ -6,7 +6,9 @@ import { useAdminOrders } from "../../app/hooks/useAdminOrders";
 import type { Order, OrderStatus } from "../../app/domain/orders";
 import { ORDER_STATUSES, DELIVERY_LABELS } from "../../app/domain/orders";
 import { currency } from "../../app/lib/format";
-import { PresaleShipments } from "./PresaleShipments";
+import type { AdminPresaleOrder } from "../../app/domain/presales";
+import { createPresaleService } from "../../app/services/presaleService";
+import { PresaleShipmentCard } from "./PresaleShipments";
 
 const STATUS_BADGE: Record<OrderStatus, string> = {
   pending: "bg-amber-100 text-amber-700",
@@ -16,12 +18,27 @@ const STATUS_BADGE: Record<OrderStatus, string> = {
   canceled: "bg-red-100 text-red-700"
 };
 
+/** Presale status as a Pedidos status, so the status filter covers both kinds. */
+const presaleOrderStatus = (o: AdminPresaleOrder): OrderStatus =>
+  o.status === "enviado" ? "shipped" : o.status === "entregado" ? "delivered" : o.status === "cancelado" ? "canceled" : "paid";
+
+const presaleMatches = (o: AdminPresaleOrder, q: string) =>
+  [o.code, o.buyer_name, o.buyer_email, o.lines_label, ...o.presales.map((p) => p.title)].some((v) =>
+    (v ?? "").toLowerCase().includes(q)
+  );
+
 /* ── Component ── */
 
 export function ManageOrdersTab() {
   const { token, hasPerm } = useAuth();
   const { orders, loading, error, load, updateOrder } = useAdminOrders({ token });
   const canUpdate = hasPerm("apiApp.change_order");
+  // Paid presales going by mail are listed with the orders (shipping happens in one place).
+  const presaleService = useMemo(() => createPresaleService({ getToken: () => token ?? null }), [token]);
+  const [presales, setPresales] = useState<AdminPresaleOrder[]>([]);
+  useEffect(() => {
+    presaleService.admin.shipments().then(setPresales).catch(() => setPresales([]));
+  }, [presaleService]);
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -91,6 +108,17 @@ export function ManageOrdersTab() {
     });
   }, [orders, search, statusFilter]);
 
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const shipments = presales.filter(
+      (p) => (statusFilter === "all" || presaleOrderStatus(p) === statusFilter) && (!q || presaleMatches(p, q))
+    );
+    return [
+      ...filteredOrders.map((order) => ({ date: order.created_at ?? "", order, presale: null })),
+      ...shipments.map((presale) => ({ date: presale.reserved_at, order: null, presale }))
+    ].sort((a, b) => b.date.localeCompare(a.date));
+  }, [filteredOrders, presales, search, statusFilter]);
+
   const bannerError = error || actionError;
 
   const linkValueFor = (o: Order) =>
@@ -120,8 +148,6 @@ export function ManageOrdersTab() {
       <p className="mt-1 text-xs sm:text-sm text-navy/60">
         Consulta y actualiza el estado y el número de rastreo de cada pedido.
       </p>
-
-      <PresaleShipments />
 
       {/* ── Search + status filter ── */}
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -177,7 +203,7 @@ export function ManageOrdersTab() {
       )}
 
       {/* ── Empty state ── */}
-      {!loading && !bannerError && filteredOrders.length === 0 && (
+      {!loading && !bannerError && rows.length === 0 && (
         <div className="mt-12 text-center">
           <p className="text-lg text-navy/40">📦</p>
           <p className="mt-2 text-sm text-navy/50">
@@ -189,13 +215,24 @@ export function ManageOrdersTab() {
       )}
 
       {/* ── Orders ── */}
-      {!loading && filteredOrders.length > 0 && (
+      {!loading && rows.length > 0 && (
         <>
           <p className="mt-4 text-xs text-navy/40">
-            {filteredOrders.length} pedido{filteredOrders.length === 1 ? "" : "s"}
+            {rows.length} pedido{rows.length === 1 ? "" : "s"}
           </p>
           <div className="mt-3 space-y-3">
-            {filteredOrders.map((o) => {
+            {rows.map((row) => {
+              if (row.presale) {
+                return (
+                  <PresaleShipmentCard
+                    key={`p${row.presale.id}`}
+                    order={row.presale}
+                    service={presaleService}
+                    onUpdated={(u) => setPresales((list) => list.map((p) => (p.id === u.id ? u : p)))}
+                  />
+                );
+              }
+              const o = row.order;
               const items = o.order_items ?? [];
               const address = o.shipping_details ?? null;
               const draft = linkValueFor(o);

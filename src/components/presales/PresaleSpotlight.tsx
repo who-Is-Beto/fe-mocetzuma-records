@@ -4,7 +4,7 @@ import type { Presale } from "../../app/domain/presales";
 import { useServiceQuery } from "../../app/hooks";
 import { createPresaleService } from "../../app/services/presaleService";
 import { Img } from "../Img";
-import { PresaleCard } from "./PresaleCard";
+import { currency } from "../../app/lib/format";
 import { closingLabel, matchPresales } from "./presaleText";
 
 type Props = { query: string; className?: string };
@@ -21,19 +21,39 @@ export function PresaleSpotlight({ query, className = "" }: Props) {
   if (matches.length === 0) return null;
 
   return (
-    <section aria-label="En preventa" className={`rounded-[26px] bg-navy p-2 shadow-panel sm:p-3 ${className}`}>
-      <p className="flex items-center gap-2 px-3 pb-2 pt-1 text-[11px] font-bold uppercase tracking-[0.2em] text-orange sm:px-2">
-        <span aria-hidden="true" className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange opacity-60 motion-reduce:hidden" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-orange" />
-        </span>
-        {matches.length === 1 ? "En preventa · apártalo antes de que llegue" : "En preventa"}
-      </p>
-      <div className={`grid gap-2 sm:gap-3 ${matches.length > 1 ? "md:grid-cols-2" : ""}`}>
-        {matches.map((presale) => (
-          <PresaleCard key={presale.id} presale={presale} featured={matches.length === 1} />
-        ))}
-      </div>
+    <section
+      aria-label="En preventa"
+      className={`flex flex-col gap-1.5 rounded-2xl bg-navy p-1.5 shadow-panel sm:flex-row sm:flex-wrap ${className}`}
+    >
+      {matches.map((p) => (
+        <Link
+          key={p.id}
+          to={`/preventas/${p.slug}`}
+          className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1.5 text-cream transition hover:bg-cream/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange sm:min-w-[18rem]"
+        >
+          {p.cover ? (
+            <Img src={p.cover} alt="" width={56} className="h-12 w-12 shrink-0 rounded-lg object-cover ring-2 ring-orange" />
+          ) : (
+            <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-cream/10">💿</span>
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-orange">
+              <span aria-hidden="true" className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange opacity-60 motion-reduce:hidden" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-orange" />
+              </span>
+              En preventa
+            </span>
+            <span className="block truncate text-sm font-semibold">{p.title}</span>
+            <span className="block truncate text-xs text-cream/70">
+              {p.artist} · {closingLabel(p.purchase_deadline)}
+            </span>
+          </span>
+          <span className="shrink-0 rounded-pill bg-orange px-3 py-1.5 text-xs font-semibold text-charcoal transition group-hover:bg-amber">
+            Apártalo<span className="hidden min-[400px]:inline">{p.price_from ? ` · ${currency(p.price_from)}` : ""}</span>
+          </span>
+        </Link>
+      ))}
     </section>
   );
 }

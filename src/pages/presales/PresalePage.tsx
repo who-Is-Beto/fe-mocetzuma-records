@@ -40,7 +40,7 @@ export function PresalePage() {
   const service = useMemo(() => createPresaleService({ getToken: () => token ?? null }), [token]);
   const fetchPresale = useCallback(() => service.get(slug), [service, slug]);
   const { data: presale, isLoading, error, refetch } = useServiceQuery<Presale>([service, slug], fetchPresale);
-  // Copies per version id; null until the buyer touches a stepper (then the default below no longer applies).
+  // Copies per version id; null until the buyer touches a stepper (until then, picks saved in the bag).
   const [picked, setPicked] = useState<Record<number, number> | null>(null);
   const [focusId, setFocusId] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
@@ -90,14 +90,12 @@ export function PresalePage() {
   }
 
   const options = presale.options.filter((o) => o.is_active);
-  const firstAvailable = options.find((o) => o.copies_left > 0) ?? null;
   const here = { slug: presale.slug, title: presale.title, artist: presale.artist, cover: presale.cover };
   // Other presales already in the bag go in the same order; this one's saved picks come back.
   const others = bag.filter((l) => l.presale.slug !== presale.slug);
   const saved = Object.fromEntries(bag.filter((l) => l.presale.slug === presale.slug).map((l) => [l.option.id, l.quantity]));
-  // Opens with 1 copy of the first version that has stock: a single-version presale reads as before.
-  const quantities =
-    picked ?? (Object.keys(saved).length ? saved : firstAvailable && others.length === 0 ? { [firstAvailable.id]: 1 } : {});
+  // Nothing is picked on arrival: the buyer chooses (a version may be out of reach for them).
+  const quantities = picked ?? saved;
   const lines = options
     .filter((o) => (quantities[o.id] ?? 0) > 0)
     .map((o) => ({ option: o, quantity: quantities[o.id], presale: here }));
@@ -105,8 +103,9 @@ export function PresalePage() {
     setPresaleLines(here, lines);
     navigate("/#preventas");
   };
-  const option: PresaleOption | null =
-    options.find((o) => o.id === focusId) ?? lines[0]?.option ?? firstAvailable ?? options[0] ?? null;
+  // Stats and photo follow a picked version; with none picked, the presale's own cover.
+  const option: PresaleOption | null = lines.find((l) => l.option.id === focusId)?.option ?? lines[0]?.option ?? null;
+  const minDeposit = options.length ? Math.min(...options.map((o) => Number(o.min_deposit))) : 0;
   const { left, total } = copiesSummary(presale);
   const closed = daysUntil(presale.purchase_deadline) < 0 || presale.status !== "published";
   const soldOut = left <= 0;
@@ -171,6 +170,7 @@ export function PresalePage() {
                   Preventa
                 </span>
               </div>
+              {presale.description && <AboutRecord text={presale.description} />}
             </div>
           </div>
 
@@ -208,7 +208,7 @@ export function PresalePage() {
               </div>
               <div>
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/60">Apártalo con</dt>
-                <dd className="mt-0.5 text-lg font-semibold tabular-nums text-navy">{currency(option?.min_deposit ?? 0)}</dd>
+                <dd className="mt-0.5 text-lg font-semibold tabular-nums text-navy">{currency(option?.min_deposit ?? minDeposit)}</dd>
               </div>
               <div>
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-navy/60">Copias</dt>
@@ -243,9 +243,6 @@ export function PresalePage() {
                 </>
               )}
             </div>
-            {presale.description && (
-              <p className="mt-8 whitespace-pre-line text-[15px] leading-relaxed text-navy/80">{presale.description}</p>
-            )}
           </div>
         </div>
       </div>
@@ -272,6 +269,47 @@ export function PresalePage() {
 
       <RelatedPicks key={presale.slug} search={presale.artist} title="Mientras llega, otros discos para ti" />
     </div>
+  );
+}
+
+/**
+ * The presale description under the cover: an accordion on phones (the versions
+ * stay close to the top), the text itself on desktop, cut with "Leer más" when long.
+ */
+function AboutRecord({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 320;
+  return (
+    <section className="mt-4 rounded-[22px] bg-white/70 ring-1 ring-navy/10 lg:mt-5 lg:bg-transparent lg:ring-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="flex min-h-[52px] w-full items-center justify-between gap-3 px-4 text-left font-semibold text-denim focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange lg:hidden"
+      >
+        Sobre este disco
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      <h2 className="hidden text-[11px] font-semibold uppercase tracking-[0.16em] text-navy/60 lg:block">Sobre este disco</h2>
+      <p
+        className={`whitespace-pre-line px-4 pb-4 text-[15px] leading-relaxed text-navy/80 lg:mt-2 lg:px-0 lg:pb-0 ${
+          open ? "" : "hidden lg:block"
+        } ${!open && long ? "lg:max-h-[9.75rem] lg:overflow-hidden lg:[mask-image:linear-gradient(to_bottom,black_60%,transparent)]" : ""}`}
+      >
+        {text}
+      </p>
+      {long && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="mt-1 hidden min-h-[44px] text-sm font-semibold text-denim underline decoration-orange/60 underline-offset-4 hover:text-orange lg:inline"
+        >
+          {open ? "Leer menos" : "Leer más"}
+        </button>
+      )}
+    </section>
   );
 }
 
