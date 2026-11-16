@@ -109,6 +109,12 @@ export function CartItemRow({ item, index = 0, isUpdating = false, onUpdateQuant
             {record.stock === 1 ? (
               <span className="text-[11px] font-semibold text-orange">Pieza única</span>
             ) : null}
+            {item.favorites_count ? (
+              <span className="text-[11px] font-semibold text-coral">
+                <span aria-hidden="true">💛</span> {item.favorites_count}{" "}
+                {item.favorites_count === 1 ? "persona lo tiene" : "personas lo tienen"} en favoritos
+              </span>
+            ) : null}
           </div>
         </div>
       </div>

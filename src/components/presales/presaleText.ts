@@ -70,3 +70,10 @@ export const matchPresales = (presales: Presale[], query: string): Presale[] => 
     })
     .sort((a, b) => Number(b.is_open) - Number(a.is_open));
 };
+
+// What a buyer agrees to before paying a presale. Paying in full there's nothing
+// left to settle: what they agree to is the arrival.
+export const ARRIVAL_TEXT =
+  "Entiendo que la fecha de llegada es estimada y que las copias pueden llegar a la tienda en varios envíos. Me avisan en cuanto llegue la mía.";
+export const DEPOSIT_TEXT =
+  "Acepto que tengo 120 días desde hoy para liquidar mi preventa; si no, pierdo mi apartado. La fecha de llegada es estimada.";

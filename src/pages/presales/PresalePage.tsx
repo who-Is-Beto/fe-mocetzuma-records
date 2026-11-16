@@ -18,6 +18,7 @@ import {
   closingLabel,
   copiesSummary,
   daysUntil,
+  piecesLabel,
   shortDate
 } from "../../components/presales/presaleText";
 import { SubscribeBox } from "../../components/presales/SubscribeBox";
@@ -103,6 +104,11 @@ export function PresalePage() {
     setPresaleLines(here, lines);
     navigate("/#preventas");
   };
+  // Pay it in the cart with records from the store: one order, one payment.
+  const toCart = () => {
+    setPresaleLines(here, lines);
+    navigate("/carrito");
+  };
   // Stats and photo follow a picked version; with none picked, the presale's own cover.
   const option: PresaleOption | null = lines.find((l) => l.option.id === focusId)?.option ?? lines[0]?.option ?? null;
   const minDeposit = options.length ? Math.min(...options.map((o) => Number(o.min_deposit))) : 0;
@@ -110,6 +116,8 @@ export function PresalePage() {
   const closed = daysUntil(presale.purchase_deadline) < 0 || presale.status !== "published";
   const soldOut = left <= 0;
   const image = option?.image ?? presale.cover;
+  // The version described under the cover: the one on screen, or the only one there is.
+  const shownVersion = option ?? (options.length === 1 ? options[0] : null);
 
   // Opened from a shared link there's no history to go back to: land on the home page.
   const goBack = () => (location.key === "default" ? navigate("/") : navigate(-1));
@@ -170,7 +178,9 @@ export function PresalePage() {
                   Preventa
                 </span>
               </div>
-              {presale.description && <AboutRecord text={presale.description} />}
+              {(presale.description || shownVersion?.description) && (
+                <AboutRecord text={presale.description} version={shownVersion} />
+              )}
             </div>
           </div>
 
@@ -190,13 +200,22 @@ export function PresalePage() {
                   onFocus={(o) => setFocusId(o.id)}
                 />
                 {lines.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={addAnother}
-                    className="mt-3 min-h-[44px] text-sm font-semibold text-denim underline decoration-orange/60 underline-offset-4 hover:text-orange"
-                  >
-                    + Agregar otra preventa al mismo pedido
-                  </button>
+                  <div className="mt-3 flex flex-wrap gap-x-5">
+                    <button
+                      type="button"
+                      onClick={addAnother}
+                      className="min-h-[44px] text-sm font-semibold text-denim underline decoration-orange/60 underline-offset-4 hover:text-orange"
+                    >
+                      + Agregar otra preventa al mismo pedido
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toCart}
+                      className="min-h-[44px] text-sm font-semibold text-denim underline decoration-orange/60 underline-offset-4 hover:text-orange"
+                    >
+                      🛒 Pagar junto con mi carrito
+                    </button>
+                  </div>
                 )}
               </div>
             )}
@@ -276,12 +295,20 @@ export function PresalePage() {
  * The presale description under the cover: an accordion on phones (the versions
  * stay close to the top), the text itself on desktop, cut with "Leer más" when long.
  */
-function AboutRecord({ text }: { text: string }) {
+function AboutRecord({ text, version }: { text: string; version: PresaleOption | null }) {
   const [open, setOpen] = useState(false);
   const long = text.length > 320;
+  const versionNote = version?.description ? (
+    <div key={version.id} className="cover-in mt-3 rounded-2xl bg-sun/30 px-4 py-3 ring-1 ring-sun/60">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-navy/70">
+        {version.name} · {piecesLabel(version.items_inside)}
+      </p>
+      <p className="mt-1 text-sm leading-relaxed text-navy">{version.description}</p>
+    </div>
+  ) : null;
   return (
     <section className="mt-4 rounded-[22px] bg-white/70 ring-1 ring-navy/10 lg:mt-5 lg:bg-transparent lg:ring-0">
-      <button
+      {text && <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
@@ -291,15 +318,15 @@ function AboutRecord({ text }: { text: string }) {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
           <path d="m6 9 6 6 6-6" />
         </svg>
-      </button>
+      </button>}
       <h2 className="hidden text-[11px] font-semibold uppercase tracking-[0.16em] text-navy/60 lg:block">Sobre este disco</h2>
-      <p
+      {text && <p
         className={`whitespace-pre-line px-4 pb-4 text-[15px] leading-relaxed text-navy/80 lg:mt-2 lg:px-0 lg:pb-0 ${
           open ? "" : "hidden lg:block"
         } ${!open && long ? "lg:max-h-[9.75rem] lg:overflow-hidden lg:[mask-image:linear-gradient(to_bottom,black_60%,transparent)]" : ""}`}
       >
         {text}
-      </p>
+      </p>}
       {long && (
         <button
           type="button"
@@ -309,6 +336,8 @@ function AboutRecord({ text }: { text: string }) {
           {open ? "Leer menos" : "Leer más"}
         </button>
       )}
+      {/* The version's own note is short: always visible, also with the accordion closed. */}
+      {versionNote && <div className={`px-4 pb-4 lg:px-0 lg:pb-0 ${text ? "" : "pt-1"}`}>{versionNote}</div>}
     </section>
   );
 }

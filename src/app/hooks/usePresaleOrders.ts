@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PresaleOrder } from "../domain/presales";
 import { createPresaleService } from "../services/presaleService";
+import { clearBag } from "../lib/presaleBag";
 
 /**
  * The signed-in customer's presale orders. Back from Stripe (?presale_session=)
@@ -30,6 +31,7 @@ export function usePresaleOrders({ token, enabled }: { token: string | null; ena
     const sessionId = new URLSearchParams(window.location.search).get("presale_session");
     (async () => {
       if (sessionId) {
+        clearBag(); // paid: the presales from the cart are in that order now
         try {
           const order = await service.complete(sessionId);
           if (!cancelled) setJustPaid(order);

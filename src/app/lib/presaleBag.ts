@@ -70,3 +70,13 @@ function subscribe(listener: () => void) {
 export function usePresaleBag(): BagLine[] {
   return useSyncExternalStore(subscribe, read, () => []);
 }
+
+const money = (n: number) => Math.round(n * 100) / 100;
+
+/** Totals of bag lines: list price, full payment (with its discount) and minimum deposit. */
+export function presaleTotals(lines: BagLine[]) {
+  const sum = (pick: (l: BagLine) => string) => money(lines.reduce((t, l) => t + Number(pick(l)) * l.quantity, 0));
+  const price = sum((l) => l.option.price);
+  const full = money(price - sum((l) => l.option.full_payment_discount));
+  return { price, full, minimum: sum((l) => l.option.min_deposit) };
+}

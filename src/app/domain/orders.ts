@@ -52,6 +52,8 @@ export type Order = {
   created_at: string;
   updated_at?: string;
   order_items?: OrderItem[];
+  /** Presale this order waits for, to ship in its box (one shipping fee). */
+  ships_with_code?: string | null;
 };
 
 /** Options for the admin status <select> (pedido, masculine inflection). */

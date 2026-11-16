@@ -37,10 +37,11 @@ export function createPresaleService(config: Config = {}) {
   return {
     list: () => http<Presale[]>(`${root}/`),
     get: (slug: string) => http<Presale>(`${root}/${encodeURIComponent(slug)}/`, auth()),
-    estimateShipping: (items: PresaleLineInput[], zip: string) =>
+    /** With ``cartCode`` the quote is for the presale and that cart's records in one box. */
+    estimateShipping: (items: PresaleLineInput[], zip: string, cartCode?: string) =>
       http<{ shipping_estimate: string; courier: string; service: string }>(`${root}/shipping-estimate/`, {
         method: "POST",
-        body: { items, zip }
+        body: { items, zip, ...(cartCode ? { cart_code: cartCode } : {}) }
       }),
     reserve: (input: ReserveInput) =>
       http<{ checkout_url: string; code: string }>(`${root}/reserve/`, { method: "POST", body: input, ...auth() }),
@@ -103,7 +104,7 @@ export function createPresaleService(config: Config = {}) {
           body: { ids, announce },
           ...auth()
         }),
-      /** Pedidos: paid presale orders going by mail (to ship, then shipped). */
+      /** Pedidos: paid presale orders going by mail, in every state after paid. */
       shipments: () => http<AdminPresaleOrder[]>(`${admin}/shipments/`, auth()),
       /** A shipping buyer picks up at the store; paid shipping must be handed back (shippingRefunded). */
       toPickup: (orderId: number, shippingRefunded: boolean) =>
@@ -156,6 +157,9 @@ export function createPresaleService(config: Config = {}) {
         }),
       ship: (orderId: number, tracking: string) =>
         http<AdminPresaleOrder>(`${admin}/orders/${orderId}/ship/`, { method: "POST", body: { tracking }, ...auth() }),
+      /** Pedidos: a shipped order reached the buyer. */
+      received: (orderId: number) =>
+        http<AdminPresaleOrder>(`${admin}/orders/${orderId}/received/`, { method: "POST", ...auth() }),
       cancel: (orderId: number, reason: string) =>
         http<AdminPresaleOrder>(`${admin}/orders/${orderId}/cancel/`, { method: "POST", body: { reason }, ...auth() }),
       expire: (orderId: number) =>

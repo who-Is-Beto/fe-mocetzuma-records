@@ -103,7 +103,9 @@ export function Modal({
   useEffect(() => {
     if (!open) return;
     previouslyFocused.current = document.activeElement;
-    panelRef.current?.focus();
+    // preventScroll: a sheet is still parked below the screen here; scrolling it
+    // into view made it jump up before the slide-in (mobile glitch).
+    panelRef.current?.focus({ preventScroll: true });
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -156,8 +158,8 @@ export function Modal({
   // Portal to <body>: a transformed/filtered ancestor would otherwise trap this fixed overlay.
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/40 backdrop-blur-sm ${
-        isSheet ? "items-end sm:items-center sm:p-4" : "items-center p-4 animate-overlay-in"
+      className={`fixed inset-0 z-50 flex justify-center bg-black/40 backdrop-blur-sm ${
+        isSheet ? "items-end overflow-hidden sm:items-center sm:overflow-y-auto sm:p-4" : "items-center overflow-y-auto p-4 animate-overlay-in"
       }`}
       style={isSheet ? { opacity: shown || dragY !== null ? 1 : 0, transition: `opacity ${SHEET_MS}ms ease-out` } : undefined}
       onClick={() => dismissible && onClose()}

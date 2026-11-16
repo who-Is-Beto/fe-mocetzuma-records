@@ -18,6 +18,7 @@ import { PickupBazarInfo } from "./PickupBazarInfo";
 import { PresaleOrderCard } from "./PresaleOrderCard";
 import { isHttpUrl } from "../../app/lib/url";
 import { Img } from "../../components/Img";
+import { clearBag } from "../../app/lib/presaleBag";
 
 export function OrdersPage() {
   useSeo({ title: "Mis órdenes", noindex: true });
@@ -71,6 +72,8 @@ export function OrdersPage() {
       "session_id"
     );
     if (!sessionId) return;
+    // Paid: presales in the cart went into that order (kept until now so a canceled payment keeps them).
+    clearBag();
     let cancelled = false;
     (async () => {
       try {

@@ -6,7 +6,7 @@ import { useAdminOrders } from "../../app/hooks/useAdminOrders";
 import type { Order, OrderStatus } from "../../app/domain/orders";
 import { ORDER_STATUSES, DELIVERY_LABELS } from "../../app/domain/orders";
 import { currency } from "../../app/lib/format";
-import type { AdminPresaleOrder } from "../../app/domain/presales";
+import { presaleAsPedidoStatus, type AdminPresaleOrder } from "../../app/domain/presales";
 import { createPresaleService } from "../../app/services/presaleService";
 import { PresaleShipmentCard } from "./PresaleShipments";
 
@@ -17,10 +17,6 @@ const STATUS_BADGE: Record<OrderStatus, string> = {
   delivered: "bg-emerald-100 text-emerald-700",
   canceled: "bg-red-100 text-red-700"
 };
-
-/** Presale status as a Pedidos status, so the status filter covers both kinds. */
-const presaleOrderStatus = (o: AdminPresaleOrder): OrderStatus =>
-  o.status === "enviado" ? "shipped" : o.status === "entregado" ? "delivered" : o.status === "cancelado" ? "canceled" : "paid";
 
 const presaleMatches = (o: AdminPresaleOrder, q: string) =>
   [o.code, o.buyer_name, o.buyer_email, o.lines_label, ...o.presales.map((p) => p.title)].some((v) =>
@@ -111,7 +107,7 @@ export function ManageOrdersTab() {
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const shipments = presales.filter(
-      (p) => (statusFilter === "all" || presaleOrderStatus(p) === statusFilter) && (!q || presaleMatches(p, q))
+      (p) => (statusFilter === "all" || presaleAsPedidoStatus(p) === statusFilter) && (!q || presaleMatches(p, q))
     );
     return [
       ...filteredOrders.map((order) => ({ date: order.created_at ?? "", order, presale: null })),
@@ -280,6 +276,13 @@ export function ManageOrdersTab() {
                       </span>
                     </div>
                   </div>
+
+                  {o.ships_with_code ? (
+                    <p className="mt-2 rounded-xl bg-orange/10 px-3 py-2 text-xs font-semibold text-navy">
+                      📀 Espera la preventa <span className="font-mono">{o.ships_with_code}</span>: va en la misma caja
+                      (un solo envío). Al marcar la preventa como enviada, este pedido sale con la misma guía.
+                    </p>
+                  ) : null}
 
                   {/* Items + address */}
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">

@@ -1,3 +1,4 @@
+import type { OrderStatus } from "./orders";
 /**
  * Preventas: upcoming records reserved with a deposit (apartado) or paid in
  * full. Mirrors apiApp/serilizers/presales.py. Money arrives as decimal strings.
@@ -245,3 +246,7 @@ export type AdminOrderInput = {
 
 /** Customer-facing progress of a presale order (Mis órdenes). */
 export const PRESALE_STEPS = ["Apartado", "Pagado", "Esperando que llegue a tienda", "Listo"] as const;
+
+/** A presale shipment's status in Pedidos terms, so both kinds share one status filter. */
+export const presaleAsPedidoStatus = (o: Pick<AdminPresaleOrder, "status">): OrderStatus =>
+  o.status === "enviado" ? "shipped" : o.status === "entregado" ? "delivered" : o.status === "cancelado" ? "canceled" : "paid";

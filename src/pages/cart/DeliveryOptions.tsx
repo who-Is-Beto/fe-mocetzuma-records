@@ -16,16 +16,18 @@ const OPTIONS: DeliveryOption[] = [
 type DeliveryOptionsProps = {
   value: DeliveryOptionKey | null;
   onChange: (option: DeliveryOptionKey) => void;
+  /** Options not offered here (presales alone can't be picked up at a bazar). */
+  hidden?: DeliveryOptionKey[];
 };
 
 /**
  * Radio group (accessible semantics, tabbable buttons) for the three
  * delivery methods offered at checkout: one card per row with its icon.
  */
-export function DeliveryOptions({ value, onChange }: DeliveryOptionsProps) {
+export function DeliveryOptions({ value, onChange, hidden }: DeliveryOptionsProps) {
   return (
     <div role="radiogroup" aria-label="Método de entrega" className="grid gap-2">
-      {OPTIONS.map((option) => {
+      {OPTIONS.filter((option) => !hidden?.includes(option.key)).map((option) => {
         const selected = value === option.key;
         return (
           <button

@@ -144,6 +144,8 @@ export function FavoritesPage() {
       <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {shown.map((item, index) => {
           const stillSaved = isSaved(item.record.id);
+          // Others who saved it too (the count, from when the list loaded, includes this user).
+          const others = (item.favorites_count ?? 0) - 1;
           return (
             <li
               key={item.id}
@@ -151,6 +153,11 @@ export function FavoritesPage() {
               className={`reveal relative [&_img]:transition [&_img]:duration-500 ${stillSaved ? "" : "[&_img]:opacity-50 [&_img]:grayscale"}`}
             >
               <Card record={item.record} priority={index < 3} />
+              {others > 0 ? (
+                <p className="mt-2 px-1 text-xs font-semibold text-coral">
+                  <span aria-hidden="true">💛</span> {others} {others === 1 ? "persona más lo tiene" : "personas más lo tienen"} en favoritos
+                </p>
+              ) : null}
               {!stillSaved ? (
                 <p role="status" className="pointer-events-none absolute inset-x-4 top-4 z-10 mr-14 rounded-pill bg-navy/90 px-3 py-1.5 text-center text-[11px] font-semibold text-cream shadow-card">
                   Quitado · toca ♡ para regresarlo

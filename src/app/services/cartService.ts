@@ -19,6 +19,17 @@ export type CartItem = {
   record: Record;
   quantity: number;
   subtotal: number;
+  /** People with this record in favorites right now. */
+  favorites_count?: number;
+};
+
+/** Presales paid in the same checkout as the cart records. */
+export type CheckoutPresale = {
+  items: { option_id: number; quantity: number }[];
+  amount: string;
+  accept_terms: true;
+  /** Home delivery: wait and ship everything in one box (one fee) instead of the records first. */
+  ship_together?: boolean;
 };
 
 export type CartResponse = {
@@ -52,7 +63,8 @@ export type CartRepository = {
     cartCode: string,
     shippedTo: "store" | "home" | "bazar",
     shippingDetails?: ShippingDetails,
-    bazarId?: number
+    bazarId?: number,
+    presale?: CheckoutPresale
   ): Promise<{ checkout_url?: string; session_id?: string }>;
   // Fallback for when the Stripe webhook can't reach the backend (local dev):
   // asks the server to fulfill a paid session on return from checkout.
@@ -134,7 +146,8 @@ export function createCartService(config: CartServiceConfig = {}): CartRepositor
       cartCode: string,
       shippedTo: "store" | "home" | "bazar",
       shippingDetails?: ShippingDetails,
-      bazarId?: number
+      bazarId?: number,
+      presale?: CheckoutPresale
     ) {
       return http<{ checkout_url?: string; session_id?: string }>(
         withBase(baseUrl, "/create-checkout-session"),
@@ -145,7 +158,8 @@ export function createCartService(config: CartServiceConfig = {}): CartRepositor
             cart_code: cartCode,
             shipped_to: shippedTo,
             ...(shippingDetails ? { shipping_details: shippingDetails } : {}),
-            ...(bazarId != null ? { bazar_id: bazarId } : {})
+            ...(bazarId != null ? { bazar_id: bazarId } : {}),
+            ...(presale ? { presale } : {})
           }
         }
       );

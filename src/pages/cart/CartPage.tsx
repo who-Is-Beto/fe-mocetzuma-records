@@ -24,6 +24,10 @@ import {
   type ShippingAddressValues
 } from "./ShippingAddressFields";
 import { currency } from "../../app/lib/format";
+import { presaleTotals, usePresaleBag } from "../../app/lib/presaleBag";
+import { createPresaleService } from "../../app/services/presaleService";
+import { ARRIVAL_TEXT, DEPOSIT_TEXT } from "../../components/presales/presaleText";
+import { CartPresales, type PresalePay } from "./CartPresales";
 
 const SHIPPING_REQUIRED_FIELDS: Array<keyof ShippingDetails> = [
   "fullName",
@@ -79,6 +83,16 @@ export function CartPage() {
   const [locationsZip, setLocationsZip] = useState<string | null>(null);
   const shippingFormRef = useRef<HTMLFormElement | null>(null);
 
+  /* ── Presales picked on their pages, paid in this same checkout ── */
+  const bag = usePresaleBag();
+  const hasPresale = bag.length > 0;
+  const [presalePay, setPresalePay] = useState<PresalePay>("min");
+  // Home delivery with a presale: one box when it arrives (true) or records now + presale later (false).
+  const [shipTogether, setShipTogether] = useState<boolean | null>(null);
+  const [presaleTerms, setPresaleTerms] = useState(false);
+  const [presaleQuote, setPresaleQuote] = useState<{ key: string; amount: number | null; error: string } | null>(null);
+  const presaleService = useMemo(() => createPresaleService({ getToken: () => token ?? null }), [token]);
+
   /* ── Bazar pickup: upcoming bazares to choose from ──
      Fetched through the shared hook once the picker option is selected
      (re-opening the option refreshes the list; errors offer a retry). */
@@ -117,8 +131,6 @@ export function CartPage() {
     !bazaresError &&
     bazares.length === 0;
   const bazarNotSelected = deliveryOption === "bazar" && selectedBazarId == null;
-  const checkoutDisabled =
-    !deliveryOption || isCheckingOut || noBazaresAvailable || bazarNotSelected;
 
   const showToast = (message: string, tone: "error" | "success") => {
     setToast({ message, tone });
@@ -162,6 +174,18 @@ export function CartPage() {
   const cart = data ?? null;
   const cartCode = cart?.cart_code ?? getCartCode();
   const items = cart?.cart_items ?? [];
+  // Only presales, no store records: paid as a presale reservation (pickup at the store or shipping).
+  const presaleOnly = hasPresale && items.length === 0;
+  // One box with the records only makes sense when there are records.
+  const together = presaleOnly ? false : shipTogether;
+  // Records removed while "Recoger en bazar" was picked: presales alone aren't picked up at a bazar.
+  useEffect(() => {
+    if (presaleOnly && deliveryOption === "bazar") setDeliveryOption(null);
+  }, [presaleOnly, deliveryOption]);
+  const presaleHome = hasPresale && deliveryOption === "home";
+  const presaleBlocked = hasPresale && (!presaleTerms || (presaleHome && together === null));
+  const checkoutDisabled =
+    !deliveryOption || isCheckingOut || noBazaresAvailable || bazarNotSelected || presaleBlocked;
 
   // Content signature of the cart (which records × how many). Quantity edits
   // change the package weight, so the shipping quote must be recalculated —
@@ -192,7 +216,8 @@ export function CartPage() {
     token,
     cartCode,
     zip: shippingAddress.zip,
-    enabled: deliveryOption === "home",
+    // Everything in the presale's box: the records have no shipping of their own.
+    enabled: deliveryOption === "home" && items.length > 0 && !(hasPresale && shipTogether === true),
     version: cartSignature
   });
 
@@ -231,6 +256,29 @@ export function CartPage() {
       cancelled = true;
     };
   }, [shippingAddress.zip, locationsZip, cartService]);
+
+  // Presale shipping estimate (with the cart records when it all goes in one box).
+  const presaleZip = shippingAddress.zip.replace(/\D/g, "");
+  const presaleItems = bag.map((l) => ({ option_id: l.option.id, quantity: l.quantity }));
+  const presaleQuoteKey = `${presaleItems.map((i) => `${i.option_id}:${i.quantity}`).join(",")}@${presaleZip}@${together}@${cartSignature}`;
+  useEffect(() => {
+    if (!presaleHome || together === null || presaleZip.length !== 5 || presaleQuote?.key === presaleQuoteKey) return;
+    let alive = true;
+    presaleService
+      .estimateShipping(presaleItems, presaleZip, together ? cartCode ?? undefined : undefined)
+      .then((res) => alive && setPresaleQuote({ key: presaleQuoteKey, amount: Number(res.shipping_estimate), error: "" }))
+      .catch(
+        (err) =>
+          alive &&
+          setPresaleQuote({ key: presaleQuoteKey, amount: null, error: extractErrorMessage(err, "No pudimos cotizar el envío.") })
+      );
+    return () => {
+      alive = false;
+    };
+    // presaleItems / presaleZip are in the key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presaleHome, presaleQuoteKey, presaleQuote?.key, presaleService, cartCode, together]);
+  const presaleShipping = presaleQuote?.key === presaleQuoteKey ? presaleQuote : null;
 
   const handleUpdateQuantity = async (
     itemId: number | string,
@@ -320,7 +368,7 @@ export function CartPage() {
   }, []);
 
   const handleCheckout = async () => {
-    if (!cartCode || items.length === 0) return;
+    if (!presaleOnly && (!cartCode || items.length === 0)) return;
     if (!deliveryOption) {
       showToast("Selecciona un método de entrega para continuar.", "error");
       return;
@@ -352,13 +400,59 @@ export function CartPage() {
       return;
     }
 
+    if (hasPresale && (!presaleTerms || (deliveryOption === "home" && together === null))) {
+      showToast("Revisa las condiciones de tu preventa antes de pagar.", "error");
+      return;
+    }
+    const totals = presaleTotals(bag);
+    const presaleItemsInput = bag.map((l) => ({ option_id: l.option.id, quantity: l.quantity }));
+    const presaleAmount = (presalePay === "full" ? totals.full : totals.minimum).toFixed(2);
+
+    if (presaleOnly) {
+      // No store records: the same reservation as the presale page (one order, one payment).
+      if (deliveryOption === "bazar") {
+        showToast("Las preventas se recogen en la tienda o se envían a domicilio.", "error");
+        return;
+      }
+      setIsCheckingOut(true);
+      try {
+        const { checkout_url } = await presaleService.reserve({
+          items: presaleItemsInput,
+          amount: presaleAmount,
+          delivery: deliveryOption === "home" ? "shipping" : "pickup",
+          ...(deliveryOption === "home" && shippingDetails
+            ? { shipping_details: { ...shippingDetails, zip: shippingDetails.zip.replace(/\D/g, "") } }
+            : {}),
+          accept_terms: true
+        });
+        window.location.assign(checkout_url);
+      } catch (err) {
+        if (isVerificationError(err)) {
+          setBlockedByApi(true);
+          return;
+        }
+        setIsCheckingOut(false);
+        showToast(extractErrorMessage(err, "No se pudo iniciar el pago."), "error");
+      }
+      return;
+    }
+    if (!cartCode) return;
+
     setIsCheckingOut(true);
     try {
       const { checkout_url } = await cartService.createCheckoutSession(
         cartCode,
         deliveryOption,
         shippingDetails ?? undefined,
-        deliveryOption === "bazar" ? selectedBazarId ?? undefined : undefined
+        deliveryOption === "bazar" ? selectedBazarId ?? undefined : undefined,
+        hasPresale
+          ? {
+              items: presaleItemsInput,
+              amount: presaleAmount,
+              accept_terms: true,
+              ...(deliveryOption === "home" ? { ship_together: shipTogether === true } : {})
+            }
+          : undefined
       );
       if (checkout_url) {
         window.location.href = checkout_url;
@@ -456,18 +550,29 @@ export function CartPage() {
   }
 
   // ── Empty cart ──────────────────────────────────────────────────────────
-  if (!cart || items.length === 0) {
+  if ((!cart || items.length === 0) && !presaleOnly) {
     return (
       <StatusPanel
         icon="💿"
         eyebrow="Carrito vacío"
         title="Aún no hay discos girando aquí"
-        text="Explora el catálogo y encuentra tu próximo vinilo favorito."
+        text={
+          hasPresale
+            ? `Tienes ${bag[0].presale.title} en preventa sin apartar. Apártalo desde su página, o agrega discos de la tienda para pagar todo junto.`
+            : "Explora el catálogo y encuentra tu próximo vinilo favorito."
+        }
         actions={
-          <Link to="/catalogo" className={primaryCta}>
-            Explorar el catálogo
-            <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1">→</span>
-          </Link>
+          <>
+            {hasPresale ? (
+              <Link to={`/preventas/${bag[0].presale.slug}`} className={primaryCta}>
+                Apartar mi preventa
+              </Link>
+            ) : null}
+            <Link to="/catalogo" className={hasPresale ? secondaryCta : primaryCta}>
+              Explorar el catálogo
+              <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+            </Link>
+          </>
         }
       />
     );
@@ -475,7 +580,14 @@ export function CartPage() {
 
   // ── Cart with items ─────────────────────────────────────────────────────
   const units = items.reduce((sum, item) => sum + item.quantity, 0);
-  const shippingTotal = deliveryOption === "home" && shippingQuote ? Number(shippingQuote.selected.total) : 0;
+  const recordsShip = deliveryOption === "home" && items.length > 0 && !(hasPresale && shipTogether === true);
+  const recordsTotal = Number(cart?.total_price ?? 0);
+  const shippingTotal = recordsShip && shippingQuote ? Number(shippingQuote.selected.total) : 0;
+  const presaleMoney = presaleTotals(bag);
+  const presaleNow = !hasPresale ? 0 : presalePay === "full" ? presaleMoney.full : presaleMoney.minimum;
+  // Presale shipping is charged today only when it's paid in full; otherwise with the last payment.
+  const presaleShipNow = presaleHome && presalePay === "full" ? presaleShipping?.amount ?? 0 : 0;
+  const presaleLater = hasPresale && presalePay === "min" ? presaleMoney.price - presaleMoney.minimum : 0;
   return (
     <section className="space-y-8">
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
@@ -483,7 +595,7 @@ export function CartPage() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-orange">Carrito</p>
           <h1 className="mt-2 font-display text-3xl leading-tight text-denim sm:text-4xl">Tu carrito</h1>
           <p className="mt-1.5 text-sm text-navy/75">
-            {units} {units === 1 ? "disco listo" : "discos listos"} para girar
+            {presaleOnly ? "Tu preventa, lista para apartar" : `${units} ${units === 1 ? "disco listo" : "discos listos"} para girar`}
           </p>
         </div>
         <CheckoutSteps current={deliveryOption ? 1 : 0} />
@@ -492,6 +604,7 @@ export function CartPage() {
       <div className="grid gap-6 lg:grid-cols-12 lg:items-start lg:gap-8">
         {/* ── Items ── */}
         <div className="min-w-0 lg:col-span-7">
+          {items.length > 0 ? (
           <ul className="divide-y divide-navy/10 overflow-hidden rounded-[24px] border border-navy/10 bg-cream shadow-card">
             {items.map((item, index) => (
               <CartItemRow
@@ -504,6 +617,8 @@ export function CartPage() {
               />
             ))}
           </ul>
+          ) : null}
+          {hasPresale ? <CartPresales lines={bag} pay={presalePay} onPay={setPresalePay} /> : null}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 px-1">
             <Link
               to="/catalogo"
@@ -512,7 +627,7 @@ export function CartPage() {
               <span aria-hidden="true" className="transition-transform duration-300 group-hover:-translate-x-1">←</span>
               Seguir explorando
             </Link>
-            <button
+            {items.length > 0 ? <button
               type="button"
               onClick={() => void handleRemoveAll()}
               disabled={isClearing}
@@ -520,7 +635,7 @@ export function CartPage() {
             >
               {isClearing && <Spinner />}
               {isClearing ? "Vaciando…" : "Vaciar carrito"}
-            </button>
+            </button> : null}
           </div>
         </div>
 
@@ -534,7 +649,11 @@ export function CartPage() {
                 <legend className="text-[11px] font-semibold uppercase tracking-[0.18em] text-orange">
                   ¿Cómo lo recibes?
                 </legend>
-                <DeliveryOptions value={deliveryOption} onChange={setDeliveryOption} />
+                <DeliveryOptions
+                  value={deliveryOption}
+                  onChange={setDeliveryOption}
+                  hidden={presaleOnly ? ["bazar"] : undefined}
+                />
                 {!deliveryOption ? (
                   <p className="text-xs font-semibold text-coral">Selecciona una opción para continuar.</p>
                 ) : null}
@@ -605,19 +724,66 @@ export function CartPage() {
                   </form>
                 </div>
               ) : null}
+
+              {presaleHome && !presaleOnly ? (
+                <fieldset className="page-enter space-y-2 rounded-2xl border border-orange/30 bg-white/80 p-4">
+                  <legend className="sr-only">¿Cómo te enviamos tu preventa y tus discos?</legend>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-orange">
+                    ¿Enviamos todo junto?
+                  </p>
+                  <div role="radiogroup" className="grid gap-2">
+                    {[
+                      {
+                        value: true,
+                        title: "Todo junto, en una caja",
+                        text: "Tus discos esperan a que llegue la preventa. Un solo envío."
+                      },
+                      {
+                        value: false,
+                        title: "Los discos ahora, la preventa después",
+                        text: "Te llegan en dos cajas: pagas dos envíos."
+                      }
+                    ].map((option) => (
+                      <button
+                        key={String(option.value)}
+                        type="button"
+                        role="radio"
+                        aria-checked={shipTogether === option.value}
+                        onClick={() => setShipTogether(option.value)}
+                        className={`min-h-[52px] rounded-2xl border px-3 py-2 text-left text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange ${
+                          shipTogether === option.value
+                            ? "border-orange bg-orange/10 shadow-[inset_0_0_0_1px_theme(colors.orange)]"
+                            : "border-navy/15 bg-white hover:border-orange/60"
+                        }`}
+                      >
+                        <span className="block font-semibold text-navy">{option.title}</span>
+                        <span className="block text-xs text-navy/70">{option.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {shipTogether === null ? <p className="text-xs font-semibold text-coral">Elige una opción para continuar.</p> : null}
+                </fieldset>
+              ) : hasPresale && deliveryOption ? (
+                <p className="rounded-2xl bg-sun/30 px-4 py-3 text-xs leading-relaxed text-navy">
+                  📀 Tu preventa la recoges en la tienda cuando llegue{deliveryOption === "bazar" ? " (no en el bazar)" : ""}, con tu
+                  código de preventa.
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-4 border-t border-navy/10 bg-white/60 p-5 sm:p-6">
               <dl className="space-y-2 text-sm">
+                {items.length > 0 ? (
                 <div className="flex items-center justify-between gap-3">
                   <dt className="text-navy/75">
                     Subtotal · {units} {units === 1 ? "disco" : "discos"}
                   </dt>
-                  <dd className="font-semibold tabular-nums text-navy">{currency(cart.total_price)}</dd>
+                  <dd className="font-semibold tabular-nums text-navy">{currency(recordsTotal)}</dd>
                 </div>
-                {deliveryOption === "home" ? (
+                ) : null}
+                {recordsShip ? (
                   <div className="flex items-start justify-between gap-3">
-                    <dt className="text-navy/75">Envío</dt>
+                    <dt className="text-navy/75">{hasPresale ? "Envío de los discos" : "Envío"}</dt>
                     <dd className="text-right font-semibold text-navy">
                       {isQuoting ? (
                         <Skeleton className="ml-auto h-4 w-24" />
@@ -633,19 +799,74 @@ export function CartPage() {
                       )}
                     </dd>
                   </div>
-                ) : deliveryOption ? (
+                ) : deliveryOption && deliveryOption !== "home" ? (
                   <div className="flex items-center justify-between gap-3">
                     <dt className="text-navy/75">Entrega</dt>
                     <dd className="font-semibold text-green-700">Sin costo</dd>
                   </div>
                 ) : null}
+                {hasPresale ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-navy/75">Preventa · {presalePay === "full" ? "pago completo" : "apartado"}</dt>
+                    <dd className="font-semibold tabular-nums text-navy">{currency(presaleNow)}</dd>
+                  </div>
+                ) : null}
+                {presaleHome && together !== null ? (
+                  <div className="flex items-start justify-between gap-3">
+                    <dt className="text-navy/75">{together ? "Envío de todo junto" : "Envío de la preventa"}</dt>
+                    <dd className="text-right font-semibold text-navy">
+                      {presaleShipping?.error ? (
+                        <span className="font-normal text-coral">{presaleShipping.error}</span>
+                      ) : presaleShipping?.amount == null ? (
+                        <span className="font-normal text-navy/75">
+                          {presaleZip.length === 5 ? "Cotizando…" : "Ingresa tu código postal"}
+                        </span>
+                      ) : presalePay === "full" ? (
+                        <span className="tabular-nums">{currency(presaleShipping.amount)}</span>
+                      ) : (
+                        <span className="block text-xs font-normal text-navy/75">
+                          Aprox. {currency(presaleShipping.amount)}, se paga al liquidar
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                ) : null}
                 <div className="flex items-end justify-between gap-3 border-t border-navy/10 pt-3">
                   <dt className="font-semibold text-navy">Total</dt>
                   <dd className="font-display text-2xl text-denim sm:text-[1.7rem]">
-                    {currency(Number(cart.total_price) + shippingTotal)}
+                    {currency(recordsTotal + shippingTotal + presaleNow + presaleShipNow)}
                   </dd>
                 </div>
+                {presaleLater > 0 ? (
+                  <p className="text-right text-xs text-navy/70">
+                    Después liquidas {currency(presaleLater)} de la preventa (120 días)
+                  </p>
+                ) : null}
               </dl>
+
+              {hasPresale ? (
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-navy/10 bg-white/80 p-3 text-xs leading-relaxed text-navy">
+                  <input
+                    type="checkbox"
+                    checked={presaleTerms}
+                    onChange={(e) => setPresaleTerms(e.target.checked)}
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-orange"
+                  />
+                  <span>
+                    {presalePay === "full" ? ARRIVAL_TEXT : DEPOSIT_TEXT}{" "}
+                    {presaleOnly
+                      ? ""
+                      : presaleHome && shipTogether === true
+                      ? "Mis discos de la tienda esperan a que llegue la preventa y se envían juntos, con un solo envío."
+                      : presaleHome && shipTogether === false
+                        ? "Mis discos de la tienda se envían ahora y la preventa cuando llegue: pago dos envíos."
+                        : ""}{" "}
+                    <Link to="/terminos-y-condiciones#preventa-y-carrito" className="font-semibold underline underline-offset-2 hover:text-orange">
+                      Condiciones
+                    </Link>
+                  </span>
+                </label>
+              ) : null}
 
               <Button
                 tone="orange"

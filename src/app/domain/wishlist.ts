@@ -8,6 +8,8 @@ export type WishlistItem = {
   id: number;
   record: Record;
   added_at: string;
+  /** Everyone with this record in favorites right now, this user included. */
+  favorites_count?: number;
 };
 
 /** GET /wishlist/ — newest first. */

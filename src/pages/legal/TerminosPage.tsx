@@ -139,6 +139,15 @@ export function TerminosPage() {
               disco llega a la tienda y se paga junto con tu último pago. Si pagas completo al apartar, el envío se
               cobra en ese momento al precio cotizado y ya no cambia.
             </li>
+            <li id="preventa-y-carrito">
+              <strong>Preventa y discos de la tienda en el mismo pedido:</strong> puedes pagar tu preventa junto con
+              discos que ya están en la tienda. Si pides envío a domicilio, eliges al pagar:{" "}
+              <em>todo junto</em>, los discos de la tienda esperan a que llegue tu preventa y se envían en una sola
+              caja con un solo costo de envío (se cobra con tu último pago de la preventa, o al pagar si la pagas
+              completa); o <em>por separado</em>, los discos de la tienda se envían en cuanto pagas y la preventa
+              cuando llegue, por lo que <strong>pagas dos envíos</strong>. Si recoges en tienda o en un bazar, la
+              preventa se recoge en la tienda cuando llegue.
+            </li>
             <li>
               <strong>Entrega:</strong> el disco se entrega únicamente al presentar tu código de preventa (por ejemplo
               PV-7K3Q) o su código QR, y solo cuando la preventa está pagada por completo.

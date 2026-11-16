@@ -7,7 +7,7 @@ import { useAuth } from "../../app/providers/AuthProvider";
 import { createCartService, type ShippingLocation } from "../../app/services/cartService";
 import { createPresaleService } from "../../app/services/presaleService";
 import { clearBag, type BagPresale } from "../../app/lib/presaleBag";
-import { shortDate } from "../../components/presales/presaleText";
+import { ARRIVAL_TEXT, DEPOSIT_TEXT, shortDate } from "../../components/presales/presaleText";
 import { REQUIRED_ADDRESS_FIELDS } from "../cart/addressFields";
 import { ShippingAddressFields, type ShippingAddressValues } from "../cart/ShippingAddressFields";
 import { ReviewSheet } from "./ReviewSheet";
@@ -26,11 +26,6 @@ const EMPTY_ADDRESS: ShippingAddressValues = {
   reference: ""
 };
 
-// Paying in full there's nothing left to settle: what they agree to is the arrival.
-const ARRIVAL_TEXT =
-  "Entiendo que la fecha de llegada es estimada y que las copias pueden llegar a la tienda en varios envíos. Me avisan en cuanto llegue la mía.";
-const DEPOSIT_TEXT =
-  "Acepto que tengo 120 días desde hoy para liquidar mi preventa; si no, pierdo mi apartado. La fecha de llegada es estimada.";
 
 const money = (n: number) => Math.round(n * 100) / 100;
 const addDays = (days: number) => {
