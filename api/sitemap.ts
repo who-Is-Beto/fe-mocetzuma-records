@@ -13,6 +13,7 @@ const API_URL = (
 const STATIC_PATHS = [
   { path: "/", priority: "1.0", changefreq: "daily" },
   { path: "/catalogo", priority: "0.9", changefreq: "daily" },
+  { path: "/preventas", priority: "0.8", changefreq: "daily" },
   { path: "/bazares", priority: "0.6", changefreq: "weekly" },
   { path: "/ayuda", priority: "0.3", changefreq: "monthly" },
   { path: "/contacto", priority: "0.3", changefreq: "monthly" },
@@ -47,14 +48,33 @@ async function recordSlugs(): Promise<string[]> {
   return slugs;
 }
 
+/** Published presales (one request; a failure just leaves them out). */
+async function presaleSlugs(): Promise<string[]> {
+  try {
+    const res = await fetch(`${API_URL}/presales/`, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return [];
+    return ((await res.json()) as { slug: string }[]).map((p) => p.slug).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 export async function GET(request: Request): Promise<Response> {
   const origin = new URL(request.url).origin;
+  const [records, presales] = await Promise.all([recordSlugs(), presaleSlugs()]);
   const urls = [
     ...STATIC_PATHS.map(
       ({ path, priority, changefreq }) =>
         `<url><loc>${origin}${path}</loc><changefreq>${changefreq}</changefreq><priority>${priority}</priority></url>`
     ),
-    ...(await recordSlugs()).map(
+    ...presales.map(
+      (slug) =>
+        `<url><loc>${escapeXml(`${origin}/preventas/${encodeURIComponent(slug)}`)}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>`
+    ),
+    ...records.map(
       (slug) =>
         `<url><loc>${escapeXml(`${origin}/records/${encodeURIComponent(slug)}`)}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`
     ),

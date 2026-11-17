@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { Record as RecordItem, RecordPage } from "../../app/domain/album";
 import { getEffectivePrice } from "../../app/domain/album";
@@ -11,6 +11,7 @@ import { useMaintenanceStatusValue } from "../../app/providers/MaintenanceStatus
 import { T } from "../../app/i18n/strings";
 import { useSeo } from "../../app/hooks/useSeo";
 import { currency, formatEventDate, getDateParts } from "../../app/lib/format";
+import { Carousel } from "../../components/Carousel";
 import { Img } from "../../components/Img";
 import { Reveal } from "../../components/Reveal";
 import { HeartButton } from "../../components/HeartButton";
@@ -314,7 +315,7 @@ function LatestArrivals({ records, loading }: { records: RecordItem[]; loading: 
       </Reveal>
 
       {loading ? (
-        <Carousel label="Cargando los recién llegados" busy>
+        <Carousel label="Cargando los recién llegados" busy prevLabel="Discos anteriores" nextLabel="Más discos">
           {Array.from({ length: 5 }, (_, i) => (
             <li key={i} className={slideClass}>
               <Skeleton className="aspect-square w-full rounded-2xl" />
@@ -325,7 +326,7 @@ function LatestArrivals({ records, loading }: { records: RecordItem[]; loading: 
           ))}
         </Carousel>
       ) : records.length > 0 ? (
-        <Carousel label="Recién llegados">
+        <Carousel label="Recién llegados" prevLabel="Discos anteriores" nextLabel="Más discos">
           {records.map((record, index) => (
             <Reveal
               as="li"
@@ -346,79 +347,6 @@ function LatestArrivals({ records, loading }: { records: RecordItem[]; loading: 
 
 /** Slide widths: 2 + a peek on phones, 3 on tablets, 4 on desktop (the peek says "swipe"). */
 const slideClass = "w-[44%] shrink-0 snap-start min-[480px]:w-[38%] sm:w-[31%] lg:w-[calc(25%-1.125rem)]";
-
-/**
- * Horizontal carousel on native scrolling: swipe, trackpad and arrow keys
- * just work, slides snap into place. Arrow buttons page by one screenful and
- * a thin bar shows how far along you are. On phones the track bleeds to the
- * screen edges so slides glide out instead of being cut at the gutter.
- */
-function Carousel({ label, busy = false, children }: { label: string; busy?: boolean; children: ReactNode }) {
-  const trackRef = useRef<HTMLUListElement>(null);
-  const [position, setPosition] = useState({ start: true, end: false, progress: 0, visible: 1 });
-
-  const measure = useCallback(() => {
-    const track = trackRef.current;
-    if (!track) return;
-    const max = track.scrollWidth - track.clientWidth;
-    setPosition({
-      start: track.scrollLeft <= 4,
-      end: track.scrollLeft >= max - 4,
-      progress: max > 0 ? track.scrollLeft / max : 0,
-      visible: track.scrollWidth > 0 ? track.clientWidth / track.scrollWidth : 1
-    });
-  }, []);
-
-  useEffect(() => {
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [measure, children]);
-
-  const page = (direction: 1 | -1) => {
-    const track = trackRef.current;
-    if (!track) return;
-    // One screenful minus a slide, so the last visible slide stays as context.
-    track.scrollBy({ left: direction * track.clientWidth * 0.8, behavior: "smooth" });
-  };
-
-  const arrow =
-    "flex h-11 w-11 items-center justify-center rounded-full border border-navy/15 bg-cream text-navy shadow-card transition duration-300 hover:-translate-y-0.5 hover:border-orange hover:text-orange disabled:pointer-events-none disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange";
-
-  return (
-    <div role="region" aria-roledescription="carrusel" aria-label={label} aria-busy={busy || undefined} className="mt-8">
-      <ul
-        ref={trackRef}
-        onScroll={measure}
-        tabIndex={0}
-        className="-mx-6 flex snap-x snap-mandatory scroll-px-6 gap-3 overflow-x-auto px-6 pb-4 pt-1 outline-none [scrollbar-width:none] focus-visible:ring-2 focus-visible:ring-orange/40 sm:gap-5 md:-mx-10 md:scroll-px-10 md:px-10 lg:mx-0 lg:scroll-px-0 lg:gap-6 lg:px-0 [&::-webkit-scrollbar]:hidden"
-      >
-        {children}
-      </ul>
-
-      {/* Controls: progress bar always (it doubles as a "there's more" hint); arrows from sm */}
-      <div className="mt-3 flex items-center gap-4">
-        <div className="h-1 flex-1 overflow-hidden rounded-full bg-navy/10" aria-hidden="true">
-          <div
-            className="h-full rounded-full bg-orange transition-[margin,width] duration-300 ease-out"
-            style={{
-              width: `${Math.max(position.visible, 0.1) * 100}%`,
-              marginLeft: `${position.progress * (1 - Math.max(position.visible, 0.1)) * 100}%`
-            }}
-          />
-        </div>
-        <div className="hidden gap-2 sm:flex">
-          <button type="button" className={arrow} onClick={() => page(-1)} disabled={position.start} aria-label="Discos anteriores">
-            <span aria-hidden="true">←</span>
-          </button>
-          <button type="button" className={arrow} onClick={() => page(1)} disabled={position.end} aria-label="Más discos">
-            <span aria-hidden="true">→</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /** Cover-first tile: the sleeve does the selling, details stay quiet underneath. */
 function RecordTile({ record }: { record: RecordItem }) {

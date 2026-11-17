@@ -32,6 +32,18 @@ export const closingLabel = (deadline: string): string => {
   return `Aparta hasta el ${shortDate(deadline)}`;
 };
 
+/**
+ * What the public lists show: presales still before their deadline, open ones
+ * first, then the soonest to close (sold-out ones stay until their date).
+ */
+export const visiblePresales = (presales: Presale[]): Presale[] =>
+  presales
+    .filter((p) => daysUntil(p.purchase_deadline) >= 0)
+    .sort(
+      (a, b) =>
+        Number(b.is_open) - Number(a.is_open) || a.purchase_deadline.localeCompare(b.purchase_deadline)
+    );
+
 export const activeOptions = (presale: Presale): PresaleOption[] => presale.options.filter((o) => o.is_active);
 
 export const copiesSummary = (presale: Presale) => {

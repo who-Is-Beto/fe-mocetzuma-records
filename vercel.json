@@ -44,6 +44,17 @@
       ]
     },
     {
+      "source": "/preventas",
+      "destination": "/api/presale-meta?list=1",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(bot|Bot|BOT|facebookexternalhit|Facebot|WhatsApp|Slack|Discord|Telegram|Pinterest|Embedly|Iframely|SkypeUriPreview|vkShare|Quora).*"
+        }
+      ]
+    },
+    {
       "source": "/preventas/:slug",
       "destination": "/api/presale-meta?slug=:slug",
       "has": [

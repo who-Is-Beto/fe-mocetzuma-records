@@ -72,6 +72,9 @@ const FavoritesPage = lazy(() =>
 const PresalePage = lazy(() =>
   import("../../pages/presales/PresalePage").then((m) => ({ default: m.PresalePage }))
 );
+const PresalesListPage = lazy(() =>
+  import("../../pages/presales/PresalesListPage").then((m) => ({ default: m.PresalesListPage }))
+);
 const PresaleSubscriptionPage = lazy(() =>
   import("../../pages/presales/SubscriptionPage").then((m) => ({ default: m.SubscriptionPage }))
 );
@@ -102,6 +105,7 @@ export const router = createBrowserRouter([
       { path: "carrito", element: <CartPage /> },
       { path: "favoritos", element: <FavoritesPage /> },
       { path: "encargar", element: <RecordRequestPage /> },
+      { path: "preventas", element: <PresalesListPage /> },
       { path: "preventas/confirmar", element: <PresaleSubscriptionPage mode="confirm" /> },
       { path: "preventas/baja", element: <PresaleSubscriptionPage mode="unsubscribe" /> },
       { path: "preventas/:slug", element: <PresalePage /> },

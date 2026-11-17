@@ -21,6 +21,7 @@ type LayoutProps = {
 };
 
 const footerLinks = [
+  { label: "Preventas", to: "/preventas" },
   { label: "Contacto", to: "/contacto" },
   { label: "Términos y condiciones", to: "/terminos-y-condiciones" },
   { label: "Privacidad", to: "/politica-de-privacidad" },

@@ -177,3 +177,13 @@
     scroll-behavior: auto !important;
   }
 }
+
+@layer utilities {
+  /* Horizontal tracks (carousels): scroll by touch, wheel or keys without a visible bar. */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
